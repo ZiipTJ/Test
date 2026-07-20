@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suivi SN PRODUCTION SMR</title>
+    <style>
+        :root {
+            /* Palette conservée */
+            --slate-900: #0f172a;
+            --slate-800: #1e293b;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-500: #64748b;
+            --slate-400: #94a3b8;
+            --slate-300: #cbd5e1;
+            --slate-200: #e2e8f0;
+            --slate-100: #f1f5f9;
+            --slate-50:  #f8fafc;
+            --emerald:   #10b981;
+            --emerald-d: #059669;
+            --blue:      #2563eb;
+            --blue-d:    #1d4ed8;
+            --red:       #ef4444;
+            --red-d:     #dc2626;
+            --amber:     #f59e0b;
+
+            --radius:    0.5rem;
+            --radius-lg: 0.75rem;
+            --shadow-sm: 0 1px 2px rgba(15,23,42,0.06);
+            --shadow:    0 2px 8px -2px rgba(15,23,42,0.12);
+            --shadow-lg: 0 12px 28px -8px rgba(15,23,42,0.25);
+            --ring:      0 0 0 3px rgba(37,99,235,0.18);
+            --transition: 0.18s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--slate-50);
+            background-image: radial-gradient(circle at 100% 0%, rgba(37,99,235,0.05), transparent 45%),
+                              radial-gradient(circle at 0% 100%, rgba(16,185,129,0.05), transparent 45%);
+            color: var(--slate-800);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Scrollbars discrètes */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--slate-400); background-clip: padding-box; }
+
+        nav {
+            background: linear-gradient(120deg, #0f172a 0%, #1a2842 100%);
+            color: #ffffff;
+            padding: 0.9rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 14px -4px rgba(15,23,42,0.35);
+            position: sticky;
+            top: 0;
+            z-index: 40;
+        }
+        .nav-brand { display: flex; align-items: center; gap: 0.75rem; }
+        .nav-brand .brand-logo {
+            width: 38px; height: 38px; border-radius: 0.6rem; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--emerald), var(--blue));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.15rem; box-shadow: 0 4px 10px -2px rgba(16,185,129,0.4);
+        }
+        .nav-brand h1 { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; }
+        .nav-brand p { font-size: 0.75rem; color: var(--slate-400); margin-top: 1px; }
+        .nav-buttons { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+
+        button {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            border: 1px solid transparent;
+            transition: transform var(--transition), background-color var(--transition), box-shadow var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        button:active { transform: translateY(1px); }
+        .btn-primary { background-color: var(--emerald); color: #fff; box-shadow: 0 2px 6px -1px rgba(16,185,129,0.4); }
+        .btn-primary:hover { background-color: var(--emerald-d); box-shadow: 0 4px 10px -2px rgba(16,185,129,0.5); }
+        .btn-secondary { background-color: var(--slate-700); color: #fff; border-color: var(--slate-600); }
+        .btn-secondary:hover { background-color: var(--slate-800); }
+        .btn-blue { background-color: var(--blue); color: #fff; box-shadow: 0 2px 6px -1px rgba(37,99,235,0.4); }
+        .btn-blue:hover { background-color: var(--blue-d); box-shadow: 0 4px 10px -2px rgba(37,99,235,0.5); }
+        .btn-gray { background-color: var(--slate-200); color: var(--slate-700); }
+        .btn-gray:hover { background-color: var(--slate-300); }
+        .btn-red { background-color: var(--red); color: #fff; }
+        .btn-red:hover { background-color: var(--red-d); }
+
+        .app-container { flex: 1; display: flex; overflow: hidden; }
+
+        aside {
+            width: 340px;
+            background-color: #ffffff;
+            border-right: 1px solid var(--slate-200);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .aside-header { padding: 1rem; border-bottom: 1px solid var(--slate-200); background-color: var(--slate-50); }
+        .aside-header h2 {
+            font-size: 0.75rem; font-weight: 700; color: var(--slate-600);
+            text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.65rem;
+        }
+        .grid-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        .tab-btn {
+            font-size: 0.625rem; font-weight: 800; text-transform: uppercase;
+            padding: 0.55rem; border-radius: var(--radius); text-align: center;
+            justify-content: center; letter-spacing: 0.02em;
+        }
+        .tab-active { background-color: var(--slate-900); color: #fff; box-shadow: var(--shadow-sm); }
+        .tab-inactive { background-color: var(--slate-200); color: var(--slate-600); }
+        .tab-inactive:hover { background-color: var(--slate-300); }
+
+        .search-container { padding: 0.65rem; border-bottom: 1px solid var(--slate-100); }
+        .search-container input {
+            width: 100%; border: 1px solid var(--slate-200); border-radius: var(--radius);
+            padding: 0.4rem 0.75rem; font-size: 0.75rem; outline: none; transition: box-shadow var(--transition), border-color var(--transition);
+        }
+        .search-container input:focus { border-color: var(--blue); box-shadow: var(--ring); }
+
+        .sidebar-list { flex: 1; overflow-y: auto; padding: 0.5rem; }
+        .sidebar-card {
+            padding: 0.75rem; margin-bottom: 0.5rem; border-radius: var(--radius);
+            border-left: 5px solid var(--slate-300); background-color: #fff;
+            cursor: pointer; transition: transform var(--transition), box-shadow var(--transition), background-color var(--transition);
+            box-shadow: var(--shadow-sm);
+        }
+        .sidebar-card:hover { background-color: var(--slate-50); transform: translateX(2px); box-shadow: var(--shadow); }
+        .sidebar-card.selected { background-color: var(--slate-100); outline: 2px solid var(--slate-900); }
+
+        main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .warning-panel {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 2rem; text-align: center; background-color: var(--slate-100);
+        }
+        .form-panel { flex: 1; overflow-y: auto; padding: 1.5rem; width: 100%; margin: 0 auto; }
+        .form-card {
+            background-color: #ffffff; border-radius: var(--radius-lg); border: 1px solid var(--slate-200);
+            padding: 2rem; box-shadow: var(--shadow); animation: fadeIn 0.25s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .form-header {
+            border-bottom: 1px solid var(--slate-100); padding-bottom: 1rem; margin-bottom: 1.5rem;
+            display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+        }
+        .form-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 1.5rem; }
+        @media (min-width: 768px) { .form-grid { grid-template-columns: repeat(3, 1fr); } }
+        .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+        label { font-size: 0.875rem; font-weight: 600; color: var(--slate-700); padding-left: 0.125rem; }
+
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%; border: 1px solid var(--slate-300); border-radius: var(--radius);
+            padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none; background-color: #fff;
+            transition: box-shadow var(--transition), border-color var(--transition); font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shadow: var(--ring); }
+
+        .prefix-input { display: flex; }
+        .prefix {
+            background-color: var(--slate-100); border: 1px solid var(--slate-300); border-right: none;
+            padding: 0.5rem 0.75rem; font-size: 0.875rem; font-weight: 700; color: var(--slate-500);
+            border-top-left-radius: var(--radius); border-bottom-left-radius: var(--radius); display: flex; align-items: center;
+        }
+        .prefix-input input { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+
+        .options-box {
+            background-color: var(--slate-50); border: 1px solid var(--slate-300); border-radius: var(--radius);
+            padding: 0.75rem; max-height: 14rem; overflow-y: auto;
+        }
+        .opt-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.25rem; border-radius: 0.3rem; transition: background-color var(--transition); }
+        .opt-row:hover { background-color: var(--slate-100); }
+
+        .hidden { display: none !important; }
+        .danger-msg {
+            background-color: #fef2f2; color: var(--red-d); border: 1px solid #fca5a5;
+            padding: 0.5rem; font-size: 0.75rem; font-weight: 700; border-radius: 0.3rem; margin-top: 0.5rem;
+        }
+
+        .scan-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; background-color: #ffffff; }
+        .scan-header {
+            background: linear-gradient(180deg, #ffffff, var(--slate-50));
+            border-bottom: 1px solid var(--slate-200); padding: 1.5rem;
+            display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1.5rem;
+        }
+        .active-badge {
+            font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 9999px;
+            color: #fff; box-shadow: var(--shadow-sm); letter-spacing: 0.02em;
+        }
+        .scan-action-bar {
+            background-color: #ffffff; border-bottom: 1px solid var(--slate-200); padding: 1rem 1.5rem;
+            display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+        }
+        .scan-action-buttons { display: flex; gap: 0.75rem; align-items: center; }
+        .scan-body { flex: 1; overflow-y: auto; padding: 1.5rem; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.875rem; }
+        th, td { padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--slate-200); white-space: nowrap; }
+        td.normal-wrap, th.normal-wrap { white-space: normal; }
+        th {
+            background-color: var(--slate-50); font-weight: 600; color: var(--slate-500);
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em;
+            position: sticky; top: 0; z-index: 1;
+        }
+        tbody tr { transition: background-color var(--transition); }
+        tbody tr:hover { background-color: var(--slate-50); }
+        .scanned-row, .scanned-row:hover { background-color: #f0fdf4 !important; }
+
+        .status-badge { display: inline-flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; font-weight: 700; }
+        .dot { height: 0.625rem; width: 0.625rem; border-radius: 50%; display: inline-block; }
+        .dot-green { background-color: var(--emerald); box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
+        .dot-amber { background-color: var(--amber); box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
+
+        .section-title {
+            font-size: 0.75rem; font-weight: 700; color: var(--slate-400);
+            text-transform: uppercase; letter-spacing: 0.03em;
+        }
+        .table-wrap { overflow: hidden; border: 1px solid var(--slate-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+
+        .modal {
+            position: fixed; inset: 0; background-color: rgba(15,23,42,0.55); backdrop-filter: blur(2px);
+            display: flex; align-items: center; justify-content: center; z-index: 50; padding: 0 1rem;
+            animation: fadeIn 0.15s ease;
+        }
+        .modal-content {
+            background-color: #ffffff; border-radius: var(--radius-lg); width: 100%; max-width: 480px;
+            overflow: hidden; box-shadow: var(--shadow-lg); animation: popIn 0.2s cubic-bezier(0.2,0.8,0.3,1.1);
+        }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: none; } }
+        .modal-header { background-color: var(--slate-900); color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h3 { font-weight: 700; }
+        .modal-body { padding: 1.5rem; }
+        .modal-footer { background-color: var(--slate-50); padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 0.5rem; border-top: 1px solid var(--slate-200); }
+
+        .progress-container {
+            display: flex; align-items: center; gap: 0.75rem; background-color: #fff;
+            padding: 0.75rem 1rem; border-radius: var(--radius); border: 1px solid var(--slate-200); box-shadow: var(--shadow-sm);
+        }
+        .progress-bar-bg { width: 5rem; height: 0.45rem; background-color: var(--slate-200); border-radius: 9999px; overflow: hidden; }
+        .progress-bar-fill {
+            height: 100%; background: linear-gradient(90deg, var(--emerald), var(--emerald-d));
+            width: 0; transition: width 0.4s ease; border-radius: 9999px;
+        }
+
+        .recap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-top: 1rem; width: 100%; }
+        .recap-item { background-color: #fff; border: 1px solid var(--slate-200); padding: 0.6rem 0.875rem; border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+        .recap-label { font-size: 0.625rem; text-transform: uppercase; color: var(--slate-500); font-weight: 700; letter-spacing: 0.025em; }
+        .recap-value { font-size: 0.875rem; color: var(--slate-800); font-weight: 600; margin-top: 0.125rem; word-break: break-word; }
+        .recap-item.recap-remark { border-color: #fca5a5; background-color: #fef2f2; }
+        .recap-item.recap-remark .recap-label { color: #b91c1c; }
+        .recap-item.recap-remark .recap-value { color: #991b1b; font-weight: 700; }
+
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content {
+            display: none; position: absolute; right: 0; background-color: #fff; min-width: 240px;
+            box-shadow: var(--shadow-lg); border-radius: var(--radius); border: 1px solid var(--slate-200); z-index: 10; overflow: hidden; margin-top: 0.35rem;
+        }
+        .dropdown-content button { width: 100%; text-align: left; background: none; border: none; padding: 0.75rem 1rem; font-size: 0.8125rem; color: var(--slate-700); font-weight: 500; border-radius: 0; }
+        .dropdown-content button:hover { background-color: var(--slate-100); color: var(--slate-900); }
+        .dropdown:hover .dropdown-content { display: block; }
+
+        @media (max-width: 900px) {
+            aside { width: 280px; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-brand">
+            <div class="brand-logo">🤖</div>
+            <div>
+                <h1>Suivi SN PRODUCTION SMR</h1>
+                <p>Suivi d'assemblage, Robots &amp; Stations de charge</p>
+            </div>
+        </div>
+        <div class="nav-buttons">
+            <button onclick="showEnvoisConsultationView()" class="btn-secondary">
+                📦 Liste envois
+            </button>
+            <input type="file" id="importConfigInput" accept=".json" onchange="handleFileImport(event)" class="hidden">
+            <button onclick="document.getElementById('importConfigInput').click()" class="btn-primary">
+                📥 Importer config.json
+            </button>
+            <button onclick="exportWorkspace()" class="btn-blue">
+                📤 Exporter Données (JSON)
+            </button>
+        </div>
+    </nav>
+
+    <div class="app-container">
+
+        <aside>
+            <div class="aside-header">
+                <h2>🗂️ Éléments Créés</h2>
+                <div class="grid-tabs">
+                    <button onclick="setCreationType('robot')" id="btnTabRobot" class="tab-btn tab-active">
+                        + Robot
+                    </button>
+                    <button onclick="setCreationType('station')" id="btnTabStation" class="tab-btn tab-inactive">
+                        + Station Charge
+                    </button>
+                </div>
+                <button onclick="setCreationType('envoi')" id="btnTabEnvoi" class="tab-btn tab-inactive" style="width: 100%; margin-top: 0.5rem; display: block;">
+                    + Préparation Envoi
+                </button>
+            </div>
+
+            <div class="search-container">
+                <input id="searchElement" type="text" oninput="renderSidebarList()" placeholder="🔍 Rechercher...">
+            </div>
+
+            <div id="sidebarList" class="sidebar-list">
+            </div>
+        </aside>
+
+        <main>
+
+            <div id="noConfigWarning" class="warning-panel">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">Aucune configuration détectée</h2>
+                <p style="font-size: 0.875rem; color: #64748b; max-width: 400px; margin-bottom: 1.5rem;">
+                    Veuillez importer votre fichier de configuration <strong>config.json</strong> pour commencer à travailler.
+                </p>
+                <button onclick="document.getElementById('importConfigInput').click()" class="btn-primary" style="padding: 0.75rem 1.5rem;">
+                    Importer le fichier de configuration
+                </button>
+            </div>
+
+            <div id="robotFormPanel" class="form-panel">
+                <div class="form-card">
+                    <div class="form-header">
+                        <div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700;">Nouveau Robot</h2>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Créez un robot avec la configuration technique requise.</p>
+                        </div>
+                        <span id="formRobotBadge" class="active-badge" style="background-color: #2563eb;">Robot</span>
+                    </div>
+
+                    <form onsubmit="handleCreateRobot(event)" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>* N°</label>
+                                <input id="formNum" type="number" placeholder="355">
+                            </div>
+                            <div class="form-group">
+                                <label>* Type du robot</label>
+                                <select id="formType" onchange="onRobotTypeChange()">
+                                    <option value="">Sélectionnez...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Top</label>
+                                <select id="formTop" onchange="onTopChange()" disabled>
+                                    <option value="">Sélectionnez un top...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>* Version HARD</label>
+                                <select id="formHard">
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>* Client</label>
+                                <input id="formClient" type="text" placeholder="Ex: Renault">
+                            </div>
+                            <div class="form-group">
+                                <label>* N° de projet</label>
+                                <div class="prefix-input">
+                                    <span class="prefix">PR</span>
+                                    <input id="formProjectNum" type="text" maxlength="7" placeholder="2604339" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Options</label>
+                                <div id="optionsDynamicContainer" class="options-box">
+                                    <div style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Choisissez d'abord un type de robot.</div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Hauteur | minimum : mm</label>
+                                <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <div id="minHeightArea">
+                                        <div style="font-size: 0.75rem; color: #64748b;">
+                                            Indication minimum : <span id="lblMinHeight" style="font-weight: 700; color: #1e293b;">-- mm</span>
+                                        </div>
+                                        <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                                            <label style="font-size: 0.625rem; text-transform: uppercase; font-weight: 700; color: #94a3b8;">Ma Hauteur :</label>
+                                            <input id="formUserHeight" type="number" oninput="validateHeight()" placeholder="Entrez la hauteur..." style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                        </div>
+                                        <div id="heightWarning" class="danger-msg hidden">
+                                            ⚠️ Trop bas !
+                                        </div>
+                                    </div>
+                                    <div id="heightNotAvailable" style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">
+                                        Indisponible pour ce type.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>* Saisie par</label>
+                                <input id="formOperator" type="text" maxlength="3" placeholder="ABC" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Remarques</label>
+                            <textarea id="formRemarks" rows="2" placeholder="Informations complémentaires..."></textarea>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 1rem;">
+                            <button type="button" onclick="resetRobotForm()" class="btn-gray">Annuler</button>
+                            <button type="submit" class="btn-primary">Valider et Créer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="stationFormPanel" class="form-panel hidden">
+                <div class="form-card">
+                    <div class="form-header">
+                        <div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700;">Nouvelle Station de Charge</h2>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Générez une station de charge avec incrémentation automatique du numéro.</p>
+                        </div>
+                        <span class="active-badge" style="background-color: #d97706;">Station</span>
+                    </div>
+
+                    <form onsubmit="handleCreateStation(event)" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>* Type de Station</label>
+                                <select id="formStationType" required onchange="updateStationNextNumberLabel()">
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Prochain Numéro Attribué</label>
+                                <div style="padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 700; font-size: 0.875rem;" id="lblStationExample">
+                                    --
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>* Saisie par</label>
+                                <input id="formStationOperator" type="text" required maxlength="3" placeholder="ABC" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="form-group">
+                                <label>* Client</label>
+                                <input id="formStationClient" type="text" required placeholder="Ex: Renault">
+                            </div>
+                            <div class="form-group">
+                                <label>* N° de projet</label>
+                                <div class="prefix-input">
+                                    <span class="prefix">PR</span>
+                                    <input id="formStationProjectNum" type="text" required maxlength="7" placeholder="2604339" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 1rem;">
+                            <button type="button" onclick="resetStationForm()" class="btn-gray">Annuler</button>
+                            <button type="submit" class="btn-primary">Ajouter Station</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="envoiFormPanel" class="form-panel hidden">
+                <div class="form-card">
+                    <div class="form-header">
+                        <div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700;">Préparation Envoi avec S/N</h2>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Ajoutez les pièces composant l'envoi logistique ou rechange hors-forfait.</p>
+                        </div>
+                        <span class="active-badge" style="background-color: #8b5cf6;">Envoi</span>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Référence</th>
+                                        <th>Désignation</th>
+                                        <th>Numéro de Série S/N</th>
+                                        <th style="width: 4rem; text-align: center;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="envoiRowsContainer">
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="button" onclick="addEnvoiRow()" class="btn-blue" style="margin-top: 0.75rem; font-size: 0.75rem;">
+                            ➕ Ajouter une pièce
+                        </button>
+                    </div>
+
+                    <form onsubmit="handleCreateEnvoi(event)" style="display: flex; flex-direction: column; gap: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem;">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>* Nom du client</label>
+                                <input id="formEnvoiClient" type="text" required placeholder="Ex: Renault">
+                            </div>
+                            <div class="form-group">
+                                <label>* N° de projet</label>
+                                <div class="prefix-input">
+                                    <span class="prefix">PR</span>
+                                    <input id="formEnvoiProjectNum" type="text" required maxlength="7" placeholder="2604339" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>* Opérateur</label>
+                                <input id="formEnvoiOperator" type="text" required maxlength="3" placeholder="ABC" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                            <button type="submit" class="btn-primary" style="padding: 0.625rem 2rem;">OK / Valider l'Envoi</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="envoisConsultationPanel" class="form-panel hidden">
+                <div class="form-card">
+                    <div class="form-header" style="flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">Consultation et Suivi des Envois</h2>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Historique complet des pièces détachées et rechanges expédiées.</p>
+                        </div>
+                        <div style="flex: 1; max-width: 320px; min-width: 200px;">
+                            <input id="searchEnvoisTable" type="text" oninput="renderEnvoisConsultationTable()" placeholder="Filtrer par Client, Projet, S/N..." style="padding: 0.4rem 0.75rem; font-size: 0.8125rem;">
+                        </div>
+                    </div>
+
+                    <div class="table-wrap" style="overflow-x: auto; width: 100%;">
+                        <table style="width: 100%; table-layout: auto;">
+                            <thead>
+                                <tr>
+                                    <th>Client</th>
+                                    <th>Projet</th>
+                                    <th>Référence</th>
+                                    <th class="normal-wrap">Désignation</th>
+                                    <th>Numéro de Série S/N</th>
+                                    <th style="text-align: right; width: 10rem;">Date Scan</th>
+                                    <th style="text-align: center; width: 6rem;">Opérateur</th>
+                                </tr>
+                            </thead>
+                            <tbody id="envoisConsultationTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="scanPanel" class="scan-panel hidden">
+                <div class="scan-header">
+                    <div style="flex: 1; min-width: 250px;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+                            <span id="activeBadge" class="active-badge">--</span>
+                            <h2 id="activeTitle" style="font-size: 1.5rem; font-weight: 700; color: #0f172a;">--</h2>
+                        </div>
+                        <div id="activeRecapGrid" class="recap-grid"></div>
+                    </div>
+                    <div class="progress-container">
+                        <div style="text-align: right;">
+                            <div style="font-size: 0.625rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Avancement</div>
+                            <div id="activeProgressCount" style="font-size: 0.875rem; font-weight: 700; color: #059669;">0 / 0 Pièces</div>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="activeProgressBar" class="progress-bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="scan-action-bar">
+                    <div class="scan-action-buttons">
+                        <button id="btnManualScanAction" onclick="openManualScanModal()" class="btn-blue" style="font-size: 0.75rem;">➕ Scan Manuel</button>
+                        <div class="dropdown">
+                            <button class="btn-primary" style="font-size: 0.75rem;">📥 Exporter CSV ▾</button>
+                            <div class="dropdown-content">
+                                <button onclick="exportSingleCSV()">Export de cet élément uniquement</button>
+                                <button onclick="exportAllCSV()">Export global (Tous les éléments)</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="showActiveForm()" class="btn-gray" style="font-size: 0.75rem;">⬅️ Retour Création</button>
+                </div>
+
+                <div class="scan-body">
+                    <div id="savContainer" class="hidden" style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 0.75rem; font-weight: 700; color: #dc2626; text-transform: uppercase; background-color: #fef2f2; display: inline-block; padding: 0.25rem 0.625rem; border-radius: 0.25rem; border: 1px solid #fca5a5; margin-bottom: 0.75rem;">SAV</h3>
+                        <div class="table-wrap" style="border-color: #fca5a5;">
+                            <table>
+                                <thead>
+                                    <tr style="background-color: #fef2f2;">
+                                        <th style="color: #991b1b; width: 11rem;">Référence</th>
+                                        <th style="color: #991b1b; text-align: center; width: 8rem;">Statut</th>
+                                        <th style="color: #991b1b;" class="normal-wrap">Désignation</th>
+                                        <th style="color: #991b1b;">S/N (Saisi/Scan)</th>
+                                        <th style="color: #991b1b; text-align: right; width: 11rem;">Date Scan</th>
+                                        <th style="color: #991b1b; text-align: center; width: 6rem;">Trigramme</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="savTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h3 class="section-title">Nomenclature d'assemblage</h3>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 11rem;">Référence</th>
+                                        <th style="text-align: center; width: 8rem;">Statut</th>
+                                        <th class="normal-wrap">Désignation</th>
+                                        <th>S/N (Saisi/Scan)</th>
+                                        <th style="text-align: right; width: 11rem;">Date Scan</th>
+                                        <th style="text-align: center; width: 6rem;">Trigramme</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bomTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="batteryChargeModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header" style="background-color: #2563eb;">
+                <h3>🔋 Fiche de Contrôle Charge Batterie</h3>
+            </div>
+            <form onsubmit="handleSaveBatteryCharge(event)">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <p style="font-size: 0.8125rem; color: #475569;">
+                        Cette référence requiert un enregistrement obligatoire des tensions de charge avant validation.
+                    </p>
+                    <div class="form-group">
+                        <label>* Identification de la Batterie</label>
+                        <select id="batIndexSelect" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>* Numéro de Série S/N</label>
+                        <input id="batSNInput" type="text" required placeholder="Saisir le S/N de la batterie" style="padding: 0.5rem;">
+                    </div>
+                    <div class="form-group">
+                        <label>* Tension après réveil (V)</label>
+                        <input id="batVWake" type="number" step="0.01" required placeholder="Ex: 25.75" style="padding: 0.5rem;">
+                    </div>
+                    <div class="form-group">
+                        <label>* Tension en fin de charge (V)</label>
+                        <input id="batVEnd" type="number" step="0.01" required placeholder="Ex: 26.74" style="padding: 0.5rem;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+                        <input id="batCheckCharged" type="checkbox" required style="width: 1.1rem; height: 1.1rem;">
+                        <label for="batCheckCharged" style="font-size: 0.8125rem; font-weight: 700; color: #059669;">Batterie complètement chargée</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeModal('batteryChargeModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" class="btn-blue">Valider la ligne</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="rackBatteryModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header" style="background-color: #8b5cf6;">
+                <h3>🔋 Contrôle Batterie Rackable</h3>
+            </div>
+            <form onsubmit="handleSaveRackBattery(event)">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <div class="form-group">
+                        <label>* Identification de la Batterie</label>
+                        <select id="rackBatIndexSelect" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>* Numéro de Série S/N</label>
+                        <input id="rackBatSNInput" type="text" required placeholder="Saisir le S/N de la batterie rackable" style="padding: 0.5rem;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                        <input id="rackCheckCharged" type="checkbox" required style="width: 1.1rem; height: 1.1rem;">
+                        <label for="rackCheckCharged" style="font-size: 0.8125rem; font-weight: 700; color: #059669;">Batterie bien chargée</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeModal('rackBatteryModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" class="btn-blue" style="background-color: #8b5cf6;">Valider la ligne</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="manualScanModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header" style="background-color: #2563eb;">
+                <h3>➕ Ajout / Scan Pièce Manuel</h3>
+            </div>
+            <form onsubmit="handleManualScan(event)">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <div class="form-group">
+                        <label>* Référence</label>
+                        <input id="manRef" type="text" required placeholder="Ex: SHE-1013600">
+                    </div>
+                    <div class="form-group">
+                        <label>* Désignation</label>
+                        <input id="manDesig" type="text" required placeholder="Ex: Moteur de traction">
+                    </div>
+                    <div class="form-group">
+                        <label>* Numéro de Série S/N</label>
+                        <input id="manSN" type="text" required placeholder="Saisir le S/N">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                        <input id="manSAV" type="checkbox" style="width: 1.1rem; height: 1.1rem;">
+                        <label for="manSAV" style="font-size: 0.8125rem; font-weight: 700; color: #dc2626;">Cette pièce est un retour SAV</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeModal('manualScanModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" class="btn-blue">Ajouter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="operatorScanModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header" style="background-color: #ffffff; color: #0f172a; border-bottom: 1px solid #e2e8f0;">
+                <h3 style="font-weight: 700;">Identification Opérateur</h3>
+            </div>
+            <form onsubmit="handleSaveScanOperator(event)">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <p style="font-size: 0.8125rem; color: #475569;">Veuillez saisir votre trigramme pour valider cette pièce.</p>
+                    <div class="form-group">
+                        <label style="color: #0f172a;">* Trigramme (3 lettres)</label>
+                        <input id="scanOpInput" type="text" required maxlength="3" placeholder="ABC" style="font-weight: 700; text-transform: uppercase; color: #000000; padding: 0.5rem;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-secondary" style="background-color: #0f172a; color: #ffffff;">Confirmer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let config = null;
+        let elements = [];
+        let activeCreationType = 'robot';
+        let activeElementId = null;
+
+        let currentScanOperator = "";
+        let pendingScanIndex = null;
+        let pendingManualData = null;
+        let activeBatteryRowIndex = null;
+
+        const BATTERY_REF = "SHE-0020400";
+        const RACK_BATTERY_REF = "SHE-1046501";
+
+        // ---- Helpers ---------------------------------------------------------
+        function formatDateTime(date = new Date()) {
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        }
+
+        function hideAllPanels() {
+            ['robotFormPanel', 'stationFormPanel', 'envoiFormPanel', 'envoisConsultationPanel', 'scanPanel']
+                .forEach(id => document.getElementById(id).classList.add('hidden'));
+        }
+
+        function getActiveElement() {
+            return elements.find(item => item.id === activeElementId);
+        }
+
+        function evaluateOptionCondition(conditionStr, activeCheckedIds) {
+            if (!conditionStr) return true;
+            let expr = conditionStr.replace(/[A-Z0-9_]+/g, (match) => {
+                if (match === "OR" || match === "AND" || match === "NOT") return match;
+                return activeCheckedIds.includes(match) ? "true" : "false";
+            });
+            expr = expr.replace(/\bOR\b/g, "||").replace(/\bAND\b/g, "&&").replace(/\bNOT\b/g, "!");
+            try { return Function(`return (${expr});`)(); } catch(e) { return false; }
+        }
+
+        // ---- Réinitialisation des formulaires -------------------------------
+        function resetRobotForm() {
+            document.getElementById('formNum').value = '';
+            document.getElementById('formType').value = '';
+            document.getElementById('formTop').value = '';
+            document.getElementById('formTop').setAttribute('disabled', 'true');
+            document.getElementById('formHard').innerHTML = '';
+            document.getElementById('formClient').value = '';
+            document.getElementById('formProjectNum').value = '';
+            document.getElementById('formUserHeight').value = '';
+            document.getElementById('lblMinHeight').textContent = '-- mm';
+            document.getElementById('formOperator').value = '';
+            document.getElementById('formRemarks').value = '';
+            document.getElementById('optionsDynamicContainer').innerHTML = '<div style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Choisissez d\'abord un type de robot.</div>';
+        }
+
+        function resetStationForm() {
+            document.getElementById('formStationType').value = '';
+            document.getElementById('formStationClient').value = '';
+            document.getElementById('formStationProjectNum').value = '';
+            document.getElementById('formStationOperator').value = '';
+        }
+
+        function resetEnvoiForm() {
+            document.getElementById('envoiRowsContainer').innerHTML = '';
+            document.getElementById('formEnvoiClient').value = '';
+            document.getElementById('formEnvoiProjectNum').value = '';
+            document.getElementById('formEnvoiOperator').value = '';
+            addEnvoiRow();
+        }
+
+        function addEnvoiRow() {
+            const container = document.getElementById('envoiRowsContainer');
+            const tr = document.createElement('tr');
+            tr.className = "envoi-row";
+            tr.innerHTML = `
+                <td><input type="text" placeholder="Ex: SHE-1013600" class="row-ref" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td><input type="text" placeholder="Ex: Plaque induction" class="row-desig" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td><input type="text" placeholder="Ex: SN-89472" class="row-sn" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td style="text-align: center;"><button type="button" onclick="this.parentElement.parentElement.remove()" class="btn-red" style="padding: 0.25rem 0.5rem; font-size: 0.6875rem;">&times;</button></td>
+            `;
+            container.appendChild(tr);
+        }
+
+        // ---- Initialisation --------------------------------------------------
+        function initApp() {
+            if (config) {
+                document.getElementById('noConfigWarning').classList.add('hidden');
+                populateRobotTypes();
+                populateRobotTops();
+                populateStationTypes();
+                updateStationNextNumberLabel();
+                renderSidebarList();
+                showActiveForm();
+            } else {
+                document.getElementById('noConfigWarning').classList.remove('hidden');
+                hideAllPanels();
+            }
+        }
+
+        function handleFileImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    config = JSON.parse(e.target.result);
+                    alert("Nouvelle configuration appliquée !");
+                    initApp();
+                } catch (err) { alert("Erreur de parsing JSON : " + err.message); }
+            };
+            reader.readAsText(file);
+        }
+
+        function getNextStationNumber() {
+            const currentYear = new Date().getFullYear();
+            let maxNum = 0;
+            elements.forEach(el => {
+                if (el.objectType === 'station' && el.displayName && el.displayName.startsWith(`${currentYear}-ST`)) {
+                    const parsed = parseInt(el.num);
+                    if (!isNaN(parsed) && parsed > maxNum) maxNum = parsed;
+                }
+            });
+            return maxNum + 1;
+        }
+
+        function updateStationNextNumberLabel() {
+            if (!config) return;
+            const nextNum = getNextStationNumber();
+            const currentYear = new Date().getFullYear();
+            const exEl = document.getElementById('lblStationExample');
+            if (exEl) exEl.textContent = `${currentYear}-ST${String(nextNum).padStart(3, '0')}`;
+        }
+
+        function setCreationType(type) {
+            if (!config) return;
+            activeCreationType = type;
+
+            document.getElementById('btnTabRobot').className = "tab-btn " + (type === 'robot' ? 'tab-active' : 'tab-inactive');
+            document.getElementById('btnTabStation').className = "tab-btn " + (type === 'station' ? 'tab-active' : 'tab-inactive');
+            document.getElementById('btnTabEnvoi').className = "tab-btn " + (type === 'envoi' ? 'tab-active' : 'tab-inactive');
+
+            activeElementId = null;
+            hideAllPanels();
+
+            if (type === 'robot') {
+                document.getElementById('robotFormPanel').classList.remove('hidden');
+                resetRobotForm();
+            } else if (type === 'station') {
+                document.getElementById('stationFormPanel').classList.remove('hidden');
+                resetStationForm();
+                updateStationNextNumberLabel();
+            } else if (type === 'envoi') {
+                document.getElementById('envoiFormPanel').classList.remove('hidden');
+                resetEnvoiForm();
+            }
+            renderSidebarList();
+        }
+
+        function showActiveForm() {
+            setCreationType(activeCreationType);
+        }
+
+        function populateRobotTypes() {
+            const select = document.getElementById('formType');
+            select.innerHTML = '<option value="">Sélectionnez...</option>';
+            if (config.robots) {
+                config.robots.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.code; opt.textContent = `${r.code} (${r.name})`;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        function populateRobotTops() {
+            const select = document.getElementById('formTop');
+            select.innerHTML = '<option value="">Sélectionnez un top...</option>';
+            if (config.tops) {
+                config.tops.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.name; opt.textContent = t.name;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        function populateStationTypes() {
+            const select = document.getElementById('formStationType');
+            if(!select) return;
+            select.innerHTML = '<option value="">Sélectionnez un type...</option>';
+            if (config && config.station_types) {
+                config.station_types.forEach(s => {
+                    const opt = document.createElement('option'); opt.value = s.code; opt.textContent = s.name;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        function onRobotTypeChange() {
+            const type = document.getElementById('formType').value;
+            const topSelect = document.getElementById('formTop');
+            const minHeightLbl = document.getElementById('lblMinHeight');
+            const userHeightInput = document.getElementById('formUserHeight');
+            const hardSelect = document.getElementById('formHard');
+
+            topSelect.value = ""; minHeightLbl.textContent = "-- mm"; minHeightLbl.dataset.min = ""; userHeightInput.value = "";
+            document.getElementById('heightWarning').classList.add('hidden');
+
+            if (type === 'BI' || type === 'BR') {
+                topSelect.removeAttribute('disabled');
+                document.getElementById('minHeightArea').classList.remove('hidden');
+                document.getElementById('heightNotAvailable').classList.add('hidden');
+            } else {
+                topSelect.setAttribute('disabled', 'true');
+                document.getElementById('minHeightArea').classList.add('hidden');
+                document.getElementById('heightNotAvailable').classList.remove('hidden');
+            }
+
+            generateDynamicOptionsUI(type);
+
+            hardSelect.innerHTML = '';
+            if (type && config.robot_versions && config.robot_versions[type]) {
+                config.robot_versions[type].forEach(v => {
+                    const opt = document.createElement('option'); opt.value = v; opt.textContent = v;
+                    hardSelect.appendChild(opt);
+                });
+            } else { hardSelect.innerHTML = '<option value="--">--</option>'; }
+        }
+
+        function generateDynamicOptionsUI(robotCode) {
+            const container = document.getElementById('optionsDynamicContainer');
+            container.innerHTML = '';
+            if (!robotCode || !config.robot_options || !config.robot_options[robotCode]) {
+                container.innerHTML = '<div style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Aucune option disponible pour ce type.</div>';
+                return;
+            }
+            config.robot_options[robotCode].forEach(opt => {
+                const div = document.createElement('div');
+                div.className = "opt-row";
+                div.innerHTML = `<input type="checkbox" id="optDynamic-${opt.id}" data-optid="${opt.id}" style="height: 1rem; width: 1rem;">
+                                 <label for="optDynamic-${opt.id}" style="font-size: 0.75rem; font-weight: 500; cursor: pointer;">${opt.label}</label>`;
+                container.appendChild(div);
+            });
+        }
+
+        function onTopChange() {
+            const topName = document.getElementById('formTop').value;
+            const minHeightLbl = document.getElementById('lblMinHeight');
+            if (!topName || !config.tops) { minHeightLbl.textContent = "-- mm"; minHeightLbl.dataset.min = ""; validateHeight(); return; }
+            const tConf = config.tops.find(t => t.name === topName);
+            if (tConf && tConf.ht_min) { minHeightLbl.textContent = `${tConf.ht_min}mm`; minHeightLbl.dataset.min = tConf.ht_min; }
+            else { minHeightLbl.textContent = "Aucune limite"; minHeightLbl.dataset.min = ""; }
+            validateHeight();
+        }
+
+        function validateHeight() {
+            const minStr = document.getElementById('lblMinHeight').dataset.min;
+            const enteredVal = parseFloat(document.getElementById('formUserHeight').value);
+            const warningBox = document.getElementById('heightWarning');
+            if (minStr && !isNaN(enteredVal) && enteredVal < parseFloat(minStr)) warningBox.classList.remove('hidden');
+            else warningBox.classList.add('hidden');
+        }
+
+        // ---- Sélection d'un élément & affichage du panneau de scan -----------
+        function selectElement(id) {
+            activeElementId = id;
+            const el = getActiveElement();
+            if (!el) return;
+
+            hideAllPanels();
+            document.getElementById('scanPanel').classList.remove('hidden');
+
+            const badge = document.getElementById('activeBadge');
+            badge.textContent = el.objectType.toUpperCase();
+            badge.style.backgroundColor = el.objectType === 'robot' ? '#2563eb' : (el.color || '#d97706');
+
+            document.getElementById('activeTitle').textContent = el.displayName;
+
+            const grid = document.getElementById('activeRecapGrid');
+            grid.innerHTML = `
+                <div class="recap-item">
+                    <div class="recap-label">Client</div>
+                    <div class="recap-value">${el.client}</div>
+                </div>
+                <div class="recap-item">
+                    <div class="recap-label">Projet</div>
+                    <div class="recap-value">PR${el.projectNum}</div>
+                </div>
+                <div class="recap-item">
+                    <div class="recap-label">Créateur</div>
+                    <div class="recap-value">${el.operator}</div>
+                </div>
+            `;
+
+            if (el.hardVersion) {
+                grid.innerHTML += `
+                    <div class="recap-item">
+                        <div class="recap-label">Version Hard</div>
+                        <div class="recap-value">${el.hardVersion}</div>
+                    </div>
+                `;
+            }
+            if (el.userHeight) {
+                grid.innerHTML += `
+                    <div class="recap-item">
+                        <div class="recap-label">Hauteur</div>
+                        <div class="recap-value">${el.userHeight} mm</div>
+                    </div>
+                `;
+            }
+            if (el.remarks) {
+                grid.innerHTML += `
+                    <div class="recap-item recap-remark" style="grid-column: span 2;">
+                        <div class="recap-label">Remarques</div>
+                        <div class="recap-value">${el.remarks}</div>
+                    </div>
+                `;
+            }
+
+            renderScanTables();
+            renderSidebarList();
+        }
+
+        function renderScanTables() {
+            const el = getActiveElement();
+            if (!el) return;
+
+            const bomBody = document.getElementById('bomTableBody');
+            const savBody = document.getElementById('savTableBody');
+            bomBody.innerHTML = '';
+            savBody.innerHTML = '';
+
+            let normalCount = 0;
+            let normalScanned = 0;
+            let hasSAV = false;
+
+            el.bom.forEach((item, idx) => {
+                const isSAV = item.category === 'SAV';
+                const isScanned = item.scanned;
+
+                if (!isSAV) {
+                    normalCount++;
+                    if (isScanned) normalScanned++;
+                } else {
+                    hasSAV = true;
+                }
+
+                const tr = document.createElement('tr');
+                if (isScanned) tr.className = "scanned-row";
+
+                const statusHTML = isScanned
+                    ? `<span class="status-badge" style="color: #10b981;"><span class="dot dot-green"></span> OK</span>`
+                    : `<span class="status-badge" style="color: #f59e0b;"><span class="dot dot-amber"></span> À scanner</span>`;
+
+                let snFieldHTML;
+                if (isScanned) {
+                    snFieldHTML = `<span style="font-family: monospace; font-weight: 700;">${item.serialNum}</span>`;
+                } else {
+                    snFieldHTML = `
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input id="rowScan-${idx}" type="text" placeholder="Entrer ou Scanner S/N" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onkeypress="if(event.key === 'Enter') triggerScanRow(${idx})">
+                            <button onclick="triggerScanRow(${idx})" class="btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.7125rem;">Enregistrer</button>
+                        </div>
+                    `;
+                }
+
+                tr.innerHTML = `
+                    <td style="font-family: monospace; font-weight: 700;">${item.ref}</td>
+                    <td style="text-align: center;">${statusHTML}</td>
+                    <td class="normal-wrap" style="font-weight: 500;">${item.designation}</td>
+                    <td>${snFieldHTML}</td>
+                    <td style="text-align: right; font-family: monospace; font-size: 0.75rem; color: #64748b;">${item.scanDate || '--'}</td>
+                    <td style="text-align: center; font-weight: 700; font-size: 0.8125rem;">${item.scanOperator || '--'}</td>
+                `;
+
+                (isSAV ? savBody : bomBody).appendChild(tr);
+            });
+
+            document.getElementById('activeProgressCount').textContent = `${normalScanned} / ${normalCount} Pièces`;
+            const pct = normalCount > 0 ? Math.round((normalScanned / normalCount) * 100) : 0;
+            document.getElementById('activeProgressBar').style.width = `${pct}%`;
+
+            document.getElementById('savContainer').classList.toggle('hidden', !hasSAV);
+        }
+
+        // ---- Actions de scan -------------------------------------------------
+        function triggerScanRow(index) {
+            const el = getActiveElement();
+            if (!el) return;
+
+            const item = el.bom[index];
+            const input = document.getElementById(`rowScan-${index}`);
+            const value = input ? input.value.trim() : "";
+
+            if (item.ref === BATTERY_REF) { openBatteryChargeModal(index); return; }
+            if (item.ref === RACK_BATTERY_REF) { openRackBatteryModal(index); return; }
+
+            if (!value) { alert("Veuillez saisir un S/N valide."); return; }
+
+            if (!currentScanOperator) {
+                pendingScanIndex = index;
+                openScanOperatorModal();
+                return;
+            }
+
+            applyScanValidation(index, value, currentScanOperator);
+        }
+
+        function openScanOperatorModal() {
+            document.getElementById('scanOpInput').value = '';
+            document.getElementById('operatorScanModal').classList.remove('hidden');
+        }
+
+        function applyScanValidation(index, serialNum, operator) {
+            const el = getActiveElement();
+            if (!el) return;
+
+            el.bom[index].scanned = true;
+            el.bom[index].serialNum = serialNum;
+            el.bom[index].scanDate = formatDateTime();
+            el.bom[index].scanOperator = operator;
+
+            renderScanTables();
+            renderSidebarList();
+        }
+
+        function applyManualScan(ref, designation, serialNum, isSAV, operator) {
+            const el = getActiveElement();
+            if (!el) return;
+
+            el.bom.push({
+                ref, designation,
+                category: isSAV ? "SAV" : "Manuel",
+                scanned: true,
+                serialNum,
+                scanDate: formatDateTime(),
+                scanOperator: operator
+            });
+
+            closeModal('manualScanModal');
+            renderScanTables();
+            renderSidebarList();
+        }
+
+        // ---- Création des éléments ------------------------------------------
+        function handleCreateRobot(e) {
+            e.preventDefault();
+            const num = document.getElementById('formNum').value.trim();
+            const type = document.getElementById('formType').value;
+            const topName = document.getElementById('formTop').value;
+            const hard = document.getElementById('formHard').value;
+            const client = document.getElementById('formClient').value.trim();
+            const projectNum = document.getElementById('formProjectNum').value.trim();
+            const userHeight = document.getElementById('formUserHeight').value.trim();
+            const operator = document.getElementById('formOperator').value.trim().toUpperCase();
+            const remarks = document.getElementById('formRemarks').value.trim();
+
+            if (!num || !type || !client || !projectNum || !operator) { alert("Champs obligatoires manquants."); return; }
+
+            if (elements.some(el => el.objectType === 'robot' && el.type === type && el.num === num)) {
+                alert(`Le numéro de robot ${num} pour le type ${type} existe déjà.`); return;
+            }
+
+            let displayName = `${type} ${num}`;
+            const topSelected = (type === 'BI' || type === 'BR') ? config.tops.find(t => t.name === topName) : null;
+            if (topSelected) displayName = `${type} ${topSelected.abbr} ${num}`;
+
+            const checkedOptionIds = [];
+            document.querySelectorAll('#optionsDynamicContainer input[type="checkbox"]:checked').forEach(cb => checkedOptionIds.push(cb.dataset.optid));
+
+            const bom = [];
+            if (config.robot_components && config.robot_components[type]) {
+                config.robot_components[type].forEach(comp => {
+                    if (comp.option && !evaluateOptionCondition(comp.option, checkedOptionIds)) return;
+                    bom.push({ ref: comp.ref, designation: comp.designation, category: "Base", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
+                });
+            }
+
+            if (topSelected && topSelected.articles) {
+                const subs = topSelected.articles.split(';');
+                for (let i = 0; i < subs.length; i += 2) {
+                    if (subs[i] && subs[i+1]) bom.push({ ref: subs[i].trim(), designation: subs[i+1].trim(), category: "Top", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
+                }
+            }
+
+            const id = 'R-' + Date.now();
+            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom });
+            selectElement(id);
+        }
+
+        function handleCreateStation(e) {
+            e.preventDefault();
+            const code = document.getElementById('formStationType').value;
+            const client = document.getElementById('formStationClient').value.trim();
+            const projectNum = document.getElementById('formStationProjectNum').value.trim();
+            const operator = document.getElementById('formStationOperator').value.trim().toUpperCase();
+
+            const autoNum = getNextStationNumber();
+            const selectedType = config.station_types.find(st => st.code === code);
+            const displayName = `${new Date().getFullYear()}-ST${String(autoNum).padStart(3, '0')}`;
+
+            const bom = config.station_base_components ? config.station_base_components.map(comp => ({ ref: comp.ref, designation: comp.designation, category: "Station", scanned: false, serialNum: "", scanDate: "", scanOperator: "" })) : [];
+
+            const id = 'S-' + Date.now();
+            elements.push({ id, objectType: 'station', type: code, typeName: selectedType?.name || "Station", color: selectedType?.color || "#64748B", num: autoNum, displayName, client, projectNum, operator, bom });
+            selectElement(id);
+        }
+
+        function handleCreateEnvoi(e) {
+            e.preventDefault();
+            const client = document.getElementById('formEnvoiClient').value.trim();
+            const projectNum = document.getElementById('formEnvoiProjectNum').value.trim();
+            const operator = document.getElementById('formEnvoiOperator').value.trim().toUpperCase();
+
+            const rowElements = document.querySelectorAll('.envoi-row');
+            if (rowElements.length === 0) { alert("Veuillez ajouter au moins une pièce à l'envoi."); return; }
+
+            const dateStr = formatDateTime();
+            const bom = [];
+            let valid = true;
+
+            rowElements.forEach(row => {
+                const ref = row.querySelector('.row-ref').value.trim();
+                const desig = row.querySelector('.row-desig').value.trim();
+                const sn = row.querySelector('.row-sn').value.trim();
+
+                if (!ref || !desig || !sn) valid = false;
+                bom.push({ ref, designation: desig, category: "Envoi", scanned: true, serialNum: sn, scanDate: dateStr, scanOperator: operator });
+            });
+
+            if (!valid) { alert("Veuillez remplir tous les champs du tableau."); return; }
+
+            const id = 'E-' + Date.now();
+            const displayName = `Envoi PR${projectNum}`;
+
+            elements.push({ id, objectType: 'envoi', displayName, client, projectNum, operator, dateValidation: dateStr, bom });
+            alert("Envoi enregistré avec succès !");
+            showEnvoisConsultationView();
+        }
+
+        function renderSidebarList() {
+            const container = document.getElementById('sidebarList');
+            if(!container) return;
+            const search = document.getElementById('searchElement').value.toLowerCase();
+            container.innerHTML = '';
+
+            const filtered = elements.filter(el => el.objectType !== 'envoi' && (el.displayName.toLowerCase().includes(search) || el.client.toLowerCase().includes(search)));
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<p style="text-align: center; font-size: 0.75rem; color: #94a3b8; font-style: italic; padding: 1rem;">Aucun élément créé</p>';
+                return;
+            }
+
+            filtered.forEach(el => {
+                const isSelected = el.id === activeElementId;
+                let elementColor = '#64748B';
+                if (el.objectType === 'robot' && config?.robots) {
+                    const rType = config.robots.find(r => r.code === el.type);
+                    if (rType) elementColor = rType.color;
+                } else if (el.objectType === 'station') { elementColor = el.color || '#64748B'; }
+
+                const total = el.bom.length;
+                const scannedCount = el.bom.filter(p => p.scanned).length;
+                const percentage = total > 0 ? Math.round((scannedCount / total) * 100) : 0;
+
+                let leftOptionsInfo = '';
+                if (el.objectType === 'robot') {
+                    const parts = [];
+                    if (el.top) parts.push(`<span>Top: ${el.top.abbr}</span>`);
+                    if (el.optionsList && el.optionsList.length > 0) {
+                        parts.push(`<span>[${el.optionsList.join(', ')}]</span>`);
+                    }
+                    if (parts.length > 0) {
+                        leftOptionsInfo = `<div style="font-size: 0.6875rem; color: #64748b; margin-top: 0.25rem; font-family: monospace; word-break: break-word; white-space: normal;">${parts.join(' ')}</div>`;
+                    }
+                }
+
+                const card = document.createElement('div');
+                card.className = `sidebar-card ${isSelected ? 'selected' : ''}`;
+                card.style.borderLeftColor = elementColor;
+                card.onclick = () => selectElement(el.id);
+
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                                <span style="font-size: 0.875rem; font-weight: 700;">N° ${el.num || el.displayName}</span>
+                                <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569; margin-left: 1rem;">${el.client}</span>
+                            </div>
+                            <div style="font-size: 0.8125rem; font-weight: 500; color: #1e293b; margin-top: 0.125rem;">
+                                Sherpa ${el.type || ''} ${el.hardVersion ? ' – ' + el.hardVersion : ''} - PR${el.projectNum}
+                            </div>
+                            ${leftOptionsInfo}
+                        </div>
+                        <span style="font-size: 0.5625rem; font-weight: 700; background-color: #e2e8f0; padding: 0.125rem 0.375rem; border-radius: 9999px;">${scannedCount}/${total}</span>
+                    </div>
+                    <div style="margin-top: 0.5rem; width: 100%; background-color: #e2e8f0; height: 4px; border-radius: 9999px; overflow: hidden;">
+                        <div style="height: 100%; background-color: ${scannedCount === total ? '#10b981' : '#94a3b8'}; width: ${percentage}%"></div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // ---- Modales batteries ----------------------------------------------
+        function openBatteryChargeModal(index) {
+            activeBatteryRowIndex = index;
+            const el = getActiveElement();
+            const totalBatteries = el.bom.filter(p => p.ref === BATTERY_REF).length;
+            const select = document.getElementById('batIndexSelect');
+            select.innerHTML = '';
+            for (let i = 1; i <= totalBatteries; i++) {
+                const opt = document.createElement('option');
+                opt.value = i; opt.textContent = `Batterie ${i}`;
+                select.appendChild(opt);
+            }
+            document.getElementById('batSNInput').value = '';
+            document.getElementById('batVWake').value = '';
+            document.getElementById('batVEnd').value = '';
+            document.getElementById('batCheckCharged').checked = false;
+            document.getElementById('batteryChargeModal').classList.remove('hidden');
+        }
+
+        function handleSaveBatteryCharge(e) {
+            e.preventDefault();
+            const sn = document.getElementById('batSNInput').value.trim();
+            const vWake = document.getElementById('batVWake').value.trim();
+            const vEnd = document.getElementById('batVEnd').value.trim();
+            const indexLabel = document.getElementById('batIndexSelect').value;
+
+            if (!currentScanOperator) {
+                pendingScanIndex = activeBatteryRowIndex;
+                closeModal('batteryChargeModal');
+                openScanOperatorModal();
+                return;
+            }
+
+            const finalSNString = `${sn} [Bat ${indexLabel}] (Wake: ${vWake}V, End: ${vEnd}V - OK)`;
+            applyScanValidation(activeBatteryRowIndex, finalSNString, currentScanOperator);
+            closeModal('batteryChargeModal');
+        }
+
+        function openRackBatteryModal(index) {
+            activeBatteryRowIndex = index;
+            const el = getActiveElement();
+            const totalBatteries = el.bom.filter(p => p.ref === RACK_BATTERY_REF).length;
+            const select = document.getElementById('rackBatIndexSelect');
+            select.innerHTML = '';
+            for (let i = 1; i <= totalBatteries; i++) {
+                const opt = document.createElement('option');
+                opt.value = i; opt.textContent = `Batterie Rackable ${i}`;
+                select.appendChild(opt);
+            }
+            document.getElementById('rackBatSNInput').value = '';
+            document.getElementById('rackCheckCharged').checked = false;
+            document.getElementById('rackBatteryModal').classList.remove('hidden');
+        }
+
+        function handleSaveRackBattery(e) {
+            e.preventDefault();
+            const sn = document.getElementById('rackBatSNInput').value.trim();
+            const indexLabel = document.getElementById('rackBatIndexSelect').value;
+
+            if (!currentScanOperator) {
+                pendingScanIndex = activeBatteryRowIndex;
+                closeModal('rackBatteryModal');
+                openScanOperatorModal();
+                return;
+            }
+
+            const finalSNString = `${sn} [Rack ${indexLabel}] (Chargée)`;
+            applyScanValidation(activeBatteryRowIndex, finalSNString, currentScanOperator);
+            closeModal('rackBatteryModal');
+        }
+
+        // ---- Scan manuel -----------------------------------------------------
+        function openManualScanModal() {
+            document.getElementById('manRef').value = '';
+            document.getElementById('manDesig').value = '';
+            document.getElementById('manSN').value = '';
+            document.getElementById('manSAV').checked = false;
+            document.getElementById('manualScanModal').classList.remove('hidden');
+        }
+
+        function handleManualScan(e) {
+            e.preventDefault();
+            const ref = document.getElementById('manRef').value.trim();
+            const desig = document.getElementById('manDesig').value.trim();
+            const sn = document.getElementById('manSN').value.trim();
+            const isSAV = document.getElementById('manSAV').checked;
+
+            if (!currentScanOperator) {
+                pendingScanIndex = -1;
+                pendingManualData = { ref, desig, sn, isSAV };
+                closeModal('manualScanModal');
+                openScanOperatorModal();
+                return;
+            }
+            applyManualScan(ref, desig, sn, isSAV, currentScanOperator);
+        }
+
+        function handleSaveScanOperator(e) {
+            e.preventDefault();
+            const trigram = document.getElementById('scanOpInput').value.trim().toUpperCase();
+            if (trigram.length !== 3) return;
+            currentScanOperator = trigram;
+            closeModal('operatorScanModal');
+
+            if (pendingScanIndex === null) return;
+
+            if (pendingScanIndex === -1) {
+                // Scan manuel en attente d'opérateur
+                if (pendingManualData) {
+                    const { ref, desig, sn, isSAV } = pendingManualData;
+                    applyManualScan(ref, desig, sn, isSAV, currentScanOperator);
+                    pendingManualData = null;
+                }
+            } else {
+                // Ligne de nomenclature standard (ou batterie)
+                const el = getActiveElement();
+                const item = el.bom[pendingScanIndex];
+                if (item.ref === BATTERY_REF) {
+                    openBatteryChargeModal(pendingScanIndex);
+                } else if (item.ref === RACK_BATTERY_REF) {
+                    openRackBatteryModal(pendingScanIndex);
+                } else {
+                    const input = document.getElementById(`rowScan-${pendingScanIndex}`);
+                    const val = input ? input.value.trim() : "";
+                    applyScanValidation(pendingScanIndex, val, currentScanOperator);
+                }
+            }
+            pendingScanIndex = null;
+        }
+
+        // ---- Consultation des envois ----------------------------------------
+        function showEnvoisConsultationView() {
+            activeElementId = null;
+            hideAllPanels();
+            document.getElementById('envoisConsultationPanel').classList.remove('hidden');
+            document.getElementById('searchEnvoisTable').value = '';
+            renderEnvoisConsultationTable();
+            renderSidebarList();
+        }
+
+        function renderEnvoisConsultationTable() {
+            const tbody = document.getElementById('envoisConsultationTableBody');
+            const searchFilter = document.getElementById('searchEnvoisTable').value.toLowerCase();
+            tbody.innerHTML = '';
+
+            const totalEnvois = elements.filter(el => el.objectType === 'envoi');
+            let matchedRowsCount = 0;
+
+            totalEnvois.forEach(env => {
+                env.bom.forEach(piece => {
+                    const matches = env.client.toLowerCase().includes(searchFilter) ||
+                                    env.projectNum.toLowerCase().includes(searchFilter) ||
+                                    piece.ref.toLowerCase().includes(searchFilter) ||
+                                    piece.designation.toLowerCase().includes(searchFilter) ||
+                                    piece.serialNum.toLowerCase().includes(searchFilter);
+
+                    if (!matches && searchFilter !== '') return;
+
+                    matchedRowsCount++;
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="text-transform: uppercase; font-weight: 700; color: #0f172a;">${env.client}</td>
+                        <td style="font-family: monospace; font-weight: 600; color: #475569;">PR${env.projectNum}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #475569;">${piece.ref}</td>
+                        <td style="font-weight: 600; color: #1e293b;" class="normal-wrap">${piece.designation}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #0f172a;">${piece.serialNum}</td>
+                        <td style="text-align: right; font-family: monospace;">${piece.scanDate}</td>
+                        <td style="text-align: center; font-weight: 700;">${piece.scanOperator}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+
+            if (matchedRowsCount === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; font-style: italic; padding: 1.5rem;">Aucun envoi disponible.</td></tr>`;
+            }
+        }
+
+        // ---- Exports ---------------------------------------------------------
+        function cleanCSVField(val) { return val ? `"${String(val).replace(/"/g, '""')}"` : '""'; }
+
+        function exportSingleCSV() {
+            const el = getActiveElement();
+            if (!el) return;
+            let csvContent = "﻿Reference;Designation;S/N;Date Scan;Operateur;Categorie piece\r\n";
+            el.bom.forEach(item => {
+                csvContent += `${cleanCSVField(item.ref)};${cleanCSVField(item.designation)};${cleanCSVField(item.serialNum)};${cleanCSVField(item.scanDate)};${cleanCSVField(item.scanOperator)};${cleanCSVField(item.category)}\r\n`;
+            });
+            triggerCSVDownload(csvContent, `export_${el.displayName.replace(/\s+/g, '_')}.csv`);
+        }
+
+        function exportAllCSV() {
+            if (elements.length === 0) { alert("Aucun élément créé."); return; }
+            let csvContent = "﻿Type Element;Numero;Type Modele;Top;Numero Projet;Client;Options;Reference Piece;Designation Piece;S/N Piece;Date Scan Piece;Operateur Piece;Categorie Piece\r\n";
+            elements.forEach(el => {
+                const isRobot = el.objectType === 'robot';
+                const isStation = el.objectType === 'station';
+                const elType = isRobot ? "Robot" : (isStation ? "Station" : "Envoi");
+                const num = el.num || "";
+                const modelType = el.type || "";
+                const top = (isRobot && el.top) ? el.top.name : "";
+                const projNum = `PR${el.projectNum || ""}`;
+                const client = el.client || "";
+                const options = (isRobot && el.optionsList) ? el.optionsList.join(', ') : "";
+
+                el.bom.forEach(item => {
+                    csvContent += `${cleanCSVField(elType)};${cleanCSVField(num)};${cleanCSVField(modelType)};${cleanCSVField(top)};${cleanCSVField(projNum)};${cleanCSVField(client)};${cleanCSVField(options)};${cleanCSVField(item.ref)};${cleanCSVField(item.designation)};${cleanCSVField(item.serialNum)};${cleanCSVField(item.scanDate)};${cleanCSVField(item.scanOperator)};${cleanCSVField(item.category)}\r\n`;
+                });
+            });
+            triggerCSVDownload(csvContent, `export_global_production_smr_${Date.now()}.csv`);
+        }
+
+        function triggerCSVDownload(content, fileName) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.setAttribute("href", URL.createObjectURL(blob)); link.setAttribute("download", fileName);
+            document.body.appendChild(link); link.click(); link.remove();
+        }
+
+        function exportWorkspace() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ elements }, null, 4));
+            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", `workspace_backup_${Date.now()}.json`);
+            document.body.appendChild(dl); dl.click(); dl.remove();
+        }
+
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        initApp();
+    </script>
+</body>
+</html>
