@@ -357,7 +357,7 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label>* N°</label>
-                                <input id="formNum" type="number" placeholder="355">
+                                <input id="formNum" type="number" placeholder="">
                             </div>
                             <div class="form-group">
                                 <label>* Type du robot</label>
@@ -381,13 +381,13 @@
                             </div>
                             <div class="form-group">
                                 <label>* Client</label>
-                                <input id="formClient" type="text" placeholder="Ex: Renault">
+                                <input id="formClient" type="text" placeholder="">
                             </div>
                             <div class="form-group">
                                 <label>* N° de projet</label>
                                 <div class="prefix-input">
                                     <span class="prefix">PR</span>
-                                    <input id="formProjectNum" type="text" maxlength="7" placeholder="2604339" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                    <input id="formProjectNum" type="text" maxlength="7" placeholder="" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                                 </div>
                             </div>
                         </div>
@@ -401,29 +401,19 @@
                             </div>
 
                             <div class="form-group">
-                                <label>Hauteur | minimum : mm</label>
-                                <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
-                                    <div id="minHeightArea">
-                                        <div style="font-size: 0.75rem; color: #64748b;">
-                                            Indication minimum : <span id="lblMinHeight" style="font-weight: 700; color: #1e293b;">-- mm</span>
-                                        </div>
-                                        <div style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
-                                            <label style="font-size: 0.625rem; text-transform: uppercase; font-weight: 700; color: #94a3b8;">Ma Hauteur :</label>
-                                            <input id="formUserHeight" type="number" oninput="validateHeight()" placeholder="Entrez la hauteur..." style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
-                                        </div>
-                                        <div id="heightWarning" class="danger-msg hidden">
-                                            ⚠️ Trop bas !
-                                        </div>
-                                    </div>
-                                    <div id="heightNotAvailable" style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">
-                                        Indisponible pour ce type.
-                                    </div>
+                                <label>Hauteur | minimum : <span id="lblMinHeight" style="font-weight: 700; color: #1e293b;">-- mm</span></label>
+                                <div id="minHeightArea">
+                                    <input id="formUserHeight" type="number" oninput="validateHeight()" placeholder="">
+                                    <div id="heightWarning" class="danger-msg hidden">⚠️ Trop bas !</div>
+                                </div>
+                                <div id="heightNotAvailable" style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">
+                                    Indisponible pour ce type.
                                 </div>
                             </div>
 
                             <div class="form-group">
                                 <label>* Saisie par</label>
-                                <input id="formOperator" type="text" maxlength="3" placeholder="ABC" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                                <input id="formOperator" type="text" maxlength="3" placeholder="" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
                             </div>
                         </div>
 
@@ -465,20 +455,20 @@
                             </div>
                             <div class="form-group">
                                 <label>* Saisie par</label>
-                                <input id="formStationOperator" type="text" required maxlength="3" placeholder="ABC" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                                <input id="formStationOperator" type="text" required maxlength="3" placeholder="" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
                             </div>
                         </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                             <div class="form-group">
                                 <label>* Client</label>
-                                <input id="formStationClient" type="text" required placeholder="Ex: Renault">
+                                <input id="formStationClient" type="text" required placeholder="">
                             </div>
                             <div class="form-group">
                                 <label>* N° de projet</label>
                                 <div class="prefix-input">
                                     <span class="prefix">PR</span>
-                                    <input id="formStationProjectNum" type="text" required maxlength="7" placeholder="2604339" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                    <input id="formStationProjectNum" type="text" required maxlength="7" placeholder="" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                                 </div>
                             </div>
                         </div>
@@ -525,18 +515,18 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label>* Nom du client</label>
-                                <input id="formEnvoiClient" type="text" required placeholder="Ex: Renault">
+                                <input id="formEnvoiClient" type="text" required placeholder="">
                             </div>
                             <div class="form-group">
                                 <label>* N° de projet</label>
                                 <div class="prefix-input">
                                     <span class="prefix">PR</span>
-                                    <input id="formEnvoiProjectNum" type="text" required maxlength="7" placeholder="2604339" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                    <input id="formEnvoiProjectNum" type="text" required maxlength="7" placeholder="" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label>* Opérateur</label>
-                                <input id="formEnvoiOperator" type="text" required maxlength="3" placeholder="ABC" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                                <input id="formEnvoiOperator" type="text" required maxlength="3" placeholder="" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
                             </div>
                         </div>
 
@@ -568,7 +558,7 @@
                                     <th>Référence</th>
                                     <th class="normal-wrap">Désignation</th>
                                     <th>Numéro de Série S/N</th>
-                                    <th style="text-align: right; width: 10rem;">Date Scan</th>
+                                    <th style="width: 10rem;">Date Scan</th>
                                     <th style="text-align: center; width: 6rem;">Opérateur</th>
                                 </tr>
                             </thead>
@@ -626,7 +616,7 @@
                                         <th style="color: #991b1b; text-align: center; width: 8rem;">Statut</th>
                                         <th style="color: #991b1b;" class="normal-wrap">Désignation</th>
                                         <th style="color: #991b1b;">S/N (Saisi/Scan)</th>
-                                        <th style="color: #991b1b; text-align: right; width: 11rem;">Date Scan</th>
+                                        <th style="color: #991b1b; width: 11rem;">Date Scan</th>
                                         <th style="color: #991b1b; text-align: center; width: 6rem;">Trigramme</th>
                                     </tr>
                                 </thead>
@@ -647,7 +637,7 @@
                                         <th style="text-align: center; width: 8rem;">Statut</th>
                                         <th class="normal-wrap">Désignation</th>
                                         <th>S/N (Saisi/Scan)</th>
-                                        <th style="text-align: right; width: 11rem;">Date Scan</th>
+                                        <th style="width: 11rem;">Date Scan</th>
                                         <th style="text-align: center; width: 6rem;">Trigramme</th>
                                     </tr>
                                 </thead>
@@ -668,16 +658,16 @@
             <form onsubmit="handleSaveBatteryCharge(event)">
                 <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.1rem;">
                     <div class="form-group">
-                        <label>Identification</label>
-                        <select id="batIndexSelect" required></select>
+                        <label>Batterie</label>
+                        <div id="batIndexLabel" style="padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 700; font-size: 0.875rem;">--</div>
                     </div>
                     <div class="form-group">
                         <label>Tension après réveil (V)</label>
-                        <input id="batVWake" type="number" step="0.01" placeholder="Ex: 25.75" style="padding: 0.5rem;">
+                        <input id="batVWake" type="number" step="0.01" placeholder="" style="padding: 0.5rem;">
                     </div>
                     <div class="form-group">
                         <label>Tension en fin de charge (V)</label>
-                        <input id="batVEnd" type="number" step="0.01" placeholder="Ex: 26.74" style="padding: 0.5rem;">
+                        <input id="batVEnd" type="number" step="0.01" placeholder="" style="padding: 0.5rem;">
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <input id="batCheckCharged" type="checkbox" style="width: 1.1rem; height: 1.1rem;">
@@ -700,8 +690,8 @@
             <form onsubmit="handleSaveRackBattery(event)">
                 <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.1rem;">
                     <div class="form-group">
-                        <label>Identification</label>
-                        <select id="rackBatIndexSelect" required></select>
+                        <label>Batterie</label>
+                        <div id="rackBatIndexLabel" style="padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 700; font-size: 0.875rem;">--</div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <input id="rackCheckCharged" type="checkbox" style="width: 1.1rem; height: 1.1rem;">
@@ -725,11 +715,11 @@
                 <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
                     <div class="form-group">
                         <label>* Référence</label>
-                        <input id="manRef" type="text" required placeholder="Ex: SHE-1013600">
+                        <input id="manRef" type="text" required placeholder="">
                     </div>
                     <div class="form-group">
                         <label>* Désignation</label>
-                        <input id="manDesig" type="text" required placeholder="Ex: Moteur de traction">
+                        <input id="manDesig" type="text" required placeholder="">
                     </div>
                     <div class="form-group">
                         <label>* Numéro de Série S/N</label>
@@ -737,7 +727,7 @@
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
                         <input id="manSAV" type="checkbox" style="width: 1.1rem; height: 1.1rem;">
-                        <label for="manSAV" style="font-size: 0.8125rem; font-weight: 700; color: #dc2626;">Cette pièce est un retour SAV</label>
+                        <label for="manSAV" style="font-size: 0.8125rem; font-weight: 700; color: #dc2626;">Pièce SAV</label>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -758,7 +748,7 @@
                     <p style="font-size: 0.8125rem; color: #475569;">Veuillez saisir votre trigramme pour valider cette pièce.</p>
                     <div class="form-group">
                         <label style="color: #0f172a;">* Trigramme (3 lettres)</label>
-                        <input id="scanOpInput" type="text" required maxlength="3" placeholder="ABC" style="font-weight: 700; text-transform: uppercase; color: #000000; padding: 0.5rem;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                        <input id="scanOpInput" type="text" required maxlength="3" placeholder="" style="font-weight: 700; text-transform: uppercase; color: #000000; padding: 0.5rem;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -856,9 +846,9 @@
             const tr = document.createElement('tr');
             tr.className = "envoi-row";
             tr.innerHTML = `
-                <td><input type="text" placeholder="Ex: SHE-1013600" class="row-ref" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
-                <td><input type="text" placeholder="Ex: Plaque induction" class="row-desig" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
-                <td><input type="text" placeholder="Ex: SN-89472" class="row-sn" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td><input type="text" placeholder="" class="row-ref" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td><input type="text" placeholder="" class="row-desig" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td><input type="text" placeholder="" class="row-sn" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
                 <td style="text-align: center;"><button type="button" onclick="this.parentElement.parentElement.remove()" class="btn-red" style="padding: 0.25rem 0.5rem; font-size: 0.6875rem;">&times;</button></td>
             `;
             container.appendChild(tr);
@@ -1184,23 +1174,29 @@
                     `;
                 }
 
-                // Bouton indépendant de saisie de la charge (batteries uniquement)
+                // Cellule désignation : bouton de charge à droite du nom (batteries)
+                let designationCell;
                 if (isBattery && !locked) {
                     const openFn = item.ref === RACK_BATTERY_REF ? 'openRackBatteryModal' : 'openBatteryChargeModal';
                     const chargeLabel = item.charged ? 'Modifier la charge' : 'Saisir la charge';
-                    snFieldHTML += `
-                        <div style="margin-top: 0.4rem;">
-                            <button onclick="${openFn}(${idx})" class="btn-gray" style="padding: 0.15rem 0.55rem; font-size: 0.7rem;">${chargeLabel}</button>
-                        </div>
+                    designationCell = `
+                        <td class="normal-wrap" style="font-weight: 500;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                                <span>${item.designation}</span>
+                                <button onclick="${openFn}(${idx})" class="btn-gray" style="padding: 0.15rem 0.55rem; font-size: 0.7rem; white-space: nowrap; flex-shrink: 0;">${chargeLabel}</button>
+                            </div>
+                        </td>
                     `;
+                } else {
+                    designationCell = `<td class="normal-wrap" style="font-weight: 500;">${item.designation}</td>`;
                 }
 
                 tr.innerHTML = `
                     <td style="font-family: monospace; font-weight: 700;">${item.ref}</td>
                     <td style="text-align: center;">${statusHTML}</td>
-                    <td class="normal-wrap" style="font-weight: 500;">${item.designation}</td>
+                    ${designationCell}
                     <td>${snFieldHTML}</td>
-                    <td style="text-align: right; font-family: monospace; font-size: 0.75rem; color: #64748b;">${item.scanDate || '--'}</td>
+                    <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${item.scanDate || '--'}</td>
                     <td style="text-align: center; font-weight: 700; font-size: 0.8125rem;">${item.scanOperator || '--'}</td>
                 `;
 
@@ -1349,8 +1345,8 @@
 
             if (!num || !type || !client || !projectNum || !operator) { alert("Champs obligatoires manquants."); return; }
 
-            if (elements.some(el => el.objectType === 'robot' && el.type === type && el.num === num)) {
-                alert(`Le numéro de robot ${num} pour le type ${type} existe déjà.`); return;
+            if (elements.some(el => el.objectType === 'robot' && el.num === num)) {
+                alert(`Le numéro de robot ${num} existe déjà. Le numéro doit être unique.`); return;
             }
 
             let displayName = `${type} ${num}`;
@@ -1531,16 +1527,9 @@
             if (!el || el.closed) return;
             activeBatteryRowIndex = index;
             const item = el.bom[index];
-            const totalBatteries = el.bom.filter(p => p.ref === BATTERY_REF).length;
-            const select = document.getElementById('batIndexSelect');
-            select.innerHTML = '';
-            for (let i = 1; i <= totalBatteries; i++) {
-                const opt = document.createElement('option');
-                opt.value = i; opt.textContent = `Batterie ${i}`;
-                select.appendChild(opt);
-            }
+            const batIndex = batteryDefaultIndex(el, BATTERY_REF, index);
             const ch = item.charge || {};
-            select.value = ch.index || batteryDefaultIndex(el, BATTERY_REF, index);
+            document.getElementById('batIndexLabel').textContent = `Batterie ${batIndex}`;
             document.getElementById('batVWake').value = ch.vWake || '';
             document.getElementById('batVEnd').value = ch.vEnd || '';
             document.getElementById('batCheckCharged').checked = !!item.charged;
@@ -1554,7 +1543,7 @@
             const item = el.bom[activeBatteryRowIndex];
 
             item.charge = {
-                index: document.getElementById('batIndexSelect').value,
+                index: batteryDefaultIndex(el, BATTERY_REF, activeBatteryRowIndex),
                 vWake: document.getElementById('batVWake').value.trim(),
                 vEnd: document.getElementById('batVEnd').value.trim()
             };
@@ -1572,16 +1561,8 @@
             if (!el || el.closed) return;
             activeBatteryRowIndex = index;
             const item = el.bom[index];
-            const totalBatteries = el.bom.filter(p => p.ref === RACK_BATTERY_REF).length;
-            const select = document.getElementById('rackBatIndexSelect');
-            select.innerHTML = '';
-            for (let i = 1; i <= totalBatteries; i++) {
-                const opt = document.createElement('option');
-                opt.value = i; opt.textContent = `Batterie Rackable ${i}`;
-                select.appendChild(opt);
-            }
-            const ch = item.charge || {};
-            select.value = ch.index || batteryDefaultIndex(el, RACK_BATTERY_REF, index);
+            const batIndex = batteryDefaultIndex(el, RACK_BATTERY_REF, index);
+            document.getElementById('rackBatIndexLabel').textContent = `Batterie Rackable ${batIndex}`;
             document.getElementById('rackCheckCharged').checked = !!item.charged;
             document.getElementById('rackBatteryModal').classList.remove('hidden');
         }
@@ -1592,7 +1573,7 @@
             if (!el || el.closed) { closeModal('rackBatteryModal'); return; }
             const item = el.bom[activeBatteryRowIndex];
 
-            item.charge = { index: document.getElementById('rackBatIndexSelect').value };
+            item.charge = { index: batteryDefaultIndex(el, RACK_BATTERY_REF, activeBatteryRowIndex) };
             item.charged = document.getElementById('rackCheckCharged').checked;
             item.scanDate = formatDateTime();
             if (currentScanOperator) item.scanOperator = currentScanOperator;
@@ -1691,7 +1672,7 @@
                         <td style="font-family: monospace; font-weight: 700; color: #475569;">${piece.ref}</td>
                         <td style="font-weight: 600; color: #1e293b;" class="normal-wrap">${piece.designation}</td>
                         <td style="font-family: monospace; font-weight: 700; color: #0f172a;">${piece.serialNum}</td>
-                        <td style="text-align: right; font-family: monospace;">${piece.scanDate}</td>
+                        <td style="font-family: monospace;">${piece.scanDate}</td>
                         <td style="text-align: center; font-weight: 700;">${piece.scanOperator}</td>
                     `;
                     tbody.appendChild(tr);
