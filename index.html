@@ -586,8 +586,9 @@
             <div id="scanPanel" class="scan-panel hidden">
                 <div class="scan-header">
                     <div style="flex: 1; min-width: 250px;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem; flex-wrap: wrap;">
                             <span id="activeBadge" class="active-badge">--</span>
+                            <span id="closedBadge" class="active-badge hidden" style="background-color: #dc2626;">🔒 Clôturé</span>
                             <h2 id="activeTitle" style="font-size: 1.5rem; font-weight: 700; color: #0f172a;">--</h2>
                         </div>
                         <div id="activeRecapGrid" class="recap-grid"></div>
@@ -613,6 +614,7 @@
                                 <button onclick="exportAllCSV()">Export global (Tous les éléments)</button>
                             </div>
                         </div>
+                        <button id="btnCloseDossier" onclick="toggleCloseDossier()" class="btn-red" style="font-size: 0.75rem;">🔒 Clôturer le dossier</button>
                     </div>
                     <button onclick="showActiveForm()" class="btn-gray" style="font-size: 0.75rem;">⬅️ Retour Création</button>
                 </div>
@@ -791,6 +793,7 @@
         let pendingScanIndex = null;
         let pendingManualData = null;
         let activeBatteryRowIndex = null;
+        let editingIndex = null;
 
         const BATTERY_REF = "SHE-0020400";
         const RACK_BATTERY_REF = "SHE-1046501";
@@ -894,11 +897,10 @@
             reader.readAsText(file);
         }
 
-        function getNextStationNumber() {
-            const currentYear = new Date().getFullYear();
+        function getNextStationNumber(code) {
             let maxNum = 0;
             elements.forEach(el => {
-                if (el.objectType === 'station' && el.displayName && el.displayName.startsWith(`${currentYear}-ST`)) {
+                if (el.objectType === 'station' && el.type === code) {
                     const parsed = parseInt(el.num);
                     if (!isNaN(parsed) && parsed > maxNum) maxNum = parsed;
                 }
@@ -906,12 +908,18 @@
             return maxNum + 1;
         }
 
+        function stationDisplayName(code, num) {
+            return `${code}${String(num).padStart(3, '0')}`;
+        }
+
         function updateStationNextNumberLabel() {
             if (!config) return;
-            const nextNum = getNextStationNumber();
-            const currentYear = new Date().getFullYear();
+            const code = document.getElementById('formStationType').value;
             const exEl = document.getElementById('lblStationExample');
-            if (exEl) exEl.textContent = `${currentYear}-ST${String(nextNum).padStart(3, '0')}`;
+            if (!exEl) return;
+            if (!code) { exEl.textContent = '--'; return; }
+            const nextNum = getNextStationNumber(code);
+            exEl.textContent = stationDisplayName(code, nextNum);
         }
 
         function setCreationType(type) {
@@ -1047,6 +1055,7 @@
         // ---- Sélection d'un élément & affichage du panneau de scan -----------
         function selectElement(id) {
             activeElementId = id;
+            editingIndex = null;
             const el = getActiveElement();
             if (!el) return;
 
@@ -1108,6 +1117,7 @@
             const el = getActiveElement();
             if (!el) return;
 
+            const locked = !!el.closed;
             const bomBody = document.getElementById('bomTableBody');
             const savBody = document.getElementById('savTableBody');
             bomBody.innerHTML = '';
@@ -1135,9 +1145,32 @@
                     ? `<span class="status-badge" style="color: #10b981;"><span class="dot dot-green"></span> OK</span>`
                     : `<span class="status-badge" style="color: #f59e0b;"><span class="dot dot-amber"></span> À scanner</span>`;
 
+                const safeSN = String(item.serialNum || '').replace(/"/g, '&quot;');
                 let snFieldHTML;
                 if (isScanned) {
-                    snFieldHTML = `<span style="font-family: monospace; font-weight: 700;">${item.serialNum}</span>`;
+                    if (!locked && editingIndex === idx) {
+                        // Mode édition du S/N
+                        snFieldHTML = `
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input id="editScan-${idx}" type="text" value="${safeSN}" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onkeypress="if(event.key === 'Enter') saveEditSerial(${idx})">
+                                <button onclick="saveEditSerial(${idx})" class="btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.7125rem;" title="Enregistrer">✔</button>
+                                <button onclick="cancelEditSerial()" class="btn-gray" style="padding: 0.25rem 0.5rem; font-size: 0.7125rem;" title="Annuler">✕</button>
+                            </div>
+                        `;
+                    } else if (!locked) {
+                        // S/N validé, modifiable
+                        snFieldHTML = `
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span style="font-family: monospace; font-weight: 700;">${item.serialNum}</span>
+                                <button onclick="startEditSerial(${idx})" class="btn-gray" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Modifier le S/N">✏️</button>
+                            </div>
+                        `;
+                    } else {
+                        // Dossier clôturé : figé
+                        snFieldHTML = `<span style="font-family: monospace; font-weight: 700;">${item.serialNum}</span>`;
+                    }
+                } else if (locked) {
+                    snFieldHTML = `<span style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Non scanné</span>`;
                 } else {
                     snFieldHTML = `
                         <div style="display: flex; gap: 0.5rem;">
@@ -1164,12 +1197,28 @@
             document.getElementById('activeProgressBar').style.width = `${pct}%`;
 
             document.getElementById('savContainer').classList.toggle('hidden', !hasSAV);
+
+            // État verrouillage : boutons + badge
+            const btnClose = document.getElementById('btnCloseDossier');
+            const closedBadge = document.getElementById('closedBadge');
+            const manualBtn = document.getElementById('btnManualScanAction');
+            if (locked) {
+                btnClose.textContent = '🔓 Rouvrir le dossier';
+                btnClose.className = 'btn-gray';
+                closedBadge.classList.remove('hidden');
+                manualBtn.classList.add('hidden');
+            } else {
+                btnClose.textContent = '🔒 Clôturer le dossier';
+                btnClose.className = 'btn-red';
+                closedBadge.classList.add('hidden');
+                manualBtn.classList.remove('hidden');
+            }
         }
 
         // ---- Actions de scan -------------------------------------------------
         function triggerScanRow(index) {
             const el = getActiveElement();
-            if (!el) return;
+            if (!el || el.closed) return;
 
             const item = el.bom[index];
             const input = document.getElementById(`rowScan-${index}`);
@@ -1221,6 +1270,50 @@
             });
 
             closeModal('manualScanModal');
+            renderScanTables();
+            renderSidebarList();
+        }
+
+        // ---- Modification d'un S/N validé -----------------------------------
+        function startEditSerial(index) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            editingIndex = index;
+            renderScanTables();
+            const input = document.getElementById(`editScan-${index}`);
+            if (input) { input.focus(); input.select(); }
+        }
+
+        function cancelEditSerial() {
+            editingIndex = null;
+            renderScanTables();
+        }
+
+        function saveEditSerial(index) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const input = document.getElementById(`editScan-${index}`);
+            const val = input ? input.value.trim() : "";
+            if (!val) { alert("Veuillez saisir un S/N valide."); return; }
+            el.bom[index].serialNum = val;
+            el.bom[index].scanDate = formatDateTime();
+            editingIndex = null;
+            renderScanTables();
+            renderSidebarList();
+        }
+
+        // ---- Clôture / réouverture d'un dossier -----------------------------
+        function toggleCloseDossier() {
+            const el = getActiveElement();
+            if (!el) return;
+            if (!el.closed) {
+                if (!confirm("Clôturer ce dossier ? Les données seront figées (plus aucune modification possible tant qu'il n'est pas rouvert).")) return;
+                el.closed = true;
+            } else {
+                if (!confirm("Rouvrir ce dossier pour autoriser à nouveau les modifications ?")) return;
+                el.closed = false;
+            }
+            editingIndex = null;
             renderScanTables();
             renderSidebarList();
         }
@@ -1278,9 +1371,9 @@
             const projectNum = document.getElementById('formStationProjectNum').value.trim();
             const operator = document.getElementById('formStationOperator').value.trim().toUpperCase();
 
-            const autoNum = getNextStationNumber();
+            const autoNum = getNextStationNumber(code);
             const selectedType = config.station_types.find(st => st.code === code);
-            const displayName = `${new Date().getFullYear()}-ST${String(autoNum).padStart(3, '0')}`;
+            const displayName = stationDisplayName(code, autoNum);
 
             const bom = config.station_base_components ? config.station_base_components.map(comp => ({ ref: comp.ref, designation: comp.designation, category: "Station", scanned: false, serialNum: "", scanDate: "", scanOperator: "" })) : [];
 
@@ -1358,6 +1451,9 @@
                     }
                 }
 
+                const numberLabel = el.objectType === 'station' ? el.displayName : `N° ${el.num || el.displayName}`;
+                const lockIcon = el.closed ? ' 🔒' : '';
+
                 const card = document.createElement('div');
                 card.className = `sidebar-card ${isSelected ? 'selected' : ''}`;
                 card.style.borderLeftColor = elementColor;
@@ -1365,17 +1461,17 @@
 
                 card.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div style="flex: 1;">
-                            <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                                <span style="font-size: 0.875rem; font-weight: 700;">N° ${el.num || el.displayName}</span>
-                                <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569; margin-left: 1rem;">${el.client}</span>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem;">
+                                <span style="font-size: 0.875rem; font-weight: 700;">${numberLabel}${lockIcon}</span>
+                                <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569;">${el.client}</span>
                             </div>
                             <div style="font-size: 0.8125rem; font-weight: 500; color: #1e293b; margin-top: 0.125rem;">
                                 Sherpa ${el.type || ''} ${el.hardVersion ? ' – ' + el.hardVersion : ''} - PR${el.projectNum}
                             </div>
                             ${leftOptionsInfo}
                         </div>
-                        <span style="font-size: 0.5625rem; font-weight: 700; background-color: #e2e8f0; padding: 0.125rem 0.375rem; border-radius: 9999px;">${scannedCount}/${total}</span>
+                        <span style="font-size: 0.5625rem; font-weight: 700; background-color: #e2e8f0; padding: 0.125rem 0.375rem; border-radius: 9999px; margin-left: 0.75rem; flex-shrink: 0;">${scannedCount}/${total}</span>
                     </div>
                     <div style="margin-top: 0.5rem; width: 100%; background-color: #e2e8f0; height: 4px; border-radius: 9999px; overflow: hidden;">
                         <div style="height: 100%; background-color: ${scannedCount === total ? '#10b981' : '#94a3b8'}; width: ${percentage}%"></div>
@@ -1458,6 +1554,8 @@
 
         // ---- Scan manuel -----------------------------------------------------
         function openManualScanModal() {
+            const el = getActiveElement();
+            if (el && el.closed) return;
             document.getElementById('manRef').value = '';
             document.getElementById('manDesig').value = '';
             document.getElementById('manSN').value = '';
