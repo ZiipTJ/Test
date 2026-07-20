@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Suivi SN PRODUCTION SMR</title>
+    <title>Suivi S/N Production SMR</title>
     <style>
         :root {
             /* Palette conservée */
@@ -72,14 +72,7 @@
             z-index: 40;
         }
         .nav-brand { display: flex; align-items: center; gap: 0.75rem; }
-        .nav-brand .brand-logo {
-            width: 38px; height: 38px; border-radius: 0.6rem; flex-shrink: 0;
-            background: linear-gradient(135deg, var(--emerald), var(--blue));
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.15rem; box-shadow: 0 4px 10px -2px rgba(16,185,129,0.4);
-        }
         .nav-brand h1 { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; }
-        .nav-brand p { font-size: 0.75rem; color: var(--slate-400); margin-top: 1px; }
         .nav-buttons { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 
         button {
@@ -123,7 +116,7 @@
         }
         .grid-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
         .tab-btn {
-            font-size: 0.625rem; font-weight: 800; text-transform: uppercase;
+            font-size: 0.6875rem; font-weight: 800; text-transform: uppercase;
             padding: 0.55rem; border-radius: var(--radius); text-align: center;
             justify-content: center; letter-spacing: 0.02em;
         }
@@ -230,6 +223,7 @@
         .dot { height: 0.625rem; width: 0.625rem; border-radius: 50%; display: inline-block; }
         .dot-green { background-color: var(--emerald); box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
         .dot-amber { background-color: var(--amber); box-shadow: 0 0 0 3px rgba(245,158,11,0.18); }
+        .dot-orange { background-color: #ea580c; box-shadow: 0 0 0 3px rgba(234,88,12,0.18); }
 
         .section-title {
             font-size: 0.75rem; font-weight: 700; color: var(--slate-400);
@@ -264,7 +258,7 @@
 
         .recap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-top: 1rem; width: 100%; }
         .recap-item { background-color: #fff; border: 1px solid var(--slate-200); padding: 0.6rem 0.875rem; border-radius: var(--radius); box-shadow: var(--shadow-sm); }
-        .recap-label { font-size: 0.625rem; text-transform: uppercase; color: var(--slate-500); font-weight: 700; letter-spacing: 0.025em; }
+        .recap-label { font-size: 0.6875rem; text-transform: uppercase; color: var(--slate-500); font-weight: 700; letter-spacing: 0.025em; }
         .recap-value { font-size: 0.875rem; color: var(--slate-800); font-weight: 600; margin-top: 0.125rem; word-break: break-word; }
         .recap-item.recap-remark { border-color: #fca5a5; background-color: #fef2f2; }
         .recap-item.recap-remark .recap-label { color: #b91c1c; }
@@ -288,10 +282,8 @@
 
     <nav>
         <div class="nav-brand">
-            <div class="brand-logo">🤖</div>
             <div>
-                <h1>Suivi SN PRODUCTION SMR</h1>
-                <p>Suivi d'assemblage, Robots &amp; Stations de charge</p>
+                <h1>Suivi S/N Production SMR</h1>
             </div>
         </div>
         <div class="nav-buttons">
@@ -327,7 +319,11 @@
             </div>
 
             <div class="search-container">
-                <input id="searchElement" type="text" oninput="renderSidebarList()" placeholder="🔍 Rechercher...">
+                <input id="searchElement" type="text" oninput="renderSidebarList()" placeholder="Rechercher...">
+            </div>
+
+            <div id="finishedToggleWrap" style="padding: 0 0.65rem 0.5rem; display: none;">
+                <button id="btnToggleFinished" onclick="toggleShowFinished()" class="tab-btn tab-inactive" style="width: 100%;">Afficher les dossiers terminés</button>
             </div>
 
             <div id="sidebarList" class="sidebar-list">
@@ -588,7 +584,7 @@
                     <div style="flex: 1; min-width: 250px;">
                         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem; flex-wrap: wrap;">
                             <span id="activeBadge" class="active-badge">--</span>
-                            <span id="closedBadge" class="active-badge hidden" style="background-color: #dc2626;">🔒 Clôturé</span>
+                            <span id="closedBadge" class="active-badge hidden" style="background-color: #dc2626;">Terminé</span>
                             <h2 id="activeTitle" style="font-size: 1.5rem; font-weight: 700; color: #0f172a;">--</h2>
                         </div>
                         <div id="activeRecapGrid" class="recap-grid"></div>
@@ -614,7 +610,7 @@
                                 <button onclick="exportAllCSV()">Export global (Tous les éléments)</button>
                             </div>
                         </div>
-                        <button id="btnCloseDossier" onclick="toggleCloseDossier()" class="btn-red" style="font-size: 0.75rem;">🔒 Clôturer le dossier</button>
+                        <button id="btnCloseDossier" onclick="toggleCloseDossier()" class="btn-red" style="font-size: 0.75rem;">Clôturer</button>
                     </div>
                     <button onclick="showActiveForm()" class="btn-gray" style="font-size: 0.75rem;">⬅️ Retour Création</button>
                 </div>
@@ -665,67 +661,56 @@
     </div>
 
     <div id="batteryChargeModal" class="modal hidden">
-        <div class="modal-content" style="max-width: 440px;">
-            <div class="modal-header" style="background-color: #2563eb;">
-                <h3>🔋 Fiche de Contrôle Charge Batterie</h3>
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3>Contrôle de charge</h3>
             </div>
             <form onsubmit="handleSaveBatteryCharge(event)">
-                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
-                    <p style="font-size: 0.8125rem; color: #475569;">
-                        Cette référence requiert un enregistrement obligatoire des tensions de charge avant validation.
-                    </p>
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.1rem;">
                     <div class="form-group">
-                        <label>* Identification de la Batterie</label>
+                        <label>Identification</label>
                         <select id="batIndexSelect" required></select>
                     </div>
                     <div class="form-group">
-                        <label>* Numéro de Série S/N</label>
-                        <input id="batSNInput" type="text" required placeholder="Saisir le S/N de la batterie" style="padding: 0.5rem;">
+                        <label>Tension après réveil (V)</label>
+                        <input id="batVWake" type="number" step="0.01" placeholder="Ex: 25.75" style="padding: 0.5rem;">
                     </div>
                     <div class="form-group">
-                        <label>* Tension après réveil (V)</label>
-                        <input id="batVWake" type="number" step="0.01" required placeholder="Ex: 25.75" style="padding: 0.5rem;">
+                        <label>Tension en fin de charge (V)</label>
+                        <input id="batVEnd" type="number" step="0.01" placeholder="Ex: 26.74" style="padding: 0.5rem;">
                     </div>
-                    <div class="form-group">
-                        <label>* Tension en fin de charge (V)</label>
-                        <input id="batVEnd" type="number" step="0.01" required placeholder="Ex: 26.74" style="padding: 0.5rem;">
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
-                        <input id="batCheckCharged" type="checkbox" required style="width: 1.1rem; height: 1.1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input id="batCheckCharged" type="checkbox" style="width: 1.1rem; height: 1.1rem;">
                         <label for="batCheckCharged" style="font-size: 0.8125rem; font-weight: 700; color: #059669;">Batterie complètement chargée</label>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" onclick="closeModal('batteryChargeModal')" class="btn-gray">Annuler</button>
-                    <button type="submit" class="btn-blue">Valider la ligne</button>
+                    <button type="submit" class="btn-blue">Enregistrer</button>
                 </div>
             </form>
         </div>
     </div>
 
     <div id="rackBatteryModal" class="modal hidden">
-        <div class="modal-content" style="max-width: 440px;">
-            <div class="modal-header" style="background-color: #8b5cf6;">
-                <h3>🔋 Contrôle Batterie Rackable</h3>
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3>Contrôle de charge (Rackable)</h3>
             </div>
             <form onsubmit="handleSaveRackBattery(event)">
-                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.1rem;">
                     <div class="form-group">
-                        <label>* Identification de la Batterie</label>
+                        <label>Identification</label>
                         <select id="rackBatIndexSelect" required></select>
                     </div>
-                    <div class="form-group">
-                        <label>* Numéro de Série S/N</label>
-                        <input id="rackBatSNInput" type="text" required placeholder="Saisir le S/N de la batterie rackable" style="padding: 0.5rem;">
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
-                        <input id="rackCheckCharged" type="checkbox" required style="width: 1.1rem; height: 1.1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input id="rackCheckCharged" type="checkbox" style="width: 1.1rem; height: 1.1rem;">
                         <label for="rackCheckCharged" style="font-size: 0.8125rem; font-weight: 700; color: #059669;">Batterie bien chargée</label>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" onclick="closeModal('rackBatteryModal')" class="btn-gray">Annuler</button>
-                    <button type="submit" class="btn-blue" style="background-color: #8b5cf6;">Valider la ligne</button>
+                    <button type="submit" class="btn-blue">Enregistrer</button>
                 </div>
             </form>
         </div>
@@ -794,9 +779,21 @@
         let pendingManualData = null;
         let activeBatteryRowIndex = null;
         let editingIndex = null;
+        let showFinished = false;
 
         const BATTERY_REF = "SHE-0020400";
         const RACK_BATTERY_REF = "SHE-1046501";
+
+        function isBatteryRef(ref) {
+            return ref === BATTERY_REF || ref === RACK_BATTERY_REF;
+        }
+
+        // Une pièce est "terminée" quand son S/N est saisi ; pour une batterie
+        // il faut en plus que la charge soit confirmée.
+        function isItemComplete(item) {
+            if (isBatteryRef(item.ref)) return !!item.scanned && !!item.charged;
+            return !!item.scanned;
+        }
 
         // ---- Helpers ---------------------------------------------------------
         function formatDateTime(date = new Date()) {
@@ -1130,20 +1127,27 @@
             el.bom.forEach((item, idx) => {
                 const isSAV = item.category === 'SAV';
                 const isScanned = item.scanned;
+                const isBattery = isBatteryRef(item.ref);
+                const complete = isItemComplete(item);
 
                 if (!isSAV) {
                     normalCount++;
-                    if (isScanned) normalScanned++;
+                    if (complete) normalScanned++;
                 } else {
                     hasSAV = true;
                 }
 
                 const tr = document.createElement('tr');
-                if (isScanned) tr.className = "scanned-row";
+                if (complete) tr.className = "scanned-row";
 
-                const statusHTML = isScanned
-                    ? `<span class="status-badge" style="color: #10b981;"><span class="dot dot-green"></span> OK</span>`
-                    : `<span class="status-badge" style="color: #f59e0b;"><span class="dot dot-amber"></span> À scanner</span>`;
+                let statusHTML;
+                if (!isScanned) {
+                    statusHTML = `<span class="status-badge" style="color: #f59e0b;"><span class="dot dot-amber"></span> À scanner</span>`;
+                } else if (isBattery && !item.charged) {
+                    statusHTML = `<span class="status-badge" style="color: #ea580c;"><span class="dot dot-orange"></span> Attente de charge</span>`;
+                } else {
+                    statusHTML = `<span class="status-badge" style="color: #10b981;"><span class="dot dot-green"></span> OK</span>`;
+                }
 
                 const safeSN = String(item.serialNum || '').replace(/"/g, '&quot;');
                 let snFieldHTML;
@@ -1180,6 +1184,17 @@
                     `;
                 }
 
+                // Bouton indépendant de saisie de la charge (batteries uniquement)
+                if (isBattery && !locked) {
+                    const openFn = item.ref === RACK_BATTERY_REF ? 'openRackBatteryModal' : 'openBatteryChargeModal';
+                    const chargeLabel = item.charged ? 'Modifier la charge' : 'Saisir la charge';
+                    snFieldHTML += `
+                        <div style="margin-top: 0.4rem;">
+                            <button onclick="${openFn}(${idx})" class="btn-gray" style="padding: 0.15rem 0.55rem; font-size: 0.7rem;">${chargeLabel}</button>
+                        </div>
+                    `;
+                }
+
                 tr.innerHTML = `
                     <td style="font-family: monospace; font-weight: 700;">${item.ref}</td>
                     <td style="text-align: center;">${statusHTML}</td>
@@ -1203,12 +1218,12 @@
             const closedBadge = document.getElementById('closedBadge');
             const manualBtn = document.getElementById('btnManualScanAction');
             if (locked) {
-                btnClose.textContent = '🔓 Rouvrir le dossier';
+                btnClose.textContent = 'Rouvrir';
                 btnClose.className = 'btn-gray';
                 closedBadge.classList.remove('hidden');
                 manualBtn.classList.add('hidden');
             } else {
-                btnClose.textContent = '🔒 Clôturer le dossier';
+                btnClose.textContent = 'Clôturer';
                 btnClose.className = 'btn-red';
                 closedBadge.classList.add('hidden');
                 manualBtn.classList.remove('hidden');
@@ -1220,12 +1235,8 @@
             const el = getActiveElement();
             if (!el || el.closed) return;
 
-            const item = el.bom[index];
             const input = document.getElementById(`rowScan-${index}`);
             const value = input ? input.value.trim() : "";
-
-            if (item.ref === BATTERY_REF) { openBatteryChargeModal(index); return; }
-            if (item.ref === RACK_BATTERY_REF) { openRackBatteryModal(index); return; }
 
             if (!value) { alert("Veuillez saisir un S/N valide."); return; }
 
@@ -1315,6 +1326,11 @@
             }
             editingIndex = null;
             renderScanTables();
+            renderSidebarList();
+        }
+
+        function toggleShowFinished() {
+            showFinished = !showFinished;
             renderSidebarList();
         }
 
@@ -1420,10 +1436,28 @@
             const search = document.getElementById('searchElement').value.toLowerCase();
             container.innerHTML = '';
 
-            const filtered = elements.filter(el => el.objectType !== 'envoi' && (el.displayName.toLowerCase().includes(search) || el.client.toLowerCase().includes(search)));
+            // Bouton bascule "dossiers terminés"
+            const finishedCount = elements.filter(el => el.objectType !== 'envoi' && el.closed).length;
+            const toggleWrap = document.getElementById('finishedToggleWrap');
+            const toggleBtn = document.getElementById('btnToggleFinished');
+            if (finishedCount > 0) {
+                toggleWrap.style.display = 'block';
+                toggleBtn.textContent = showFinished
+                    ? `Masquer les dossiers terminés (${finishedCount})`
+                    : `Afficher les dossiers terminés (${finishedCount})`;
+                toggleBtn.className = 'tab-btn ' + (showFinished ? 'tab-active' : 'tab-inactive');
+            } else {
+                toggleWrap.style.display = 'none';
+            }
+
+            const filtered = elements.filter(el =>
+                el.objectType !== 'envoi'
+                && (!el.closed || showFinished)
+                && (el.displayName.toLowerCase().includes(search) || el.client.toLowerCase().includes(search))
+            );
 
             if (filtered.length === 0) {
-                container.innerHTML = '<p style="text-align: center; font-size: 0.75rem; color: #94a3b8; font-style: italic; padding: 1rem;">Aucun élément créé</p>';
+                container.innerHTML = '<p style="text-align: center; font-size: 0.75rem; color: #94a3b8; font-style: italic; padding: 1rem;">Aucun élément à afficher</p>';
                 return;
             }
 
@@ -1436,7 +1470,7 @@
                 } else if (el.objectType === 'station') { elementColor = el.color || '#64748B'; }
 
                 const total = el.bom.length;
-                const scannedCount = el.bom.filter(p => p.scanned).length;
+                const scannedCount = el.bom.filter(p => isItemComplete(p)).length;
                 const percentage = total > 0 ? Math.round((scannedCount / total) * 100) : 0;
 
                 let leftOptionsInfo = '';
@@ -1452,7 +1486,9 @@
                 }
 
                 const numberLabel = el.objectType === 'station' ? el.displayName : `N° ${el.num || el.displayName}`;
-                const lockIcon = el.closed ? ' 🔒' : '';
+                const finishedTag = el.closed
+                    ? ` <span style="font-size: 0.625rem; font-weight: 800; color: #ffffff; background-color: #dc2626; padding: 0.05rem 0.4rem; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.02em;">Terminé</span>`
+                    : '';
 
                 const card = document.createElement('div');
                 card.className = `sidebar-card ${isSelected ? 'selected' : ''}`;
@@ -1463,7 +1499,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: start;">
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem;">
-                                <span style="font-size: 0.875rem; font-weight: 700;">${numberLabel}${lockIcon}</span>
+                                <span style="font-size: 0.875rem; font-weight: 700;">${numberLabel}${finishedTag}</span>
                                 <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569;">${el.client}</span>
                             </div>
                             <div style="font-size: 0.8125rem; font-weight: 500; color: #1e293b; margin-top: 0.125rem;">
@@ -1471,7 +1507,7 @@
                             </div>
                             ${leftOptionsInfo}
                         </div>
-                        <span style="font-size: 0.5625rem; font-weight: 700; background-color: #e2e8f0; padding: 0.125rem 0.375rem; border-radius: 9999px; margin-left: 0.75rem; flex-shrink: 0;">${scannedCount}/${total}</span>
+                        <span style="font-size: 0.6875rem; font-weight: 700; background-color: #e2e8f0; padding: 0.15rem 0.45rem; border-radius: 9999px; margin-left: 0.75rem; flex-shrink: 0;">${scannedCount}/${total}</span>
                     </div>
                     <div style="margin-top: 0.5rem; width: 100%; background-color: #e2e8f0; height: 4px; border-radius: 9999px; overflow: hidden;">
                         <div style="height: 100%; background-color: ${scannedCount === total ? '#10b981' : '#94a3b8'}; width: ${percentage}%"></div>
@@ -1481,10 +1517,20 @@
             });
         }
 
-        // ---- Modales batteries ----------------------------------------------
+        // ---- Modales batteries (saisie de la charge, indépendante du S/N) ----
+        function batteryDefaultIndex(el, ref, index) {
+            let pos = 0;
+            for (let i = 0; i <= index; i++) {
+                if (el.bom[i].ref === ref) pos++;
+            }
+            return pos;
+        }
+
         function openBatteryChargeModal(index) {
-            activeBatteryRowIndex = index;
             const el = getActiveElement();
+            if (!el || el.closed) return;
+            activeBatteryRowIndex = index;
+            const item = el.bom[index];
             const totalBatteries = el.bom.filter(p => p.ref === BATTERY_REF).length;
             const select = document.getElementById('batIndexSelect');
             select.innerHTML = '';
@@ -1493,35 +1539,39 @@
                 opt.value = i; opt.textContent = `Batterie ${i}`;
                 select.appendChild(opt);
             }
-            document.getElementById('batSNInput').value = '';
-            document.getElementById('batVWake').value = '';
-            document.getElementById('batVEnd').value = '';
-            document.getElementById('batCheckCharged').checked = false;
+            const ch = item.charge || {};
+            select.value = ch.index || batteryDefaultIndex(el, BATTERY_REF, index);
+            document.getElementById('batVWake').value = ch.vWake || '';
+            document.getElementById('batVEnd').value = ch.vEnd || '';
+            document.getElementById('batCheckCharged').checked = !!item.charged;
             document.getElementById('batteryChargeModal').classList.remove('hidden');
         }
 
         function handleSaveBatteryCharge(e) {
             e.preventDefault();
-            const sn = document.getElementById('batSNInput').value.trim();
-            const vWake = document.getElementById('batVWake').value.trim();
-            const vEnd = document.getElementById('batVEnd').value.trim();
-            const indexLabel = document.getElementById('batIndexSelect').value;
+            const el = getActiveElement();
+            if (!el || el.closed) { closeModal('batteryChargeModal'); return; }
+            const item = el.bom[activeBatteryRowIndex];
 
-            if (!currentScanOperator) {
-                pendingScanIndex = activeBatteryRowIndex;
-                closeModal('batteryChargeModal');
-                openScanOperatorModal();
-                return;
-            }
+            item.charge = {
+                index: document.getElementById('batIndexSelect').value,
+                vWake: document.getElementById('batVWake').value.trim(),
+                vEnd: document.getElementById('batVEnd').value.trim()
+            };
+            item.charged = document.getElementById('batCheckCharged').checked;
+            item.scanDate = formatDateTime();
+            if (currentScanOperator) item.scanOperator = currentScanOperator;
 
-            const finalSNString = `${sn} [Bat ${indexLabel}] (Wake: ${vWake}V, End: ${vEnd}V - OK)`;
-            applyScanValidation(activeBatteryRowIndex, finalSNString, currentScanOperator);
             closeModal('batteryChargeModal');
+            renderScanTables();
+            renderSidebarList();
         }
 
         function openRackBatteryModal(index) {
-            activeBatteryRowIndex = index;
             const el = getActiveElement();
+            if (!el || el.closed) return;
+            activeBatteryRowIndex = index;
+            const item = el.bom[index];
             const totalBatteries = el.bom.filter(p => p.ref === RACK_BATTERY_REF).length;
             const select = document.getElementById('rackBatIndexSelect');
             select.innerHTML = '';
@@ -1530,26 +1580,26 @@
                 opt.value = i; opt.textContent = `Batterie Rackable ${i}`;
                 select.appendChild(opt);
             }
-            document.getElementById('rackBatSNInput').value = '';
-            document.getElementById('rackCheckCharged').checked = false;
+            const ch = item.charge || {};
+            select.value = ch.index || batteryDefaultIndex(el, RACK_BATTERY_REF, index);
+            document.getElementById('rackCheckCharged').checked = !!item.charged;
             document.getElementById('rackBatteryModal').classList.remove('hidden');
         }
 
         function handleSaveRackBattery(e) {
             e.preventDefault();
-            const sn = document.getElementById('rackBatSNInput').value.trim();
-            const indexLabel = document.getElementById('rackBatIndexSelect').value;
+            const el = getActiveElement();
+            if (!el || el.closed) { closeModal('rackBatteryModal'); return; }
+            const item = el.bom[activeBatteryRowIndex];
 
-            if (!currentScanOperator) {
-                pendingScanIndex = activeBatteryRowIndex;
-                closeModal('rackBatteryModal');
-                openScanOperatorModal();
-                return;
-            }
+            item.charge = { index: document.getElementById('rackBatIndexSelect').value };
+            item.charged = document.getElementById('rackCheckCharged').checked;
+            item.scanDate = formatDateTime();
+            if (currentScanOperator) item.scanOperator = currentScanOperator;
 
-            const finalSNString = `${sn} [Rack ${indexLabel}] (Chargée)`;
-            applyScanValidation(activeBatteryRowIndex, finalSNString, currentScanOperator);
             closeModal('rackBatteryModal');
+            renderScanTables();
+            renderSidebarList();
         }
 
         // ---- Scan manuel -----------------------------------------------------
@@ -1597,18 +1647,10 @@
                     pendingManualData = null;
                 }
             } else {
-                // Ligne de nomenclature standard (ou batterie)
-                const el = getActiveElement();
-                const item = el.bom[pendingScanIndex];
-                if (item.ref === BATTERY_REF) {
-                    openBatteryChargeModal(pendingScanIndex);
-                } else if (item.ref === RACK_BATTERY_REF) {
-                    openRackBatteryModal(pendingScanIndex);
-                } else {
-                    const input = document.getElementById(`rowScan-${pendingScanIndex}`);
-                    const val = input ? input.value.trim() : "";
-                    applyScanValidation(pendingScanIndex, val, currentScanOperator);
-                }
+                // Ligne de nomenclature standard (S/N)
+                const input = document.getElementById(`rowScan-${pendingScanIndex}`);
+                const val = input ? input.value.trim() : "";
+                applyScanValidation(pendingScanIndex, val, currentScanOperator);
             }
             pendingScanIndex = null;
         }
@@ -1664,12 +1706,26 @@
         // ---- Exports ---------------------------------------------------------
         function cleanCSVField(val) { return val ? `"${String(val).replace(/"/g, '""')}"` : '""'; }
 
+        // S/N pour l'export : le S/N reste seul à l'écran, mais on conserve le
+        // détail de charge dans le fichier CSV (traçabilité).
+        function snForCSV(item) {
+            const sn = item.serialNum || '';
+            if (isBatteryRef(item.ref) && item.charge) {
+                const c = item.charge;
+                let extra = `Bat ${c.index || ''}`;
+                if (c.vWake || c.vEnd) extra += ` | Reveil:${c.vWake || '-'}V Fin:${c.vEnd || '-'}V`;
+                extra += item.charged ? ' | Chargee' : ' | Attente charge';
+                return `${sn} (${extra.trim()})`.trim();
+            }
+            return sn;
+        }
+
         function exportSingleCSV() {
             const el = getActiveElement();
             if (!el) return;
             let csvContent = "﻿Reference;Designation;S/N;Date Scan;Operateur;Categorie piece\r\n";
             el.bom.forEach(item => {
-                csvContent += `${cleanCSVField(item.ref)};${cleanCSVField(item.designation)};${cleanCSVField(item.serialNum)};${cleanCSVField(item.scanDate)};${cleanCSVField(item.scanOperator)};${cleanCSVField(item.category)}\r\n`;
+                csvContent += `${cleanCSVField(item.ref)};${cleanCSVField(item.designation)};${cleanCSVField(snForCSV(item))};${cleanCSVField(item.scanDate)};${cleanCSVField(item.scanOperator)};${cleanCSVField(item.category)}\r\n`;
             });
             triggerCSVDownload(csvContent, `export_${el.displayName.replace(/\s+/g, '_')}.csv`);
         }
@@ -1689,7 +1745,7 @@
                 const options = (isRobot && el.optionsList) ? el.optionsList.join(', ') : "";
 
                 el.bom.forEach(item => {
-                    csvContent += `${cleanCSVField(elType)};${cleanCSVField(num)};${cleanCSVField(modelType)};${cleanCSVField(top)};${cleanCSVField(projNum)};${cleanCSVField(client)};${cleanCSVField(options)};${cleanCSVField(item.ref)};${cleanCSVField(item.designation)};${cleanCSVField(item.serialNum)};${cleanCSVField(item.scanDate)};${cleanCSVField(item.scanOperator)};${cleanCSVField(item.category)}\r\n`;
+                    csvContent += `${cleanCSVField(elType)};${cleanCSVField(num)};${cleanCSVField(modelType)};${cleanCSVField(top)};${cleanCSVField(projNum)};${cleanCSVField(client)};${cleanCSVField(options)};${cleanCSVField(item.ref)};${cleanCSVField(item.designation)};${cleanCSVField(snForCSV(item))};${cleanCSVField(item.scanDate)};${cleanCSVField(item.scanOperator)};${cleanCSVField(item.category)}\r\n`;
                 });
             });
             triggerCSVDownload(csvContent, `export_global_production_smr_${Date.now()}.csv`);
