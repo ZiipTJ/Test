@@ -276,6 +276,45 @@
         @media (max-width: 900px) {
             aside { width: 280px; }
         }
+
+        /* ---- Écran de connexion aux fichiers ---- */
+        .connect-overlay {
+            position: fixed; inset: 0; z-index: 60;
+            background: linear-gradient(135deg, #0f172a 0%, #1a2842 100%);
+            display: flex; align-items: center; justify-content: center; padding: 1rem;
+        }
+        .connect-card {
+            background: #ffffff; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+            padding: 2rem; width: 100%; max-width: 540px;
+        }
+        .connect-card h2 { font-size: 1.35rem; font-weight: 700; color: var(--slate-900); }
+        .connect-sub { font-size: 0.85rem; color: var(--slate-500); margin-top: 0.35rem; margin-bottom: 1.5rem; }
+        .connect-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            border: 1px solid var(--slate-200); border-radius: var(--radius); padding: 0.85rem 1rem; margin-bottom: 0.85rem;
+        }
+        .connect-label { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: var(--slate-500); }
+        .connect-status { font-size: 0.85rem; font-weight: 600; color: var(--slate-800); margin-top: 0.15rem; word-break: break-all; }
+        .connect-status.ok { color: var(--emerald-d); }
+        .connect-main-btn { width: 100%; padding: 0.7rem; margin-top: 0.75rem; justify-content: center; font-size: 0.95rem; }
+        .connect-main-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .connect-warn {
+            background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5;
+            border-radius: var(--radius); padding: 0.85rem 1rem; font-size: 0.8rem; font-weight: 600;
+        }
+        .connect-reconnect-info {
+            background: var(--slate-50); border: 1px solid var(--slate-200); border-radius: var(--radius);
+            padding: 0.85rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; color: var(--slate-700);
+        }
+        .connect-reconnect-info strong { color: var(--slate-900); }
+        .sync-status {
+            font-size: 0.75rem; font-weight: 600; color: var(--slate-300);
+            display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap;
+        }
+        .sync-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--slate-500); flex-shrink: 0; }
+        .sync-dot.saving { background: var(--amber); }
+        .sync-dot.ok { background: var(--emerald); }
+        .sync-dot.err { background: var(--red); }
     </style>
 </head>
 <body>
@@ -287,18 +326,64 @@
             </div>
         </div>
         <div class="nav-buttons">
+            <span id="syncStatus" class="sync-status"><span class="sync-dot"></span><span id="syncStatusText">Hors ligne</span></span>
             <button onclick="showEnvoisConsultationView()" class="btn-secondary">
                 📦 Liste envois
             </button>
             <input type="file" id="importConfigInput" accept=".json" onchange="handleFileImport(event)" class="hidden">
-            <button onclick="document.getElementById('importConfigInput').click()" class="btn-primary">
-                📥 Importer config.json
+            <button onclick="openConnectOverlay()" class="btn-secondary">
+                🗂️ Fichiers
             </button>
             <button onclick="exportWorkspace()" class="btn-blue">
-                📤 Exporter Données (JSON)
+                📤 Sauvegarde manuelle
             </button>
         </div>
     </nav>
+
+    <div id="connectOverlay" class="connect-overlay">
+        <div class="connect-card">
+            <h2>Suivi S/N Production SMR</h2>
+            <p class="connect-sub">Connexion aux fichiers partagés (configuration &amp; données).</p>
+
+            <div id="connectUnsupported" class="connect-warn hidden">
+                Ce navigateur ne permet pas l'accès direct aux fichiers (File System Access API).
+                Utilisez <strong>Google Chrome</strong> ou <strong>Microsoft Edge</strong> sur ordinateur, via une adresse <strong>https://</strong>.
+                <div style="margin-top: 1rem;">
+                    <button onclick="document.getElementById('importConfigInput').click()" class="btn-primary">Importer config.json (mode limité, sans sauvegarde)</button>
+                </div>
+            </div>
+
+            <div id="connectReconnect" class="hidden">
+                <div id="reconnectInfo" class="connect-reconnect-info"></div>
+                <button onclick="reconnect()" class="btn-primary connect-main-btn">Se reconnecter</button>
+                <button onclick="showSetup()" class="btn-gray connect-main-btn" style="margin-top: 0.5rem;">Changer les fichiers</button>
+            </div>
+
+            <div id="connectSetup" class="hidden">
+                <div class="connect-row">
+                    <div style="min-width: 0;">
+                        <div class="connect-label">Configuration (lecture)</div>
+                        <div id="cfgStatus" class="connect-status">Aucun fichier sélectionné</div>
+                    </div>
+                    <button onclick="pickConfig()" class="btn-blue" style="flex-shrink: 0;">Choisir config.json</button>
+                </div>
+                <div class="connect-row">
+                    <div style="min-width: 0;">
+                        <div class="connect-label">Données (lecture / écriture)</div>
+                        <div id="dataStatus" class="connect-status">Aucun fichier sélectionné</div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
+                        <button onclick="pickData(false)" class="btn-blue">Ouvrir data.json</button>
+                        <button onclick="pickData(true)" class="btn-gray">Créer…</button>
+                    </div>
+                </div>
+                <button id="connectStartBtn" onclick="startFromSetup()" class="btn-primary connect-main-btn" disabled>Ouvrir le logiciel</button>
+                <button id="connectCancelBtn" onclick="hideOverlay()" class="btn-gray connect-main-btn hidden" style="margin-top: 0.5rem;">Annuler</button>
+            </div>
+
+            <div id="connectError" class="connect-warn hidden" style="margin-top: 1rem;"></div>
+        </div>
+    </div>
 
     <div class="app-container">
 
@@ -785,6 +870,367 @@
             return !!item.scanned;
         }
 
+        // ====================================================================
+        //  PERSISTANCE FICHIERS (File System Access API) + MULTI-UTILISATEURS
+        // ====================================================================
+        const FS_SUPPORTED = ('showOpenFilePicker' in window);
+        let configHandle = null;
+        let dataHandle = null;
+        let tempConfigHandle = null;
+        let tempDataHandle = null;
+        let dataVersion = 0;
+        let saving = false;
+        let pendingSave = false;
+        let saveTimer = null;
+        let syncTimer = null;
+
+        // --- IndexedDB (stockage des handles + sauvegardes de secours) ---
+        const IDB_NAME = 'suiviSN';
+        function idbOpen() {
+            return new Promise((resolve, reject) => {
+                const rq = indexedDB.open(IDB_NAME, 1);
+                rq.onupgradeneeded = () => {
+                    const db = rq.result;
+                    if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
+                    if (!db.objectStoreNames.contains('backups')) db.createObjectStore('backups', { keyPath: 'ts' });
+                };
+                rq.onsuccess = () => resolve(rq.result);
+                rq.onerror = () => reject(rq.error);
+            });
+        }
+        async function idbSet(store, key, val) {
+            const db = await idbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readwrite');
+                if (store === 'backups') tx.objectStore(store).put(val);
+                else tx.objectStore(store).put(val, key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+        async function idbGet(store, key) {
+            const db = await idbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(store, 'readonly');
+                const rq = tx.objectStore(store).get(key);
+                rq.onsuccess = () => resolve(rq.result);
+                rq.onerror = () => reject(rq.error);
+            });
+        }
+        async function idbGetAllBackups() {
+            const db = await idbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('backups', 'readonly');
+                const rq = tx.objectStore('backups').getAll();
+                rq.onsuccess = () => resolve(rq.result || []);
+                rq.onerror = () => reject(rq.error);
+            });
+        }
+        async function pushBackup(content) {
+            try {
+                await idbSet('backups', null, { ts: Date.now(), data: content });
+                const all = await idbGetAllBackups();
+                all.sort((a, b) => b.ts - a.ts);
+                // On ne conserve que les 20 dernières sauvegardes locales
+                const db = await idbOpen();
+                const tx = db.transaction('backups', 'readwrite');
+                all.slice(20).forEach(b => tx.objectStore('backups').delete(b.ts));
+            } catch (e) { /* silencieux */ }
+        }
+        async function getLatestBackup() {
+            const all = await idbGetAllBackups();
+            if (!all.length) return null;
+            all.sort((a, b) => b.ts - a.ts);
+            return all[0].data;
+        }
+
+        // --- Permissions ---
+        async function verifyPermission(handle, readWrite) {
+            const opts = { mode: readWrite ? 'readwrite' : 'read' };
+            if ((await handle.queryPermission(opts)) === 'granted') return true;
+            if ((await handle.requestPermission(opts)) === 'granted') return true;
+            return false;
+        }
+
+        // --- Lecture ---
+        async function loadConfigFromHandle() {
+            const file = await configHandle.getFile();
+            const parsed = JSON.parse(await file.text());
+            config = parsed;
+        }
+        async function readDataFile() {
+            // Retourne l'objet parsé, {version,elements} vide si fichier vide,
+            // ou null si le contenu est illisible/corrompu.
+            try {
+                const file = await dataHandle.getFile();
+                const text = (await file.text()).trim();
+                if (!text) return { version: 0, elements: [] };
+                const parsed = JSON.parse(text);
+                if (!parsed || !Array.isArray(parsed.elements)) return { version: 0, elements: [] };
+                return parsed;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // --- Fusion multi-utilisateurs (union par id, le plus récent gagne) ---
+        function mergeElements(base, incoming) {
+            const map = new Map();
+            (base || []).forEach(el => { if (el && el.id) map.set(el.id, el); });
+            (incoming || []).forEach(el => {
+                if (!el || !el.id) return;
+                const ex = map.get(el.id);
+                if (!ex || (el.updatedAt || 0) >= (ex.updatedAt || 0)) map.set(el.id, el);
+            });
+            return Array.from(map.values());
+        }
+
+        async function initialLoadData() {
+            const disk = await readDataFile();
+            if (disk === null) {
+                const bk = await getLatestBackup();
+                if (bk && confirm("Le fichier de données est illisible ou corrompu. Restaurer la dernière sauvegarde locale de secours ?")) {
+                    try {
+                        const parsed = JSON.parse(bk);
+                        elements = Array.isArray(parsed.elements) ? parsed.elements : [];
+                        dataVersion = parsed.version || 0;
+                    } catch (e) { elements = []; dataVersion = 0; }
+                } else {
+                    // On n'écrase rien automatiquement : on démarre à vide,
+                    // la prochaine sauvegarde fusionnera avec le disque relu.
+                    elements = [];
+                    dataVersion = 0;
+                }
+            } else {
+                elements = disk.elements;
+                dataVersion = disk.version || 0;
+            }
+            elements.forEach(el => { if (!el.updatedAt) el.updatedAt = Date.now(); });
+        }
+
+        // --- Sauvegarde atomique + fusion ---
+        async function saveData() {
+            if (!dataHandle) return;
+            if (saving) { pendingSave = true; return; }
+            saving = true;
+            setSync('saving', 'Sauvegarde…');
+            try {
+                const disk = await readDataFile();
+                let diskElements = [];
+                let diskVersion = 0;
+                if (disk && Array.isArray(disk.elements)) {
+                    diskElements = disk.elements;
+                    diskVersion = disk.version || 0;
+                    // Sauvegarde de secours de l'état disque AVANT écrasement
+                    await pushBackup(JSON.stringify(disk));
+                }
+                // Fusion : le disque sert de base, nos éléments récents gagnent
+                elements = mergeElements(diskElements, elements);
+                dataVersion = Math.max(diskVersion, dataVersion) + 1;
+
+                const payload = JSON.stringify({
+                    version: dataVersion,
+                    updatedAt: new Date().toISOString(),
+                    elements
+                }, null, 2);
+
+                const writable = await dataHandle.createWritable();
+                await writable.write(payload);
+                await writable.close();
+
+                renderSidebarList();
+                setSync('ok', 'Sauvegardé ' + new Date().toLocaleTimeString());
+            } catch (e) {
+                console.error(e);
+                setSync('err', 'Erreur de sauvegarde');
+            } finally {
+                saving = false;
+                if (pendingSave) { pendingSave = false; saveData(); }
+            }
+        }
+
+        function scheduleSave() {
+            if (!dataHandle) return;
+            clearTimeout(saveTimer);
+            setSync('saving', 'Modification en attente…');
+            saveTimer = setTimeout(saveData, 800);
+        }
+
+        // --- Rafraîchissement périodique (voir les ajouts des autres) ---
+        function isBusy() {
+            if (document.querySelector('.modal:not(.hidden)')) return true;
+            const ae = document.activeElement;
+            if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return true;
+            return false;
+        }
+        async function pullData() {
+            if (!dataHandle || saving || isBusy()) return;
+            const disk = await readDataFile();
+            if (!disk || !Array.isArray(disk.elements)) return;
+            const before = elements.length;
+            elements = mergeElements(disk.elements, elements);
+            dataVersion = Math.max(dataVersion, disk.version || 0);
+            renderSidebarList();
+            if (activeElementId && getActiveElement()) renderScanTables();
+        }
+        function startAutoSync() {
+            if (syncTimer) clearInterval(syncTimer);
+            syncTimer = setInterval(pullData, 15000);
+            // Sauvegarde de sécurité quand l'onglet passe en arrière-plan
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden' && dataHandle) saveData();
+            });
+        }
+
+        // --- Indicateur de synchro ---
+        function setSync(state, text) {
+            const dot = document.querySelector('#syncStatus .sync-dot');
+            const txt = document.getElementById('syncStatusText');
+            if (dot) dot.className = 'sync-dot' + (state ? ' ' + state : '');
+            if (txt) txt.textContent = text;
+        }
+
+        // --- Écran de connexion ---
+        function showOverlay() { document.getElementById('connectOverlay').style.display = 'flex'; }
+        function hideOverlay() { document.getElementById('connectOverlay').style.display = 'none'; }
+        function showConnectError(msg) {
+            const box = document.getElementById('connectError');
+            box.textContent = msg;
+            box.classList.remove('hidden');
+        }
+        function clearConnectError() { document.getElementById('connectError').classList.add('hidden'); }
+
+        function showSetup() {
+            clearConnectError();
+            document.getElementById('connectReconnect').classList.add('hidden');
+            document.getElementById('connectUnsupported').classList.add('hidden');
+            document.getElementById('connectSetup').classList.remove('hidden');
+            // Bouton Annuler visible seulement si déjà connecté
+            document.getElementById('connectCancelBtn').classList.toggle('hidden', !(configHandle && dataHandle));
+            tempConfigHandle = configHandle;
+            tempDataHandle = dataHandle;
+            document.getElementById('cfgStatus').textContent = configHandle ? configHandle.name : 'Aucun fichier sélectionné';
+            document.getElementById('dataStatus').textContent = dataHandle ? dataHandle.name : 'Aucun fichier sélectionné';
+            updateStartBtn();
+        }
+        function showReconnectScreen() {
+            clearConnectError();
+            document.getElementById('connectSetup').classList.add('hidden');
+            document.getElementById('connectUnsupported').classList.add('hidden');
+            document.getElementById('connectReconnect').classList.remove('hidden');
+            document.getElementById('reconnectInfo').innerHTML =
+                `Fichiers mémorisés :<br><strong>Config :</strong> ${configHandle.name}<br><strong>Données :</strong> ${dataHandle.name}`;
+        }
+        function updateStartBtn() {
+            document.getElementById('connectStartBtn').disabled = !(tempConfigHandle && tempDataHandle);
+        }
+
+        function openConnectOverlay() {
+            showOverlay();
+            if (!FS_SUPPORTED) {
+                document.getElementById('connectSetup').classList.add('hidden');
+                document.getElementById('connectReconnect').classList.add('hidden');
+                document.getElementById('connectUnsupported').classList.remove('hidden');
+                return;
+            }
+            showSetup();
+        }
+
+        async function pickConfig() {
+            try {
+                const [h] = await window.showOpenFilePicker({
+                    types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+                });
+                tempConfigHandle = h;
+                document.getElementById('cfgStatus').textContent = h.name;
+                document.getElementById('cfgStatus').classList.add('ok');
+                updateStartBtn();
+            } catch (e) { /* annulé */ }
+        }
+
+        async function pickData(create) {
+            try {
+                let h;
+                if (create) {
+                    h = await window.showSaveFilePicker({
+                        suggestedName: 'data.json',
+                        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+                    });
+                    const w = await h.createWritable();
+                    await w.write(JSON.stringify({ version: 0, updatedAt: new Date().toISOString(), elements: [] }, null, 2));
+                    await w.close();
+                } else {
+                    [h] = await window.showOpenFilePicker({
+                        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+                    });
+                }
+                tempDataHandle = h;
+                document.getElementById('dataStatus').textContent = h.name;
+                document.getElementById('dataStatus').classList.add('ok');
+                updateStartBtn();
+            } catch (e) { /* annulé */ }
+        }
+
+        async function startFromSetup() {
+            clearConnectError();
+            try {
+                configHandle = tempConfigHandle;
+                dataHandle = tempDataHandle;
+                if (!(await verifyPermission(configHandle, false))) throw new Error("Permission de lecture refusée pour la configuration.");
+                if (!(await verifyPermission(dataHandle, true))) throw new Error("Permission d'écriture refusée pour les données.");
+                await loadConfigFromHandle();
+                await initialLoadData();
+                await idbSet('handles', 'config', configHandle);
+                await idbSet('handles', 'data', dataHandle);
+                connected();
+            } catch (e) {
+                showConnectError("Erreur : " + e.message);
+            }
+        }
+
+        async function reconnect() {
+            clearConnectError();
+            try {
+                if (!(await verifyPermission(configHandle, false))) throw new Error("Permission de lecture refusée pour la configuration.");
+                if (!(await verifyPermission(dataHandle, true))) throw new Error("Permission d'écriture refusée pour les données.");
+                await loadConfigFromHandle();
+                await initialLoadData();
+                connected();
+            } catch (e) {
+                showConnectError("Reconnexion impossible : " + e.message + " — vous pouvez re-sélectionner les fichiers.");
+            }
+        }
+
+        function connected() {
+            hideOverlay();
+            initApp();
+            startAutoSync();
+            setSync('ok', 'Connecté');
+            // Première sauvegarde pour matérialiser la fusion sur le disque
+            scheduleSave();
+        }
+
+        async function boot() {
+            setSync('', 'Hors ligne');
+            if (!FS_SUPPORTED) {
+                showOverlay();
+                document.getElementById('connectUnsupported').classList.remove('hidden');
+                return;
+            }
+            showOverlay();
+            try {
+                const c = await idbGet('handles', 'config');
+                const d = await idbGet('handles', 'data');
+                if (c && d) {
+                    configHandle = c;
+                    dataHandle = d;
+                    showReconnectScreen();
+                    return;
+                }
+            } catch (e) { /* pas de handles mémorisés */ }
+            showSetup();
+        }
+
         // ---- Helpers ---------------------------------------------------------
         function formatDateTime(date = new Date()) {
             const pad = (n) => String(n).padStart(2, '0');
@@ -877,8 +1323,9 @@
             reader.onload = function(e) {
                 try {
                     config = JSON.parse(e.target.result);
-                    alert("Nouvelle configuration appliquée !");
+                    hideOverlay();
                     initApp();
+                    setSync('', 'Mode limité (sans sauvegarde)');
                 } catch (err) { alert("Erreur de parsing JSON : " + err.message); }
             };
             reader.readAsText(file);
@@ -1258,9 +1705,11 @@
             el.bom[index].serialNum = serialNum;
             el.bom[index].scanDate = formatDateTime();
             el.bom[index].scanOperator = operator;
+            el.updatedAt = Date.now();
 
             renderScanTables();
             renderSidebarList();
+            scheduleSave();
         }
 
         function applyManualScan(ref, designation, serialNum, isSAV, operator) {
@@ -1275,10 +1724,12 @@
                 scanDate: formatDateTime(),
                 scanOperator: operator
             });
+            el.updatedAt = Date.now();
 
             closeModal('manualScanModal');
             renderScanTables();
             renderSidebarList();
+            scheduleSave();
         }
 
         // ---- Modification d'un S/N validé -----------------------------------
@@ -1304,9 +1755,11 @@
             if (!val) { alert("Veuillez saisir un S/N valide."); return; }
             el.bom[index].serialNum = val;
             el.bom[index].scanDate = formatDateTime();
+            el.updatedAt = Date.now();
             editingIndex = null;
             renderScanTables();
             renderSidebarList();
+            scheduleSave();
         }
 
         // ---- Clôture / réouverture d'un dossier -----------------------------
@@ -1320,9 +1773,11 @@
                 if (!confirm("Rouvrir ce dossier pour autoriser à nouveau les modifications ?")) return;
                 el.closed = false;
             }
+            el.updatedAt = Date.now();
             editingIndex = null;
             renderScanTables();
             renderSidebarList();
+            scheduleSave();
         }
 
         function toggleShowFinished() {
@@ -1372,8 +1827,9 @@
             }
 
             const id = 'R-' + Date.now();
-            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom });
+            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom, updatedAt: Date.now() });
             selectElement(id);
+            scheduleSave();
         }
 
         function handleCreateStation(e) {
@@ -1390,8 +1846,9 @@
             const bom = config.station_base_components ? config.station_base_components.map(comp => ({ ref: comp.ref, designation: comp.designation, category: "Station", scanned: false, serialNum: "", scanDate: "", scanOperator: "" })) : [];
 
             const id = 'S-' + Date.now();
-            elements.push({ id, objectType: 'station', type: code, typeName: selectedType?.name || "Station", color: selectedType?.color || "#64748B", num: autoNum, displayName, client, projectNum, operator, bom });
+            elements.push({ id, objectType: 'station', type: code, typeName: selectedType?.name || "Station", color: selectedType?.color || "#64748B", num: autoNum, displayName, client, projectNum, operator, bom, updatedAt: Date.now() });
             selectElement(id);
+            scheduleSave();
         }
 
         function handleCreateEnvoi(e) {
@@ -1421,7 +1878,8 @@
             const id = 'E-' + Date.now();
             const displayName = `Envoi PR${projectNum}`;
 
-            elements.push({ id, objectType: 'envoi', displayName, client, projectNum, operator, dateValidation: dateStr, bom });
+            elements.push({ id, objectType: 'envoi', displayName, client, projectNum, operator, dateValidation: dateStr, bom, updatedAt: Date.now() });
+            scheduleSave();
             alert("Envoi enregistré avec succès !");
             showEnvoisConsultationView();
         }
@@ -1550,10 +2008,12 @@
             item.charged = document.getElementById('batCheckCharged').checked;
             item.scanDate = formatDateTime();
             if (currentScanOperator) item.scanOperator = currentScanOperator;
+            el.updatedAt = Date.now();
 
             closeModal('batteryChargeModal');
             renderScanTables();
             renderSidebarList();
+            scheduleSave();
         }
 
         function openRackBatteryModal(index) {
@@ -1577,10 +2037,12 @@
             item.charged = document.getElementById('rackCheckCharged').checked;
             item.scanDate = formatDateTime();
             if (currentScanOperator) item.scanOperator = currentScanOperator;
+            el.updatedAt = Date.now();
 
             closeModal('rackBatteryModal');
             renderScanTables();
             renderSidebarList();
+            scheduleSave();
         }
 
         // ---- Scan manuel -----------------------------------------------------
@@ -1746,7 +2208,7 @@
         }
 
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-        initApp();
+        boot();
     </script>
 </body>
 </html>
