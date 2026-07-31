@@ -153,9 +153,17 @@ L'application les signale d'elle-même quand le cas s'y prête :
 - **Charge ponctuelle** : la contrainte au point exact d'application est théoriquement infinie. La
   valeur affichée dépend de la finesse du maillage. Pour vérifier une résistance locale (poinçonnement),
   modélisez la surface réelle d'appui avec une zone répartie.
-- **Décollement** : avec un appui simple, une réaction négative signifie que la plaque se
-  soulèverait du bâti. Le calcul, lui, la maintient (liaison bilatérale) : la flèche réelle serait
-  supérieure. L'application prévient quand ce cas se produit.
+- **Décollement et largeur d'appui** : c'est le point de modélisation le plus sensible. Bloquer
+  toute la largeur d'un appui revient à encastrer partiellement le panneau, ce qui le rigidifie
+  artificiellement ; à l'inverse, un panneau simplement posé finit par ne porter que sur le bord
+  intérieur de chaque appui. Le contact unilatéral (actif par défaut) modélise ce second
+  comportement et donne donc une flèche nettement plus forte — sur un panneau posé sur une
+  ossature de profils de 60 mm, l'écart entre les deux hypothèses atteint couramment 60 %.
+  Décochez « le panneau peut se soulever » si le panneau est effectivement maintenu (vissé, bridé,
+  rainuré) : la réalité est alors entre les deux, plus près du cas bilatéral. En cas de doute,
+  gardez le contact unilatéral, qui va dans le sens de la sécurité. Le nombre de nœuds décollés et
+  d'itérations est affiché avec les résultats, et les appuis décollés apparaissent en orange sur
+  la déformée.
 - **Plaque épaisse** : si portée / épaisseur < 10, le cisaillement transverse (ignoré par Kirchhoff)
   majorerait la flèche.
 - **Comportement** : élasticité linéaire uniquement. Ni plasticité, ni rupture, ni relaxation des

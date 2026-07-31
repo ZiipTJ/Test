@@ -1484,7 +1484,9 @@
     const wTol = 1e-3;
     let wPrev = null;
     /* Anti-cyclage : un nœud à la frontière du décollement peut osciller d'une
-       itération à l'autre. Au-delà de trois changements d'état, on fige le sien. */
+       itération à l'autre. Au-delà de quatre changements d'état on le fige, et on le
+       fige *en contact* : laisser un nœud décollé alors qu'il traverserait le bâti
+       serait non conservatif et physiquement faux. */
     const flips = new Uint8Array(nN);
     for (let it = 0; it < 25; it++) {
       iterations = it + 1;
@@ -1504,7 +1506,7 @@
       let changed = 0, nAct = nActive;
       for (let n = 0; n < nN; n++) {
         if (!unilateral[n]) continue;
-        if (flips[n] >= 3) continue;
+        if (flips[n] >= 4) { next[3 * n] = 1; continue; }
         if (active[3 * n]) {
           if (F[3 * n] - Fint[3 * n] < -tolR && nAct > 6) { next[3 * n] = 0; nAct--; changed++; flips[n]++; }
         } else if (fixed[3 * n] && u[3 * n] > 1e-7) { next[3 * n] = 1; nAct++; changed++; flips[n]++; }
