@@ -51,7 +51,7 @@
     const P = (x, y) => view.toScreen(x, y);
 
     // Bande d'appui
-    if (state.support.width > 0) {
+    if (state.supportMode !== 'contacts' && state.support.width > 0) {
       ctx.save();
       ctx.beginPath();
       pathRegion(ctx, state.region, P);
@@ -74,12 +74,47 @@
     ctx.strokeStyle = colLine;
     ctx.stroke();
 
-    // Hachures d'appui sur le contour
-    ctx.lineWidth = 2.2;
-    ctx.strokeStyle = 'rgba(37,133,142,0.9)';
-    ctx.beginPath();
-    ringPath(ctx, state.region.outer, P);
-    ctx.stroke();
+    if (state.supportMode !== 'contacts') {
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = 'rgba(37,133,142,0.9)';
+      ctx.beginPath();
+      ringPath(ctx, state.region.outer, P);
+      ctx.stroke();
+    }
+
+    // Zones d'appui déduites des contacts
+    if (state.supportMode === 'contacts' && state.contacts) {
+      ctx.save();
+      for (const c of state.contacts) {
+        if (!c.enabled || !c.contact.mask) continue;
+        const segs = root.Solids.maskOutline(c.contact, c.contact.side);
+        ctx.fillStyle = c.type === 'encastre' ? 'rgba(31,138,76,0.28)' : 'rgba(37,133,142,0.22)';
+        // Remplissage par plages horizontales contiguës : évite le moiré des cases
+        const m = c.contact;
+        const bit = c.contact.side === 'dessus' ? 2 : 1;
+        for (let j = 0; j < m.nv; j++) {
+          let i = 0;
+          while (i < m.nu) {
+            if (!(m.mask[j * m.nu + i] & bit)) { i++; continue; }
+            let k = i;
+            while (k + 1 < m.nu && (m.mask[j * m.nu + k + 1] & bit)) k++;
+            const p0 = P(m.u0 + (i - 0.5) * m.cs, m.v0 + (j - 0.5) * m.cs);
+            const p1 = P(m.u0 + (k + 0.5) * m.cs, m.v0 + (j + 0.5) * m.cs);
+            ctx.fillRect(p0[0], p1[1], p1[0] - p0[0], p0[1] - p1[1]);
+            i = k + 1;
+          }
+        }
+        ctx.strokeStyle = c.type === 'encastre' ? 'rgba(31,138,76,0.95)' : 'rgba(37,133,142,0.95)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (const [x0, y0, x1, y1] of segs) {
+          const a = P(x0, y0), b = P(x1, y1);
+          ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     // Zones de charge
     for (const l of state.loads) {
@@ -172,14 +207,16 @@
     if (!res) return;
 
     const mesh = res.mesh, u = res.u;
+    const perElem = opts.field === 'ep';
     const field = opts.field === 'sigma' ? res.vonMises : null;
     const nN = mesh.nodes.length;
 
-    // Valeurs nodales du champ affiché
-    const val = new Float64Array(nN);
+    // Valeurs du champ affiché (aux nœuds, ou par élément pour l'épaisseur)
+    const val = new Float64Array(perElem ? mesh.elems.length : nN);
     let vmin = Infinity, vmax = -Infinity;
-    for (let n = 0; n < nN; n++) {
-      val[n] = field ? field[n] : Math.abs(u[3 * n]);
+    const nv = val.length;
+    for (let n = 0; n < nv; n++) {
+      val[n] = perElem ? res.elemT[n] : (field ? field[n] : Math.abs(u[3 * n]));
       if (val[n] < vmin) vmin = val[n];
       if (val[n] > vmax) vmax = val[n];
     }
@@ -257,7 +294,7 @@
       const lam = Math.abs(nx * lightDir[0] + ny * lightDir[1] + nz * lightDir[2]);
       const shade = 0.72 + 0.28 * lam;
 
-      const vm = (val[a] + val[b] + val[c]) / 3;
+      const vm = perElem ? val[e] : (val[a] + val[b] + val[c]) / 3;
       const col = colormap((vm - vmin) / (vmax - vmin));
       ctx.fillStyle = `rgb(${Math.round(col[0] * shade)},${Math.round(col[1] * shade)},${Math.round(col[2] * shade)})`;
       ctx.beginPath();
@@ -275,12 +312,12 @@
       }
     }
 
-    // Appuis
+    // Appuis : bleu = portant, orange = décollé (contact unilatéral)
     if (opts.showSupports) {
-      ctx.fillStyle = 'rgba(20,110,140,0.85)';
       for (let n = 0; n < nN; n++) {
         if (!res.supported[n]) continue;
-        ctx.beginPath(); ctx.arc(sx[n], sy[n], 1.8, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = res.supported[n] === 2 ? 'rgba(232,89,12,0.9)' : 'rgba(20,110,140,0.85)';
+        ctx.beginPath(); ctx.arc(sx[n], sy[n], res.supported[n] === 2 ? 2.4 : 1.8, 0, 2 * Math.PI); ctx.fill();
       }
     }
 
@@ -291,7 +328,8 @@
     ctx.beginPath(); ctx.arc(sx[wn], sy[wn], 6, 0, 2 * Math.PI); ctx.stroke();
     ctx.restore();
 
-    drawColorbar(ctx, W, H, vmin, vmax, opts.field === 'sigma' ? 'MPa (von Mises, peau)' : 'mm (flèche)');
+    drawColorbar(ctx, W, H, vmin, vmax,
+      opts.field === 'sigma' ? 'MPa (von Mises, peau)' : (perElem ? 'mm (épaisseur)' : 'mm (flèche)'));
     return { vmin, vmax };
   }
 
@@ -323,5 +361,96 @@
     ctx.restore();
   }
 
-  root.Render = { drawPlan, drawDeformed, makeView, colormap, cssColor: css };
+  /* ---------------- Vue assemblage 3D ---------------- */
+  /* Affiche le panneau et les autres pièces dans le repère du panneau, pour
+     vérifier d'un coup d'œil que l'assemblage est correctement positionné. */
+  function drawAssembly(canvas, st, view3d) {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (!st.imported || !st.frame) return;
+
+    const So = root.Solids;
+    // Facettes de tous les corps, exprimées dans le repère du panneau
+    const facets = [];
+    st.imported.solids.forEach((raw, idx) => {
+      const isPanel = idx === st.panelIdx;
+      const c = st.contactByIndex && st.contactByIndex.get(idx);
+      const kind = isPanel ? 'panel' : (c && c.enabled ? 'contact' : (c ? 'touch' : 'other'));
+      const add = (pts) => {
+        if (pts.length < 3) return;
+        let h = 0;
+        for (const p of pts) h += p[2];
+        facets.push({ pts, h: h / pts.length, kind });
+      };
+      if (raw.tris) for (const t of raw.tris) add(t.v.map(p => So.toFrame(p, st.frame)));
+      else for (const f of raw.faces) for (const l of f.loops) add(l.map(p => So.toFrame(p, st.frame)));
+    });
+    if (!facets.length) return;
+
+    let umin = Infinity, umax = -Infinity, vmin = Infinity, vmax = -Infinity, hmin = Infinity, hmax = -Infinity;
+    for (const f of facets) for (const p of f.pts) {
+      if (p[0] < umin) umin = p[0]; if (p[0] > umax) umax = p[0];
+      if (p[1] < vmin) vmin = p[1]; if (p[1] > vmax) vmax = p[1];
+      if (p[2] < hmin) hmin = p[2]; if (p[2] > hmax) hmax = p[2];
+    }
+    const cu = (umin + umax) / 2, cv = (vmin + vmax) / 2, ch = (hmin + hmax) / 2;
+    const diag = Math.hypot(umax - umin, vmax - vmin, hmax - hmin) || 1;
+    const cy1 = Math.cos(view3d.yaw), sy1 = Math.sin(view3d.yaw);
+    const cp = Math.cos(view3d.pitch), sp = Math.sin(view3d.pitch);
+    const scale = Math.min(W, H) / diag * 0.85 * view3d.zoom;
+    const proj = (p) => {
+      const X = p[0] - cu, Y = p[1] - cv, Z = p[2] - ch;
+      const x1 = X * cy1 - Y * sy1, y1 = X * sy1 + Y * cy1;
+      return [W / 2 + x1 * scale + view3d.panX, H / 2 - (y1 * cp - Z * sp) * scale + view3d.panY,
+        y1 * sp + Z * cp];
+    };
+
+    for (const f of facets) {
+      f.proj = f.pts.map(proj);
+      f.depth = f.proj.reduce((s, p) => s + p[2], 0) / f.proj.length;
+    }
+    facets.sort((a, b) => a.depth - b.depth);
+
+    const COL = {
+      panel: [70, 130, 165], contact: [40, 150, 95], touch: [150, 150, 150], other: [130, 133, 140]
+    };
+    for (const f of facets) {
+      // ombrage par l'orientation apparente de la facette
+      const p = f.proj;
+      const ax = p[1][0] - p[0][0], ay = p[1][1] - p[0][1];
+      const bx = p[2][0] - p[0][0], by = p[2][1] - p[0][1];
+      const twist = ax * by - ay * bx;
+      const shade = 0.7 + 0.3 * Math.min(1, Math.abs(twist) / (scale * scale * 400 + 1e-9));
+      const c = COL[f.kind];
+      ctx.fillStyle = `rgba(${Math.round(c[0] * shade)},${Math.round(c[1] * shade)},${Math.round(c[2] * shade)},${f.kind === 'other' ? 0.55 : 0.95})`;
+      ctx.beginPath();
+      ctx.moveTo(p[0][0], p[0][1]);
+      for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.14)';
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
+    }
+
+    // Légende
+    const s = getComputedStyle(document.documentElement);
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    const items = [['Panneau PEHD', COL.panel], ['Pièce portante retenue', COL.contact],
+      ['Contact ignoré', COL.touch], ['Sans contact', COL.other]];
+    items.forEach(([txt, c], i) => {
+      const y = 18 + i * 18;
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+      ctx.fillRect(14, y - 9, 11, 11);
+      ctx.fillStyle = s.getPropertyValue('--fg').trim() || '#111';
+      ctx.fillText(txt, 31, y);
+    });
+  }
+
+  root.Render = { drawPlan, drawDeformed, drawAssembly, makeView, colormap, cssColor: css };
 })(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));

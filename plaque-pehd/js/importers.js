@@ -1,5 +1,6 @@
-/* Import de géométrie : STL (binaire + ASCII) et STEP (AP203/AP214, faces planes).
-   Objectif : extraire le contour 2D de la grande face de la plaque + son épaisseur. */
+/* Import de géométrie : STL (binaire + ASCII) et STEP (AP203/AP214).
+   Un fichier peut contenir plusieurs corps : chacun est restitué séparément,
+   le panneau PEHD étant ensuite désigné par l'utilisateur. */
 (function (root) {
   'use strict';
   const G = root.Geom;
@@ -11,16 +12,15 @@
   const norm = (a) => Math.hypot(a[0], a[1], a[2]);
   const unit = (a) => { const n = norm(a) || 1; return [a[0] / n, a[1] / n, a[2] / n]; };
 
-  /* Base orthonormée d'un plan de normale n. */
   function planeBasis(n) {
     const N = unit(n);
-    let ref = Math.abs(N[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const ref = Math.abs(N[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
     const U = unit(cross(ref, N));
     const V = cross(N, U);
     return { N, U, V };
   }
 
-  /* Jacobi : plus petite direction principale d'un nuage (= normale de la plaque). */
+  /* Direction principale de plus petite étendue : normale d'une plaque. */
   function smallestPrincipalDirection(pts) {
     let cx = 0, cy = 0, cz = 0;
     for (const p of pts) { cx += p[0]; cy += p[1]; cz += p[2]; }
@@ -78,90 +78,93 @@
           const o = off + 12 + k * 12;
           v.push([dv.getFloat32(o, true), dv.getFloat32(o + 4, true), dv.getFloat32(o + 8, true)]);
         }
-        tris.push({ n: [nx, ny, nz], v });
+        tris.push({ n: [nx, ny, nz], v, group: 0 });
         off += 50;
       }
     } else {
       const txt = new TextDecoder().decode(buffer);
-      const re = /facet\s+normal\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)[\s\S]*?outer\s+loop([\s\S]*?)endloop/g;
+      let group = -1;
+      const names = [];
+      const re = /(solid\s+([^\r\n]*))|(facet\s+normal\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)[\s\S]*?outer\s+loop([\s\S]*?)endloop)/g;
       let m;
       while ((m = re.exec(txt))) {
-        const n = [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])];
+        if (m[1] !== undefined) { group++; names.push((m[2] || '').trim()); continue; }
+        const n = [parseFloat(m[4]), parseFloat(m[5]), parseFloat(m[6])];
         const vre = /vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g;
         const v = []; let vm;
-        while ((vm = vre.exec(m[4]))) v.push([parseFloat(vm[1]), parseFloat(vm[2]), parseFloat(vm[3])]);
-        if (v.length === 3) tris.push({ n, v });
+        while ((vm = vre.exec(m[7]))) v.push([parseFloat(vm[1]), parseFloat(vm[2]), parseFloat(vm[3])]);
+        if (v.length === 3) tris.push({ n, v, group: Math.max(0, group) });
       }
+      if (names.length) tris.names = names;
     }
     if (!tris.length) throw new Error('Fichier STL illisible ou vide.');
     return tris;
   }
 
-  /* Extrait le contour de la grande face d'une plaque maillée. */
-  function plateFromTriangles(tris, opts) {
-    opts = opts || {};
-    const allPts = [];
-    for (const t of tris) for (const v of t.v) allPts.push(v);
-    const N0 = smallestPrincipalDirection(allPts);
-
-    // Épaisseur = étendue selon N0
-    let hmin = Infinity, hmax = -Infinity;
-    for (const p of allPts) { const h = dot(p, N0); if (h < hmin) hmin = h; if (h > hmax) hmax = h; }
-    const thickness = hmax - hmin;
-
-    const basis = planeBasis(N0);
-
-    // Sélection de la face supérieure
-    function faceLoops(sign) {
-      const sel = [];
+  /* Sépare une soupe de triangles en corps distincts.
+     1. Si le fichier ASCII déclare plusieurs blocs `solid`, ils font foi.
+     2. Sinon, composantes connexes par arête partagée : deux pièces qui ne se
+        touchent que par une face ou un sommet restent distinctes. Deux pièces
+        collées le long d'une arête commune sont vues comme un seul corps —
+        limite intrinsèque du STL, que le format STEP ne présente pas. */
+  function splitSolids(tris) {
+    if (tris.names && tris.names.length > 1) {
+      const byGroup = new Map();
       for (const t of tris) {
-        let n = t.n;
-        if (norm(n) < 1e-9) n = cross(sub(t.v[1], t.v[0]), sub(t.v[2], t.v[0]));
-        n = unit(n);
-        if (dot(n, basis.N) * sign > 0.7) sel.push(t);
+        if (!byGroup.has(t.group)) byGroup.set(t.group, []);
+        byGroup.get(t.group).push(t);
       }
-      if (!sel.length) return null;
-      // Soudure des sommets et extraction des arêtes de bord
-      const key = new Map();
-      const pts2 = [];
-      const tol = Math.max(1e-6, (hmax - hmin) * 1e-3);
-      const idOf = (p) => {
-        const u = dot(p, basis.U), v = dot(p, basis.V);
-        const k = Math.round(u / tol) + '_' + Math.round(v / tol);
-        if (key.has(k)) return key.get(k);
-        key.set(k, pts2.length); pts2.push([u, v]);
-        return pts2.length - 1;
-      };
-      const edgeCount = new Map();
-      for (const t of sel) {
-        const a = idOf(t.v[0]), b = idOf(t.v[1]), c = idOf(t.v[2]);
-        for (const [i, j] of [[a, b], [b, c], [c, a]]) {
-          if (i === j) continue;
-          const k = i < j ? i + ',' + j : j + ',' + i;
-          edgeCount.set(k, (edgeCount.get(k) || 0) + 1);
-        }
-      }
-      const edges = [];
-      for (const [k, c] of edgeCount) if (c === 1) { const [i, j] = k.split(',').map(Number); edges.push([i, j]); }
-      if (!edges.length) return null;
-      const loops = G.chainEdges(edges, pts2);
-      return loops.length ? loops : null;
+      const out = [];
+      for (const [g, list] of byGroup)
+        if (list.length >= 4) out.push({ name: tris.names[g] || `Corps ${out.length + 1}`, tris: list });
+      if (out.length > 1) return out.sort((a, b) => b.tris.length - a.tris.length);
     }
-
-    let loops = faceLoops(+1) || faceLoops(-1);
-    if (!loops) throw new Error("Impossible d'identifier la grande face de la plaque dans ce maillage.");
-
-    const bb0 = G.bbox(loops[0]);
-    const tolSimplify = opts.simplifyTol !== undefined
-      ? opts.simplifyTol : Math.max(0.05, Math.max(bb0.w, bb0.h) * 2e-4);
-    loops = loops.map(l => G.simplifyRing(l, tolSimplify));
-    const region = G.ringsToRegion(loops);
-    if (!region) throw new Error('Contour de plaque invalide.');
-    return { region, thickness, normal: N0, source: 'STL', nTriangles: tris.length };
+    let size = 0;
+    const bb = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+    for (const t of tris) for (const v of t.v) for (let k = 0; k < 3; k++) {
+      if (v[k] < bb.min[k]) bb.min[k] = v[k];
+      if (v[k] > bb.max[k]) bb.max[k] = v[k];
+    }
+    for (let k = 0; k < 3; k++) size = Math.max(size, bb.max[k] - bb.min[k]);
+    const tol = (size || 1) * 1e-6;
+    const vid = new Map();
+    const idOf = (p) => {
+      const k = Math.round(p[0] / tol) + '_' + Math.round(p[1] / tol) + '_' + Math.round(p[2] / tol);
+      let i = vid.get(k);
+      if (i === undefined) { i = vid.size; vid.set(k, i); }
+      return i;
+    };
+    const triV = tris.map(t => t.v.map(idOf));
+    const parent = new Int32Array(tris.length).map((_, i) => i);
+    const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+    const union = (x, y) => { const a = find(x), b = find(y); if (a !== b) parent[a] = b; };
+    const edgeOwner = new Map();
+    triV.forEach((tv, i) => {
+      for (let k = 0; k < 3; k++) {
+        const a = tv[k], b = tv[(k + 1) % 3];
+        const key = a < b ? a + ',' + b : b + ',' + a;
+        const prev = edgeOwner.get(key);
+        if (prev === undefined) edgeOwner.set(key, i); else union(prev, i);
+      }
+    });
+    const groups = new Map();
+    tris.forEach((t, i) => {
+      const r = find(i);
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r).push(t);
+    });
+    const solids = [...groups.values()]
+      .filter(g => g.length >= 4)
+      .sort((a, b) => b.length - a.length)
+      .map((g, i) => ({ name: `Corps ${i + 1}`, tris: g }));
+    return solids.length ? solids : [{ name: 'Corps 1', tris }];
   }
 
-  function importSTL(buffer, opts) {
-    return plateFromTriangles(parseSTL(buffer), opts);
+  function importSTL(buffer) {
+    const tris = parseSTL(buffer);
+    const solids = splitSolids(tris);
+    solids.forEach((s, i) => { if (!s.name) s.name = `Corps ${i + 1}`; });
+    return { solids, source: 'STL', warnings: [], nTriangles: tris.length };
   }
 
   /* ================= STEP ================= */
@@ -183,14 +186,10 @@
 
   function parseSTEP(text) {
     const ents = new Map();
-    // Retire les commentaires /* ... */
     text = text.replace(/\/\*[\s\S]*?\*\//g, ' ');
     const re = /#(\d+)\s*=\s*([A-Z_0-9]+)\s*\(([\s\S]*?)\)\s*;/g;
     let m;
-    while ((m = re.exec(text))) {
-      ents.set(+m[1], { type: m[2], args: tokenizeArgs(m[3]) });
-    }
-    // Entités complexes : #12 = ( A(..) B(..) ) ;
+    while ((m = re.exec(text))) ents.set(+m[1], { type: m[2], args: tokenizeArgs(m[3]) });
     const re2 = /#(\d+)\s*=\s*\(([\s\S]*?)\)\s*;/g;
     while ((m = re2.exec(text))) {
       if (ents.has(+m[1])) continue;
@@ -200,10 +199,8 @@
   }
 
   function stepUnitScale(ents, text) {
-    // Détecte pouce / mètre / centimètre ; défaut millimètre.
-    for (const [, e] of ents) {
+    for (const [, e] of ents)
       if (e.type === 'CONVERSION_BASED_UNIT' && /INCH/i.test(e.args.join(','))) return 25.4;
-    }
     if (/CONVERSION_BASED_UNIT\s*\(\s*'INCH'/i.test(text)) return 25.4;
     for (const [, e] of ents) {
       if (/SI_UNIT/.test(e.type)) {
@@ -215,37 +212,57 @@
     return 1;
   }
 
+  /* --- Matrices 4x3 (rotation + translation) --- */
+  const IDENT = { r: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], t: [0, 0, 0] };
+  function applyM(M, p) {
+    return [
+      M.r[0][0] * p[0] + M.r[0][1] * p[1] + M.r[0][2] * p[2] + M.t[0],
+      M.r[1][0] * p[0] + M.r[1][1] * p[1] + M.r[1][2] * p[2] + M.t[1],
+      M.r[2][0] * p[0] + M.r[2][1] * p[1] + M.r[2][2] * p[2] + M.t[2]];
+  }
+  function mulM(A, B) {  // A ∘ B
+    const r = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+      r[i][j] = A.r[i][0] * B.r[0][j] + A.r[i][1] * B.r[1][j] + A.r[i][2] * B.r[2][j];
+    return { r, t: applyM(A, B.t) };
+  }
+  function invM(A) {
+    const r = [[A.r[0][0], A.r[1][0], A.r[2][0]], [A.r[0][1], A.r[1][1], A.r[2][1]], [A.r[0][2], A.r[1][2], A.r[2][2]]];
+    const t = [
+      -(r[0][0] * A.t[0] + r[0][1] * A.t[1] + r[0][2] * A.t[2]),
+      -(r[1][0] * A.t[0] + r[1][1] * A.t[1] + r[1][2] * A.t[2]),
+      -(r[2][0] * A.t[0] + r[2][1] * A.t[1] + r[2][2] * A.t[2])];
+    return { r, t };
+  }
+  const isIdentity = (M) => Math.abs(M.t[0]) + Math.abs(M.t[1]) + Math.abs(M.t[2]) < 1e-9 &&
+    Math.abs(M.r[0][0] - 1) + Math.abs(M.r[1][1] - 1) + Math.abs(M.r[2][2] - 1) < 1e-9;
+
   function importSTEP(text, opts) {
     opts = opts || {};
     const ents = parseSTEP(text);
     const scale = stepUnitScale(ents, text);
-    const ref = (s) => (typeof s === 'string' && s[0] === '#') ? ents.get(+s.slice(1)) : null;
+    const warnings = [];
     const refId = (s) => +String(s).slice(1);
     const listRefs = (s) => String(s).replace(/^\(|\)$/g, '').split(',').map(x => x.trim()).filter(x => x[0] === '#');
+    const label = (s) => (String(s).match(/^'(.*)'$/) || [, ''])[1];
 
     const pointCache = new Map();
     function point(id) {
       if (pointCache.has(id)) return pointCache.get(id);
       const e = ents.get(id);
-      if (!e) return null;
       let p = null;
-      if (e.type === 'CARTESIAN_POINT') {
+      if (e && e.type === 'CARTESIAN_POINT') {
         const nums = String(e.args[1]).replace(/[()]/g, '').split(',').map(parseFloat);
         p = [(nums[0] || 0) * scale, (nums[1] || 0) * scale, (nums[2] || 0) * scale];
-      } else if (e.type === 'VERTEX_POINT') {
-        p = point(refId(e.args[1]));
-      }
+      } else if (e && e.type === 'VERTEX_POINT') p = point(refId(e.args[1]));
       pointCache.set(id, p);
       return p;
     }
     function direction(id) {
       const e = ents.get(id);
-      if (!e) return null;
-      if (e.type === 'DIRECTION') {
-        const nums = String(e.args[1]).replace(/[()]/g, '').split(',').map(parseFloat);
-        return unit([nums[0] || 0, nums[1] || 0, nums[2] || 0]);
-      }
-      return null;
+      if (!e || e.type !== 'DIRECTION') return null;
+      const nums = String(e.args[1]).replace(/[()]/g, '').split(',').map(parseFloat);
+      return unit([nums[0] || 0, nums[1] || 0, nums[2] || 0]);
     }
     function placement(id) {
       const e = ents.get(id);
@@ -253,39 +270,43 @@
       const loc = point(refId(e.args[1]));
       const axis = e.args[2] && e.args[2] !== '$' ? direction(refId(e.args[2])) : [0, 0, 1];
       const refd = e.args[3] && e.args[3] !== '$' ? direction(refId(e.args[3])) : null;
-      return { loc, axis: axis || [0, 0, 1], ref: refd };
+      return { loc: loc || [0, 0, 0], axis: axis || [0, 0, 1], ref: refd };
+    }
+    function placementMatrix(id) {
+      const pl = placement(id);
+      if (!pl) return IDENT;
+      const N = unit(pl.axis);
+      let U = pl.ref ? unit(pl.ref) : planeBasis(N).U;
+      U = unit(sub(U, [N[0] * dot(U, N), N[1] * dot(U, N), N[2] * dot(U, N)]));
+      const V = cross(N, U);
+      return { r: [[U[0], V[0], N[0]], [U[1], V[1], N[1]], [U[2], V[2], N[2]]], t: pl.loc };
     }
 
-    /* Discrétise une arête entre deux sommets selon sa courbe support. */
+    /* --- Discrétisation des arêtes --- */
     function edgePoints(edgeCurveId, orientedSense, sagitta) {
       const e = ents.get(edgeCurveId);
       if (!e || e.type !== 'EDGE_CURVE') return null;
-      let p1 = point(refId(e.args[1]));
-      let p2 = point(refId(e.args[2]));
+      const p1 = point(refId(e.args[1])), p2 = point(refId(e.args[2]));
       const curve = ents.get(refId(e.args[3]));
       const sameSense = /\.T\./.test(e.args[4] || '.T.');
       let sense = sameSense;
       if (!orientedSense) sense = !sense;
       if (!p1 || !p2) return null;
-      let pts = [p1];
+      const pts = [p1];
       if (curve && curve.type === 'CIRCLE') {
         const pl = placement(refId(curve.args[1]));
         const R = parseFloat(curve.args[2]) * scale;
-        if (pl && pl.loc) {
+        if (pl) {
           const N = unit(pl.axis);
           let U = pl.ref ? unit(pl.ref) : planeBasis(N).U;
           U = unit(sub(U, [N[0] * dot(U, N), N[1] * dot(U, N), N[2] * dot(U, N)]));
           const V = cross(N, U);
-          const ang = (p) => {
-            const d = sub(p, pl.loc);
-            return Math.atan2(dot(d, V), dot(d, U));
-          };
-          let a1 = ang(p1), a2 = ang(p2);
+          const ang = (p) => { const d = sub(p, pl.loc); return Math.atan2(dot(d, V), dot(d, U)); };
+          const a1 = ang(p1), a2 = ang(p2);
           let sweep = a2 - a1;
-          const ccw = sameSense;
-          if (ccw) { while (sweep <= 1e-9) sweep += 2 * Math.PI; }
+          if (sameSense) { while (sweep <= 1e-9) sweep += 2 * Math.PI; }
           else { while (sweep >= -1e-9) sweep -= 2 * Math.PI; }
-          if (Math.abs(Math.hypot(...sub(p1, p2))) < 1e-9) sweep = ccw ? 2 * Math.PI : -2 * Math.PI;
+          if (norm(sub(p1, p2)) < 1e-9) sweep = sameSense ? 2 * Math.PI : -2 * Math.PI;
           const sag = sagitta || Math.max(R / 40, 0.2);
           const dTheta = 2 * Math.acos(Math.max(-1, Math.min(1, 1 - Math.min(sag / R, 1))));
           const nSeg = Math.max(2, Math.min(256, Math.ceil(Math.abs(sweep) / Math.max(dTheta, 0.02))));
@@ -298,7 +319,6 @@
           }
         }
       } else if (curve && /B_SPLINE_CURVE/.test(curve.type)) {
-        // Approximation par le polygone de contrôle (suffisant pour un contour de plaque)
         const cps = listRefs(curve.args[2] || '()').map(s => point(refId(s))).filter(Boolean);
         if (cps.length > 2) for (let i = 1; i < cps.length - 1; i++) pts.push(cps[i]);
       }
@@ -307,92 +327,196 @@
       return pts;
     }
 
-    /* Boucles d'une face. */
     function boundLoop(boundId, sagitta) {
       const b = ents.get(boundId);
       if (!b || !/FACE_(OUTER_)?BOUND/.test(b.type)) return null;
       const loopE = ents.get(refId(b.args[1]));
       const boundOrient = /\.T\./.test(b.args[2] || '.T.');
       if (!loopE || loopE.type !== 'EDGE_LOOP') return null;
-      const oriented = listRefs(loopE.args[1]);
       const pts = [];
-      for (const oe of oriented) {
+      for (const oe of listRefs(loopE.args[1])) {
         const o = ents.get(refId(oe));
         if (!o || o.type !== 'ORIENTED_EDGE') continue;
-        const sense = /\.T\./.test(o.args[4] || '.T.');
-        const ep = edgePoints(refId(o.args[3]), sense, sagitta);
+        const ep = edgePoints(refId(o.args[3]), /\.T\./.test(o.args[4] || '.T.'), sagitta);
         if (!ep) continue;
-        for (const p of ep) {
-          if (!pts.length || Math.hypot(...sub(p, pts[pts.length - 1])) > 1e-7) pts.push(p);
-        }
+        for (const p of ep) if (!pts.length || norm(sub(p, pts[pts.length - 1])) > 1e-7) pts.push(p);
       }
-      if (pts.length > 2 && Math.hypot(...sub(pts[0], pts[pts.length - 1])) < 1e-7) pts.pop();
+      if (pts.length > 2 && norm(sub(pts[0], pts[pts.length - 1])) < 1e-7) pts.pop();
       if (pts.length < 3) return null;
       return boundOrient ? pts : pts.reverse();
     }
 
-    /* Toutes les faces planes, la plus grande d'abord. */
-    const faces = [];
-    for (const [id, e] of ents) {
-      if (e.type !== 'ADVANCED_FACE' && e.type !== 'FACE_SURFACE') continue;
+    /* --- Faces planes d'une face avancée --- */
+    let nCurved = 0;
+    function planarFace(faceId) {
+      const e = ents.get(faceId);
+      if (!e || (e.type !== 'ADVANCED_FACE' && e.type !== 'FACE_SURFACE')) return null;
       const surf = ents.get(refId(e.args[2]));
-      if (!surf || surf.type !== 'PLANE') continue;
+      if (!surf || surf.type !== 'PLANE') { nCurved++; return null; }
       const pl = placement(refId(surf.args[1]));
-      if (!pl) continue;
-      const bounds = listRefs(e.args[1]);
-      const rings3d = [];
-      for (const bId of bounds) {
+      if (!pl) return null;
+      const faceSense = /\.T\./.test(e.args[3] || '.T.');
+      const loops = [];
+      for (const bId of listRefs(e.args[1])) {
         const lp = boundLoop(refId(bId), opts.sagitta);
-        if (lp) rings3d.push({ pts: lp, outer: /OUTER/.test((ents.get(refId(bId)) || {}).type || '') });
+        if (lp) loops.push({ pts: lp, outer: /OUTER/.test((ents.get(refId(bId)) || {}).type || '') });
       }
-      if (!rings3d.length) continue;
-      const basis = planeBasis(pl.axis);
-      const rings2d = rings3d.map(r => ({
-        outer: r.outer,
-        ring: r.pts.map(p => [dot(sub(p, pl.loc), basis.U), dot(sub(p, pl.loc), basis.V)])
-      }));
-      let area = 0;
-      for (const r of rings2d) area += (r.outer ? 1 : -1) * Math.abs(G.polygonArea(r.ring));
-      faces.push({ id, area: Math.abs(area), rings2d, basis, origin: pl.loc, normal: basis.N });
-    }
-    if (!faces.length) throw new Error(
-      "Aucune face plane exploitable trouvée dans ce STEP. Utilisez un export STL, ou saisissez la géométrie manuellement.");
-    faces.sort((a, b) => b.area - a.area);
-    const f = faces[0];
-
-    // Épaisseur = écart entre la face retenue et la face parallèle opposée la plus éloignée
-    let thickness = 0;
-    for (const g of faces) {
-      if (Math.abs(Math.abs(dot(g.normal, f.normal)) - 1) > 1e-3) continue;
-      const d = Math.abs(dot(sub(g.origin, f.origin), f.normal));
-      if (d > thickness && d < Math.sqrt(f.area)) thickness = d;
+      if (!loops.length) return null;
+      loops.sort((a, b) => (b.outer ? 1 : 0) - (a.outer ? 1 : 0));
+      const N = unit(pl.axis);
+      return { normal: faceSense ? N : [-N[0], -N[1], -N[2]], loops: loops.map(l => l.pts) };
     }
 
-    const rings = f.rings2d.map(r => r.ring);
-    const bb0 = G.bbox(rings[0]);
-    const tolSimplify = opts.simplifyTol !== undefined
-      ? opts.simplifyTol : Math.max(0.02, Math.max(bb0.w, bb0.h) * 1e-4);
-    const region = G.ringsToRegion(rings.map(r => G.simplifyRing(r, tolSimplify)));
-    if (!region) throw new Error('Contour STEP invalide.');
+    /* --- Corps : coques fermées --- */
+    const shells = [];
+    for (const [id, e] of ents) {
+      if (e.type === 'MANIFOLD_SOLID_BREP' || e.type === 'BREP_WITH_VOIDS') {
+        shells.push({ id, name: label(e.args[0]), shellIds: [refId(e.args[1])] });
+      } else if (e.type === 'SHELL_BASED_SURFACE_MODEL') {
+        shells.push({ id, name: label(e.args[0]), shellIds: listRefs(e.args[1]).map(refId) });
+      }
+    }
+    if (!shells.length) {
+      // Pas de structure de corps : on prend toutes les faces comme un corps unique.
+      const faces = [];
+      for (const [id, e] of ents) if (e.type === 'ADVANCED_FACE' || e.type === 'FACE_SURFACE') {
+        const f = planarFace(id);
+        if (f) faces.push(f);
+      }
+      if (!faces.length) throw new Error(
+        "Aucune face plane exploitable dans ce STEP. Essayez un export STL, ou saisissez la géométrie manuellement.");
+      return { solids: [{ name: 'Corps 1', faces }], source: 'STEP', warnings, unitScale: scale, nCurved };
+    }
+
+    /* --- Transformations d'assemblage --- */
+    const repOfItem = new Map();          // item -> représentation
+    const repItems = new Map();
+    for (const [id, e] of ents) {
+      if (!/SHAPE_REPRESENTATION|REPRESENTATION$/.test(e.type)) continue;
+      const items = listRefs(e.args[1] || '()').map(refId);
+      if (!items.length) continue;
+      repItems.set(id, items);
+      for (const it of items) repOfItem.set(it, id);
+    }
+    const parentOf = new Map();           // rep enfant -> {parent, M}
+    let nTransforms = 0;
+    for (const [, e] of ents) {
+      let a = null;
+      if (e.type === 'COMPLEX' && /REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION/.test(e.raw || '')) {
+        const rr = (e.raw.match(/REPRESENTATION_RELATIONSHIP\s*\(([^)]*)\)/) || [])[1];
+        const tr = (e.raw.match(/REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION\s*\(([^)]*)\)/) || [])[1];
+        if (rr && tr) a = { reps: tokenizeArgs(rr), trans: tokenizeArgs(tr)[0] };
+      }
+      if (!a) continue;
+      const child = refId(a.reps[2]), parent = refId(a.reps[3]);
+      const idt = ents.get(refId(a.trans));
+      let M = IDENT;
+      if (idt && idt.type === 'ITEM_DEFINED_TRANSFORMATION') {
+        const M1 = placementMatrix(refId(idt.args[2]));
+        const M2 = placementMatrix(refId(idt.args[3]));
+        M = mulM(M2, invM(M1));
+        if (!isIdentity(M)) nTransforms++;
+      }
+      parentOf.set(child, { parent, M });
+    }
+    function absoluteMatrix(repId) {
+      let M = IDENT, cur = repId, guard = 0;
+      while (parentOf.has(cur) && guard++ < 50) {
+        const p = parentOf.get(cur);
+        M = mulM(p.M, M);
+        cur = p.parent;
+      }
+      return M;
+    }
+
+    /* --- Noms de pièces --- */
+    const productNames = [];
+    for (const [, e] of ents) if (e.type === 'PRODUCT') productNames.push(label(e.args[0]));
+
+    const solids = [];
+    for (const sh of shells) {
+      const faceIds = [];
+      for (const sid of sh.shellIds) {
+        const shell = ents.get(sid);
+        if (!shell || !/SHELL/.test(shell.type)) continue;
+        for (const f of listRefs(shell.args[1])) faceIds.push(refId(f));
+      }
+      const faces = [];
+      for (const fid of faceIds) { const f = planarFace(fid); if (f) faces.push(f); }
+      if (!faces.length) continue;
+      const M = absoluteMatrix(repOfItem.get(sh.id));
+      if (!isIdentity(M)) for (const f of faces) {
+        f.loops = f.loops.map(l => l.map(p => applyM(M, p)));
+        f.normal = unit(applyM({ r: M.r, t: [0, 0, 0] }, f.normal));
+      }
+      solids.push({
+        name: sh.name || productNames[solids.length] || `Corps ${solids.length + 1}`,
+        faces, nFaces: faceIds.length
+      });
+    }
+    if (!solids.length) throw new Error(
+      "Aucun corps exploitable dans ce STEP. Essayez un export STL.");
+
+    if (nTransforms > 0) warnings.push(
+      `Assemblage : ${nTransforms} transformation(s) de positionnement ont été appliquées. ` +
+      `Vérifiez visuellement dans l'onglet « Assemblage » que les pièces sont bien placées les unes ` +
+      `par rapport aux autres — les conventions de transformation varient d'un logiciel de CAO à l'autre. ` +
+      `En cas de doute, exportez l'assemblage en STL, qui ne présente pas cette ambiguïté.`);
+    if (nCurved > 0) warnings.push(
+      `${nCurved} face(s) non planes (cylindres, congés, surfaces gauches) ont été ignorées pour la ` +
+      `mesure d'épaisseur et la détection des contacts. Sur des pièces d'ossature usuelles l'effet est nul, ` +
+      `mais un corps entièrement courbe ne sera pas détecté.`);
+
+    return { solids, source: 'STEP', warnings, unitScale: scale, nCurved };
+  }
+
+  /* ================= Géométries paramétriques ================= */
+  function extrudeRegion(region, thickness, name) {
+    const tris = [];
+    const m = root.Mesh.meshRegion(region, Math.max(Math.hypot(
+      G.bbox(region.outer).w, G.bbox(region.outer).h) / 18, 5));
+    const push = (a, b, c) => {
+      const n = cross(sub(b, a), sub(c, a));
+      tris.push({ n: unit(n), v: [a, b, c] });
+    };
+    const top = (i) => [m.nodes[i][0], m.nodes[i][1], thickness];
+    const bot = (i) => [m.nodes[i][0], m.nodes[i][1], 0];
+    for (const t of m.elems) {
+      push(top(t[0]), top(t[1]), top(t[2]));
+      push(bot(t[0]), bot(t[2]), bot(t[1]));
+    }
+    const cnt = new Map();
+    for (const t of m.elems) for (let k = 0; k < 3; k++) {
+      const a = t[k], b = t[(k + 1) % 3];
+      const key = a < b ? a + ',' + b : b + ',' + a;
+      cnt.set(key, (cnt.get(key) || 0) + 1);
+    }
+    for (const [key, c] of cnt) {
+      if (c !== 1) continue;
+      const [a, b] = key.split(',').map(Number);
+      push(bot(a), bot(b), top(b));
+      push(bot(a), top(b), top(a));
+    }
+    return { name: name || 'Panneau', tris };
+  }
+
+  function rectangle(a, b, t) {
+    t = t || 20;
     return {
-      region, thickness, normal: f.normal, source: 'STEP',
-      nFaces: faces.length, unitScale: scale
+      solids: [extrudeRegion({ outer: [[0, 0], [a, 0], [a, b], [0, b]], holes: [] }, t, `Rectangle ${a}×${b}`)],
+      source: 'manuel', warnings: []
     };
   }
-
-  /* Géométries paramétriques de secours. */
-  function rectangle(a, b) {
-    return { region: { outer: [[0, 0], [a, 0], [a, b], [0, b]], holes: [] }, thickness: 0, source: 'manuel' };
-  }
-  function disc(R, n) {
+  function disc(R, t, n) {
+    t = t || 20;
     const ring = [];
     n = n || 96;
-    for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n; ring.push([R * Math.cos(t), R * Math.sin(t)]); }
-    return { region: { outer: ring, holes: [] }, thickness: 0, source: 'manuel' };
+    for (let i = 0; i < n; i++) { const a = 2 * Math.PI * i / n; ring.push([R * Math.cos(a), R * Math.sin(a)]); }
+    return { solids: [extrudeRegion({ outer: ring, holes: [] }, t, `Disque Ø${2 * R}`)], source: 'manuel', warnings: [] };
   }
 
   root.Importers = {
-    importSTL, importSTEP, parseSTL, parseSTEP, plateFromTriangles,
-    rectangle, disc, planeBasis, smallestPrincipalDirection
+    importSTL, importSTEP, parseSTL, parseSTEP, splitSolids,
+    rectangle, disc, extrudeRegion, planeBasis, smallestPrincipalDirection
   };
 })(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));

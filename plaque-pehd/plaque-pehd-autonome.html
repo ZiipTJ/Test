@@ -146,6 +146,12 @@
   ul.loads .hd { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
   ul.loads .hd .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--load); }
   ul.loads .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 8px; margin-top: 6px; }
+  ul.solids { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  ul.solids li { border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  ul.solids label { display: grid; grid-template-columns: auto 1fr; gap: 7px; padding: 6px 8px; cursor: pointer; align-items: start; }
+  ul.solids li.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  ul.solids .nm { font-weight: 600; font-size: 12.5px; }
+  ul.solids .dim { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
   ul.loads .grid label { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); }
   ul.loads .grid input { padding: 3px 5px; font-size: 12px; }
 
@@ -176,17 +182,16 @@
   <!-- ============ PANNEAU GAUCHE ============ -->
   <aside>
     <details class="sec" open>
-      <summary>1 · Géométrie de la plaque</summary>
+      <summary>1 · Géométrie / assemblage</summary>
       <div class="sec-body">
         <div class="drop" id="drop">
           <strong>Importer un fichier</strong><br>
-          Glissez un <b>.stl</b> ou un <b>.step / .stp</b> ici, ou cliquez pour choisir.
+          Glissez un <b>.step / .stp</b> ou un <b>.stl</b> ici, ou cliquez pour choisir.
         </div>
-        <input type="file" id="file" accept=".stl,.step,.stp,.STL,.STEP,.STP" hidden>
+        <input type="file" id="file" accept=".stl,.step,.stp,.json,.STL,.STEP,.STP" hidden>
         <div class="hint">
-          Le contour de la plus grande face plane est extrait automatiquement, trous compris.
-          L'épaisseur détectée est proposée, mais c'est vous qui la fixez au § 2.
-          Des fichiers d'exemple sont fournis dans <code>tests/samples/</code>.
+          Un assemblage complet est accepté : désignez ci-dessous le panneau PEHD, les autres
+          pièces servent à déduire les appuis. Fichiers d'exemple dans <code>tests/samples/</code>.
         </div>
         <div class="row">
           <span class="hint">ou géométrie simple :</span>
@@ -194,17 +199,33 @@
           <button class="ghost" id="geo-disc">Disque</button>
         </div>
         <div id="geo-params" class="row" hidden></div>
+
+        <div id="solid-block" hidden>
+          <div class="hint" style="margin-bottom:4px"><b>Quel corps est le panneau PEHD ?</b></div>
+          <ul class="solids" id="solid-list"></ul>
+          <label class="field" style="margin-top:6px"><span>Fichier = un seul corps</span>
+            <input type="checkbox" id="one-body" style="width:auto"></label>
+        </div>
         <div id="geo-info" class="kv"></div>
         <div id="geo-error" class="err"></div>
+        <div id="geo-warn"></div>
       </div>
     </details>
 
     <details class="sec" open>
       <summary>2 · Épaisseur et matériau</summary>
       <div class="sec-body">
-        <label class="field"><span>Épaisseur (mm)</span>
-          <input type="number" id="thickness" value="20" min="1" max="200" step="1"></label>
-        <div class="chips" id="thick-chips"></div>
+        <label class="field"><span>Épaisseur</span>
+          <select id="thick-mode">
+            <option value="auto">Mesurée sur le modèle</option>
+            <option value="impose">Imposée</option>
+          </select></label>
+        <div id="thick-measured" class="hint"></div>
+        <div id="thick-impose" hidden>
+          <label class="field"><span>Valeur (mm)</span>
+            <input type="number" id="thickness" value="20" min="1" max="200" step="0.5"></label>
+          <div class="chips" id="thick-chips" style="margin-top:6px"></div>
+        </div>
         <label class="field"><span>Durée d'application</span>
           <select id="duree"></select></label>
         <label class="field"><span>Température de service</span>
@@ -216,20 +237,42 @@
     </details>
 
     <details class="sec" open>
-      <summary>3 · Appuis sur le contour</summary>
+      <summary>3 · Appuis</summary>
       <div class="sec-body">
-        <label class="field"><span>Largeur de repos sur le bâti (mm)</span>
-          <input type="number" id="sup-width" value="30" min="0" max="1000" step="1"></label>
-        <label class="field"><span>Type de liaison</span>
-          <select id="sup-type">
-            <option value="simple">Appui simple (plaque posée)</option>
-            <option value="encastre">Encastrement (plaque vissée / bridée)</option>
+        <label class="field"><span>Origine des appuis</span>
+          <select id="sup-mode">
+            <option value="contacts">Pièces en contact (assemblage)</option>
+            <option value="contour">Bande le long du contour</option>
           </select></label>
-        <label class="field"><span>Bords des trous appuyés aussi</span>
-          <input type="checkbox" id="sup-holes" style="width:auto"></label>
-        <div class="hint">
-          La bande de largeur indiquée le long du contour est bloquée verticalement : elle
-          représente la zone où la plaque repose sur le bâti. Cette largeur réduit d'autant la portée libre.
+
+        <div id="sup-contacts">
+          <div class="hint">Pièces de l'assemblage qui touchent le panneau. Décochez celles qui ne
+            le portent pas réellement.</div>
+          <label class="field"><span>Jeu de détection (mm)</span>
+            <input type="number" id="contact-tol" value="0.5" min="0" max="50" step="0.1"></label>
+          <ul class="loads" id="contact-list"></ul>
+        </div>
+
+        <label class="field"><span>Le panneau peut se soulever</span>
+          <input type="checkbox" id="sup-uni" checked style="width:auto"></label>
+        <div class="hint">Contact unilatéral : les zones d'appui qui se trouveraient tendues sont
+          libérées, comme le ferait un panneau simplement posé. Décochez si le panneau est
+          maintenu vers le haut (vissé, bridé, rainuré) — le calcul est alors nettement plus rapide.</div>
+
+        <div id="sup-contour" hidden>
+          <label class="field"><span>Largeur de repos sur le bâti (mm)</span>
+            <input type="number" id="sup-width" value="30" min="0" max="1000" step="1"></label>
+          <label class="field"><span>Type de liaison</span>
+            <select id="sup-type">
+              <option value="simple">Appui simple (plaque posée)</option>
+              <option value="encastre">Encastrement (plaque vissée / bridée)</option>
+            </select></label>
+          <label class="field"><span>Bords des trous appuyés aussi</span>
+            <input type="checkbox" id="sup-holes" style="width:auto"></label>
+          <div class="hint">
+            La bande de largeur indiquée le long du contour est bloquée verticalement : elle
+            représente la zone où la plaque repose sur le bâti, et réduit d'autant la portée libre.
+          </div>
         </div>
       </div>
     </details>
@@ -289,10 +332,12 @@
   <main>
     <div class="tabs">
       <button class="tab on" data-view="plan">Plan — appuis et charges</button>
+      <button class="tab" data-view="asm">Assemblage 3D</button>
       <button class="tab" data-view="def">Déformée 3D</button>
     </div>
     <div class="canvas-wrap" id="wrap">
       <canvas id="cv-plan"></canvas>
+      <canvas id="cv-asm" hidden></canvas>
       <canvas id="cv-def" hidden></canvas>
       <div class="overlay" id="overlay"></div>
       <div class="busy" id="busy" hidden>Calcul en cours…</div>
@@ -300,11 +345,18 @@
     <div class="viewbar" id="viewbar-plan">
       <span class="hint">Vue de dessus. Les charges se placent et se déplacent à la souris ; les valeurs se règlent au § 4.</span>
     </div>
+    <div class="viewbar" id="viewbar-asm" hidden>
+      <span class="hint">Vérifiez le placement des pièces. Le panneau est en bleu, les pièces en
+        contact en vert, les autres en gris.</span>
+      <span class="spacer" style="flex:1"></span>
+      <button class="ghost" id="asm-reset">Recentrer</button>
+    </div>
     <div class="viewbar" id="viewbar-def" hidden>
       <label>Champ
         <select id="field">
           <option value="w">Flèche</option>
           <option value="sigma">Contrainte von Mises (peau)</option>
+          <option value="ep">Épaisseur</option>
         </select></label>
       <label>Amplification <input type="range" id="amp" min="0" max="100" value="50"><span id="amp-val"></span></label>
       <label><input type="checkbox" id="wire"> Maillage</label>
@@ -934,14 +986,31 @@
     return x;
   };
 
+  /* Accès à la loi de comportement : constante, tableau par élément, ou fonction. */
+  function dProvider(D) {
+    if (typeof D === 'function') return D;
+    if (D.length === 3 && typeof D[0][0] === 'number') return () => D;
+    return (e) => D[e];
+  }
+  /* Idem pour l'épaisseur : scalaire ou tableau par élément. */
+  function tProvider(t) {
+    if (typeof t === 'number') return () => t;
+    return (e) => t[e];
+  }
+
   /* ---------- Assemblage et résolution ---------- */
   /*
     mesh    : {nodes:[[x,y]], elems:[[i,j,k]]}
-    D       : matrice 3x3
+    D       : matrice 3x3 unique, ou tableau/fonction donnant la matrice de chaque élément
     F       : Float64Array(3*nNodes) forces nodales
     fixed   : Int8Array(3*nNodes), 1 = ddl bloqué
   */
-  function solve(mesh, D, F, fixed) {
+  function solve(mesh, D, F, fixed, cache) {
+    const getD = dProvider(D);
+    /* `cache.Ke` permet de réutiliser les matrices élémentaires d'une résolution à
+       l'autre : indispensable pour l'itération de contact unilatéral, où seules les
+       conditions aux limites changent. */
+    const Ke0 = cache && cache.Ke;
     const nN = mesh.nodes.length;
     const nd = 3 * nN;
     const perm = rcmOrder(nN, mesh.elems);
@@ -958,10 +1027,10 @@
     }
     const K = new Skyline(nd, minCol);
 
-    for (const t of mesh.elems) {
-      const [i, j, k] = t;
+    for (let e = 0; e < mesh.elems.length; e++) {
+      const [i, j, k] = mesh.elems[e];
       const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
-      const Ke = dktStiffness(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], D);
+      const Ke = Ke0 ? Ke0[e] : dktStiffness(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], getD(e));
       const dofs = [
         dofOf(i, 0), dofOf(i, 1), dofOf(i, 2),
         dofOf(j, 0), dofOf(j, 1), dofOf(j, 2),
@@ -995,8 +1064,21 @@
     return u;
   }
 
+  /* Matrices élémentaires de tout le maillage, calculées une fois pour toutes. */
+  function elementStiffnesses(mesh, D) {
+    const getD = dProvider(D);
+    const out = new Array(mesh.elems.length);
+    for (let e = 0; e < mesh.elems.length; e++) {
+      const [i, j, k] = mesh.elems[e];
+      const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
+      out[e] = dktStiffness(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], getD(e));
+    }
+    return out;
+  }
+
   /* Post-traitement : moments par élément puis lissage aux nœuds. */
   function postprocess(mesh, D, u, t) {
+    const getD = dProvider(D), getT = tProvider(t);
     const nE = mesh.elems.length, nN = mesh.nodes.length;
     const Me = new Array(nE);
     for (let e = 0; e < nE; e++) {
@@ -1005,30 +1087,39 @@
       const ue = new Float64Array(9);
       const ids = [i, j, k];
       for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) ue[3 * a + b] = u[3 * ids[a] + b];
-      Me[e] = elementMoments(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], D, ue);
+      Me[e] = elementMoments(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], getD(e), ue);
     }
-    // Lissage surfacique (pondération par aire)
-    const acc = new Float64Array(nN * 3), wsum = new Float64Array(nN);
+    /* Contraintes de peau par élément : sigma = 6 M / t_local^2.
+       L'épaisseur pouvant varier d'un élément à l'autre (usinage), le lissage
+       aux nœuds porte sur les contraintes et non sur les moments. */
+    const Se = new Array(nE);
+    for (let e = 0; e < nE; e++) {
+      const te = getT(e);
+      const sec = 6 / (te * te);
+      Se[e] = [Me[e][0] * sec, Me[e][1] * sec, Me[e][2] * sec];
+    }
+    const acc = new Float64Array(nN * 3), accS = new Float64Array(nN * 3), wsum = new Float64Array(nN);
     for (let e = 0; e < nE; e++) {
       const [i, j, k] = mesh.elems[e];
       const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
       const A = Math.abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1])) / 2;
       for (const n of [i, j, k]) {
-        acc[3 * n] += Me[e][0] * A; acc[3 * n + 1] += Me[e][1] * A; acc[3 * n + 2] += Me[e][2] * A;
+        for (let c = 0; c < 3; c++) {
+          acc[3 * n + c] += Me[e][c] * A;
+          accS[3 * n + c] += Se[e][c] * A;
+        }
         wsum[n] += A;
       }
     }
-    const Mn = new Float64Array(nN * 3);
+    const Mn = new Float64Array(nN * 3), Sn = new Float64Array(nN * 3);
     for (let n = 0; n < nN; n++) {
       const w = wsum[n] || 1;
-      Mn[3 * n] = acc[3 * n] / w; Mn[3 * n + 1] = acc[3 * n + 1] / w; Mn[3 * n + 2] = acc[3 * n + 2] / w;
+      for (let c = 0; c < 3; c++) { Mn[3 * n + c] = acc[3 * n + c] / w; Sn[3 * n + c] = accS[3 * n + c] / w; }
     }
-    // Contrainte de peau : sigma = 6 M / t^2, von Mises en surface
-    const sec = 6 / (t * t);
     const vm = new Float64Array(nN);
     let vmMax = 0;
     for (let n = 0; n < nN; n++) {
-      const sx = Mn[3 * n] * sec, sy = Mn[3 * n + 1] * sec, sxy = Mn[3 * n + 2] * sec;
+      const sx = Sn[3 * n], sy = Sn[3 * n + 1], sxy = Sn[3 * n + 2];
       const v = Math.sqrt(sx * sx - sx * sy + sy * sy + 3 * sxy * sxy);
       vm[n] = v;
       if (v > vmMax) vmMax = v;
@@ -1037,7 +1128,8 @@
   }
 
   root.Fem = {
-    bendingD, dktStiffness, elementMoments, solve, postprocess, Skyline, rcmOrder, dktGeom, dktB
+    bendingD, dktStiffness, elementStiffnesses, elementMoments, solve, postprocess,
+    Skyline, rcmOrder, dktGeom, dktB, dProvider, tProvider
   };
 })(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
 
@@ -1180,18 +1272,81 @@
     }
   */
   function run(opts) {
-    const t = opts.thickness;
     const mat = opts.material;
     const region = opts.region;
 
     const mesh = opts.mesh || M.meshRegion(region, opts.meshSize);
     const nN = mesh.nodes.length;
-    const D = F3.bendingD(mat.E, mat.nu, t);
+    const nE = mesh.elems.length;
 
-    /* ---- Appuis : bande de largeur `width` le long du contour ---- */
+    /* ---- Épaisseur : valeur unique, ou champ mesuré sur la géométrie ---- */
+    const field = opts.thicknessField || null;
+    const tMinValid = 0.5;
+    const elemT = new Float64Array(nE);        // épaisseur équivalente en rigidité
+    const elemTs = new Float64Array(nE);       // épaisseur retenue pour la contrainte
+    let tClamped = 0, tSum = 0, tMin = Infinity, tMax = 0, tStep = 0;
+    // 7 points par élément : sommets, milieux d'arêtes et centre
+    const SAMPLE = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [.5, .5, 0], [0, .5, .5], [.5, 0, .5], [1 / 3, 1 / 3, 1 / 3]];
+    for (let e = 0; e < nE; e++) {
+      const el = mesh.elems[e];
+      let te, ts;
+      if (field) {
+        /* La rigidité varie comme t³ : on moyenne t³ sur l'élément puis on revient à
+           une épaisseur équivalente. La contrainte, elle, est pilotée par la section
+           la plus faible — on retient donc l'épaisseur minimale rencontrée. */
+        let sum3 = 0, n = 0, tmn = Infinity;
+        for (const [l0, l1, l2] of SAMPLE) {
+          const x = l0 * mesh.nodes[el[0]][0] + l1 * mesh.nodes[el[1]][0] + l2 * mesh.nodes[el[2]][0];
+          const y = l0 * mesh.nodes[el[0]][1] + l1 * mesh.nodes[el[1]][1] + l2 * mesh.nodes[el[2]][1];
+          const t1 = field.at(x, y);
+          if (!(t1 >= tMinValid)) continue;
+          sum3 += t1 * t1 * t1; n++;
+          if (t1 < tmn) tmn = t1;
+        }
+        if (!n) { te = ts = Math.max(field.min || tMinValid, tMinValid); tClamped++; }
+        else {
+          te = Math.cbrt(sum3 / n);
+          ts = tmn;
+          if (te / tmn > 1.15) tStep++;      // l'élément est à cheval sur une marche
+        }
+      } else te = ts = opts.thickness;
+      elemT[e] = te;
+      elemTs[e] = ts;
+      tSum += te;
+      if (te < tMin) tMin = te;
+      if (te > tMax) tMax = te;
+    }
+    const t = field ? tSum / nE : opts.thickness;      // épaisseur moyenne, pour l'affichage
+    const elemD = new Array(nE);
+    const Dcache = new Map();
+    for (let e = 0; e < nE; e++) {
+      const key = Math.round(elemT[e] * 1000);
+      let D0 = Dcache.get(key);
+      if (!D0) { D0 = F3.bendingD(mat.E, mat.nu, elemT[e]); Dcache.set(key, D0); }
+      elemD[e] = D0;
+    }
+    const D = field ? elemD : F3.bendingD(mat.E, mat.nu, opts.thickness);
+
+    /* ---- Appuis ---- */
     const fixed = new Int8Array(3 * nN);
-    const supportW = Math.max(0, opts.support.width || 0);
     const supported = new Uint8Array(nN);
+    const supportW = Math.max(0, opts.support.width || 0);
+    const contacts = (opts.support.mode === 'contacts' && opts.support.contacts) ? opts.support.contacts : null;
+
+    if (contacts) {
+      /* Appuis déduits des pièces qui touchent le panneau dans l'assemblage. */
+      for (let n = 0; n < nN; n++) {
+        const [x, y] = mesh.nodes[n];
+        for (const c of contacts) {
+          if (!c.enabled) continue;
+          if (!root.Solids.maskAt(c.contact, x, y, c.contact.side)) continue;
+          supported[n] = 1;
+          fixed[3 * n] = 1;
+          if (c.type === 'encastre') { fixed[3 * n + 1] = 1; fixed[3 * n + 2] = 1; }
+          break;
+        }
+      }
+    } else
     for (let n = 0; n < nN; n++) {
       const [x, y] = mesh.nodes[n];
       let d = Infinity;
@@ -1224,10 +1379,11 @@
     // Poids propre
     if (opts.selfWeight) {
       const g = 9810; // mm/s²
-      const q = mat.rho * t * g; // N/mm²
-      for (const el of mesh.elems) {
+      for (let e = 0; e < nE; e++) {
+        const el = mesh.elems[e];
         const p = el.map(i => mesh.nodes[i]);
         const A = triArea(p[0], p[1], p[2]);
+        const q = mat.rho * elemT[e] * g; // N/mm²
         for (const n of el) F[3 * n] += q * A / 3;
         appliedTotal += q * A;
       }
@@ -1274,37 +1430,119 @@
       }
     }
 
-    /* ---- Résolution ---- */
+    /* ---- Résolution avec contact unilatéral ----
+       Un panneau seulement posé ne peut pas être retenu vers le haut. On résout
+       donc par ensemble actif : à chaque itération, les nœuds d'appui dont la
+       réaction devient une traction sont libérés, et les nœuds libérés qui
+       repasseraient sous le plan d'appui sont réactivés. Les liaisons de type
+       encastrement (vissées, bridées) restent bilatérales. */
+    const unilateral = new Uint8Array(nN);
+    if (opts.unilateral !== false) {
+      if (contacts) {
+        for (let n = 0; n < nN; n++) {
+          if (!fixed[3 * n]) continue;
+          const [x, y] = mesh.nodes[n];
+          for (const c of contacts) {
+            if (!c.enabled) continue;
+            if (root.Solids.maskAt(c.contact, x, y, c.contact.side) && c.type !== 'encastre') {
+              unilateral[n] = 1; break;
+            }
+          }
+        }
+      } else if (opts.support.type === 'simple') {
+        for (let n = 0; n < nN; n++) if (fixed[3 * n]) unilateral[n] = 1;
+      }
+    }
+
     const t0 = Date.now();
-    const u = F3.solve(mesh, D, F, fixed);
+    const KeAll = F3.elementStiffnesses(mesh, D);
+    const cache = { Ke: KeAll };
+    const active = new Int8Array(fixed);
+    let u = null, Fint = null, iterations = 0, released = 0, converged = false;
+    let solvedActive = null;
+
+    function internalForces(uu) {
+      const fi = new Float64Array(3 * nN);
+      for (let e = 0; e < nE; e++) {
+        const el = mesh.elems[e];
+        const Ke = KeAll[e];
+        const ue = new Float64Array(9);
+        for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) ue[3 * a + b] = uu[3 * el[a] + b];
+        for (let a = 0; a < 9; a++) {
+          let sm = 0;
+          for (let b = 0; b < 9; b++) sm += Ke[a * 9 + b] * ue[b];
+          fi[3 * el[(a / 3) | 0] + (a % 3)] += sm;
+        }
+      }
+      return fi;
+    }
+
+    /* La solution renvoyée correspond toujours au jeu d'appuis avec lequel elle a été
+       calculée : une modification de l'ensemble actif n'est adoptée que si elle est
+       suivie d'une nouvelle résolution. L'équilibre global reste donc exact même si
+       l'itération s'arrête avant stationnarité complète. */
+    const wTol = 1e-3;
+    let wPrev = null;
+    /* Anti-cyclage : un nœud à la frontière du décollement peut osciller d'une
+       itération à l'autre. Au-delà de trois changements d'état, on fige le sien. */
+    const flips = new Uint8Array(nN);
+    for (let it = 0; it < 25; it++) {
+      iterations = it + 1;
+      u = F3.solve(mesh, D, F, active, cache);
+      solvedActive = Int8Array.from(active);   // jeu d'appuis correspondant à `u`
+      Fint = internalForces(u);
+
+      let nActive = 0, rMax = 0;
+      for (let n = 0; n < nN; n++) {
+        if (!active[3 * n]) continue;
+        nActive++;
+        rMax = Math.max(rMax, Math.abs(F[3 * n] - Fint[3 * n]));
+      }
+      const tolR = Math.max(rMax * 1e-6, 1e-9);
+
+      const next = Int8Array.from(active);
+      let changed = 0, nAct = nActive;
+      for (let n = 0; n < nN; n++) {
+        if (!unilateral[n]) continue;
+        if (flips[n] >= 3) continue;
+        if (active[3 * n]) {
+          if (F[3 * n] - Fint[3 * n] < -tolR && nAct > 6) { next[3 * n] = 0; nAct--; changed++; flips[n]++; }
+        } else if (fixed[3 * n] && u[3 * n] > 1e-7) { next[3 * n] = 1; nAct++; changed++; flips[n]++; }
+      }
+      if (!changed) { converged = true; break; }
+
+      let wNow = 0;
+      for (let n = 0; n < nN; n++) if (Math.abs(u[3 * n]) > Math.abs(wNow)) wNow = u[3 * n];
+      const dw = wPrev === null ? Infinity : Math.abs(wNow - wPrev) / Math.max(Math.abs(wNow), 1e-9);
+      wPrev = wNow;
+      // Flèche stabilisée et ensemble actif presque figé : inutile d'aller plus loin.
+      /* Arrêt anticipé seulement si la flèche est réellement figée : le décollement
+         progresse de proche en proche et s'arrêter trop tôt sous-estimerait la flèche. */
+      if (it >= 3 && dw < wTol && changed < 0.005 * Math.max(nActive, 1)) { converged = true; break; }
+      active.set(next);
+    }
+
+    active.set(solvedActive);
+    released = 0;
+    for (let n = 0; n < nN; n++) if (fixed[3 * n] && !active[3 * n]) released++;
     const solveMs = Date.now() - t0;
 
     /* ---- Réactions (équilibre) ---- */
-    const Fint = new Float64Array(3 * nN);
-    for (const el of mesh.elems) {
-      const p = el.map(i => mesh.nodes[i]);
-      const Ke = F3.dktStiffness(p[0][0], p[0][1], p[1][0], p[1][1], p[2][0], p[2][1], D);
-      const ue = new Float64Array(9);
-      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) ue[3 * a + b] = u[3 * el[a] + b];
-      for (let a = 0; a < 9; a++) {
-        let s = 0;
-        for (let b = 0; b < 9; b++) s += Ke[a * 9 + b] * ue[b];
-        Fint[3 * el[(a / 3) | 0] + (a % 3)] += s;
-      }
-    }
     let reactionTotal = 0, reactionMax = 0;
     const reactions = new Float64Array(nN);
     for (let n = 0; n < nN; n++) {
-      if (!fixed[3 * n]) continue;
+      if (!active[3 * n]) continue;
       // Réaction d'appui comptée positive quand elle s'oppose à la charge.
       const R = F[3 * n] - Fint[3 * n];
       reactions[n] = R;
       reactionTotal += R;
       if (Math.abs(R) > Math.abs(reactionMax)) reactionMax = R;
     }
+    // 1 = appui effectif, 2 = appui décollé (libéré par le contact unilatéral)
+    for (let n = 0; n < nN; n++) if (fixed[3 * n] && !active[3 * n]) supported[n] = 2;
 
     /* ---- Post-traitement ---- */
-    const post = F3.postprocess(mesh, D, u, t);
+    const post = F3.postprocess(mesh, D, u, field ? elemTs : t);
     let wmax = 0, wmaxNode = 0;
     for (let n = 0; n < nN; n++) {
       const w = u[3 * n];
@@ -1321,7 +1559,7 @@
     /* ---- Portée de référence : 2 x distance max à un appui ---- */
     let Lref = 0;
     const supNodes = [];
-    for (let n = 0; n < nN; n++) if (supported[n]) supNodes.push(mesh.nodes[n]);
+    for (let n = 0; n < nN; n++) if (active[3 * n]) supNodes.push(mesh.nodes[n]);
     for (let n = 0; n < nN; n++) {
       let d = Infinity;
       for (const s of supNodes) {
@@ -1358,32 +1596,44 @@
       `Charge ponctuelle : la contrainte locale au point d'application est théoriquement infinie ` +
       `(singularité). La valeur affichée dépend de la finesse du maillage — pour un contrôle de ` +
       `résistance locale, modéliser la surface réelle d'appui avec une zone répartie.`);
-    if (opts.support.type === 'simple') {
-      // Une plaque seulement posée ne peut pas être retenue vers le haut :
-      // une réaction négative signale un décollement du bâti.
-      let uplift = 0, upliftMax = 0;
-      for (let n = 0; n < nN; n++) {
-        if (!fixed[3 * n]) continue;
-        if (reactions[n] < -1e-6 * Math.abs(reactionMax)) { uplift++; upliftMax = Math.min(upliftMax, reactions[n]); }
-      }
-      if (uplift > 0.02 * nSupported) warnings.push(
-        `Décollement : sur ${uplift} nœuds d'appui la réaction est négative, ` +
-        `c'est-à-dire que la plaque tendrait à se soulever du bâti. Avec un appui simple ` +
-        `(sans fixation), ces zones se soulèveraient réellement et la flèche serait supérieure ` +
-        `au calcul. Fixez la plaque dans ces zones, ou recentrez le chargement.`);
+    if (!converged) warnings.push(
+      `Le contact unilatéral n'a pas convergé en 25 itérations : le panneau bascule ou n'est pas ` +
+      `tenu de façon stable. Vérifiez les appuis retenus et la position des charges.`);
+    if (released > 0) {
+      warnings.push(
+        `Décollement pris en compte : ${released} nœud(s) d'appui se soulèvent du bâti et ont été ` +
+        `libérés (contact unilatéral). C'est le comportement réel d'un panneau simplement posé ; ` +
+        `pour éviter ce décollement, fixez le panneau dans ces zones en passant la liaison ` +
+        `correspondante en « encastrement ».`);
     }
     const q = M.meshQuality(mesh);
     if (q.minAngle < 12) warnings.push(`Maillage : angle minimal ${q.minAngle.toFixed(1)}° — géométrie à simplifier ou maille à affiner.`);
+    if (field) {
+      if (tClamped > 0) warnings.push(
+        `${tClamped} élément(s) tombent sur une zone d'épaisseur quasi nulle (perçage, dégagement) : ` +
+        `l'épaisseur minimale mesurée y a été substituée. Vérifiez que ces zones ne sont pas structurantes.`);
+      if (tStep > 0.08 * nE) warnings.push(
+        `${tStep} éléments sont à cheval sur une variation d'épaisseur : affinez le maillage ` +
+        `(§ 6) pour mieux placer les marches d'usinage. La rigidité y est homogénéisée sur t³ et ` +
+        `la contrainte calculée sur l'épaisseur la plus faible de l'élément, ce qui va dans le sens ` +
+        `de la sécurité.`);
+      if (tMax / Math.max(tMin, 1e-6) > 3) warnings.push(
+        `Épaisseur très contrastée (${tMin.toFixed(1)} à ${tMax.toFixed(1)} mm) : aux marches d'usinage, ` +
+        `la théorie des plaques ignore la concentration de contrainte locale au raccordement. ` +
+        `Prévoyez un rayon de raccordement et une marge sur la contrainte dans ces zones.`);
+    }
     if (t > 0 && Lref / t < 10) warnings.push(
       `Élancement portée/épaisseur = ${(Lref / t).toFixed(1)} (< 10) : plaque épaisse, ` +
       `le cisaillement transverse (non pris en compte par la théorie de Kirchhoff) majorerait la flèche.`);
 
     return {
-      mesh, u, D, F, fixed, supported, reactions,
+      mesh, u, D, F, fixed: active, supported, reactions, released, iterations,
       wmax, wmaxNode, sigmaMax, sigmaNode, vonMises: post.vonMises, momentsNode: post.momentsNode,
       Lref, fAdm, sigmaAdm, safety, safetyDefl, safetyStress, verdict,
-      reactionTotal, reactionMax, appliedTotal, zoneInfo, warnings, solveMs,
-      area: G.regionArea(region), nSupported
+      reactionTotal, reactionMax, appliedTotal, zoneInfo, warnings, solveMs, converged,
+      area: G.regionArea(region), nSupported,
+      elemT, elemTs, tMean: t, tMin: field ? tMin : opts.thickness, tMax: field ? tMax : opts.thickness,
+      variableThickness: !!field
     };
   }
 
@@ -1403,8 +1653,9 @@
 </script>
 <script>
 /* ===== js/importers.js ===== */
-/* Import de géométrie : STL (binaire + ASCII) et STEP (AP203/AP214, faces planes).
-   Objectif : extraire le contour 2D de la grande face de la plaque + son épaisseur. */
+/* Import de géométrie : STL (binaire + ASCII) et STEP (AP203/AP214).
+   Un fichier peut contenir plusieurs corps : chacun est restitué séparément,
+   le panneau PEHD étant ensuite désigné par l'utilisateur. */
 (function (root) {
   'use strict';
   const G = root.Geom;
@@ -1416,16 +1667,15 @@
   const norm = (a) => Math.hypot(a[0], a[1], a[2]);
   const unit = (a) => { const n = norm(a) || 1; return [a[0] / n, a[1] / n, a[2] / n]; };
 
-  /* Base orthonormée d'un plan de normale n. */
   function planeBasis(n) {
     const N = unit(n);
-    let ref = Math.abs(N[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const ref = Math.abs(N[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
     const U = unit(cross(ref, N));
     const V = cross(N, U);
     return { N, U, V };
   }
 
-  /* Jacobi : plus petite direction principale d'un nuage (= normale de la plaque). */
+  /* Direction principale de plus petite étendue : normale d'une plaque. */
   function smallestPrincipalDirection(pts) {
     let cx = 0, cy = 0, cz = 0;
     for (const p of pts) { cx += p[0]; cy += p[1]; cz += p[2]; }
@@ -1483,90 +1733,93 @@
           const o = off + 12 + k * 12;
           v.push([dv.getFloat32(o, true), dv.getFloat32(o + 4, true), dv.getFloat32(o + 8, true)]);
         }
-        tris.push({ n: [nx, ny, nz], v });
+        tris.push({ n: [nx, ny, nz], v, group: 0 });
         off += 50;
       }
     } else {
       const txt = new TextDecoder().decode(buffer);
-      const re = /facet\s+normal\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)[\s\S]*?outer\s+loop([\s\S]*?)endloop/g;
+      let group = -1;
+      const names = [];
+      const re = /(solid\s+([^\r\n]*))|(facet\s+normal\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)[\s\S]*?outer\s+loop([\s\S]*?)endloop)/g;
       let m;
       while ((m = re.exec(txt))) {
-        const n = [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])];
+        if (m[1] !== undefined) { group++; names.push((m[2] || '').trim()); continue; }
+        const n = [parseFloat(m[4]), parseFloat(m[5]), parseFloat(m[6])];
         const vre = /vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g;
         const v = []; let vm;
-        while ((vm = vre.exec(m[4]))) v.push([parseFloat(vm[1]), parseFloat(vm[2]), parseFloat(vm[3])]);
-        if (v.length === 3) tris.push({ n, v });
+        while ((vm = vre.exec(m[7]))) v.push([parseFloat(vm[1]), parseFloat(vm[2]), parseFloat(vm[3])]);
+        if (v.length === 3) tris.push({ n, v, group: Math.max(0, group) });
       }
+      if (names.length) tris.names = names;
     }
     if (!tris.length) throw new Error('Fichier STL illisible ou vide.');
     return tris;
   }
 
-  /* Extrait le contour de la grande face d'une plaque maillée. */
-  function plateFromTriangles(tris, opts) {
-    opts = opts || {};
-    const allPts = [];
-    for (const t of tris) for (const v of t.v) allPts.push(v);
-    const N0 = smallestPrincipalDirection(allPts);
-
-    // Épaisseur = étendue selon N0
-    let hmin = Infinity, hmax = -Infinity;
-    for (const p of allPts) { const h = dot(p, N0); if (h < hmin) hmin = h; if (h > hmax) hmax = h; }
-    const thickness = hmax - hmin;
-
-    const basis = planeBasis(N0);
-
-    // Sélection de la face supérieure
-    function faceLoops(sign) {
-      const sel = [];
+  /* Sépare une soupe de triangles en corps distincts.
+     1. Si le fichier ASCII déclare plusieurs blocs `solid`, ils font foi.
+     2. Sinon, composantes connexes par arête partagée : deux pièces qui ne se
+        touchent que par une face ou un sommet restent distinctes. Deux pièces
+        collées le long d'une arête commune sont vues comme un seul corps —
+        limite intrinsèque du STL, que le format STEP ne présente pas. */
+  function splitSolids(tris) {
+    if (tris.names && tris.names.length > 1) {
+      const byGroup = new Map();
       for (const t of tris) {
-        let n = t.n;
-        if (norm(n) < 1e-9) n = cross(sub(t.v[1], t.v[0]), sub(t.v[2], t.v[0]));
-        n = unit(n);
-        if (dot(n, basis.N) * sign > 0.7) sel.push(t);
+        if (!byGroup.has(t.group)) byGroup.set(t.group, []);
+        byGroup.get(t.group).push(t);
       }
-      if (!sel.length) return null;
-      // Soudure des sommets et extraction des arêtes de bord
-      const key = new Map();
-      const pts2 = [];
-      const tol = Math.max(1e-6, (hmax - hmin) * 1e-3);
-      const idOf = (p) => {
-        const u = dot(p, basis.U), v = dot(p, basis.V);
-        const k = Math.round(u / tol) + '_' + Math.round(v / tol);
-        if (key.has(k)) return key.get(k);
-        key.set(k, pts2.length); pts2.push([u, v]);
-        return pts2.length - 1;
-      };
-      const edgeCount = new Map();
-      for (const t of sel) {
-        const a = idOf(t.v[0]), b = idOf(t.v[1]), c = idOf(t.v[2]);
-        for (const [i, j] of [[a, b], [b, c], [c, a]]) {
-          if (i === j) continue;
-          const k = i < j ? i + ',' + j : j + ',' + i;
-          edgeCount.set(k, (edgeCount.get(k) || 0) + 1);
-        }
-      }
-      const edges = [];
-      for (const [k, c] of edgeCount) if (c === 1) { const [i, j] = k.split(',').map(Number); edges.push([i, j]); }
-      if (!edges.length) return null;
-      const loops = G.chainEdges(edges, pts2);
-      return loops.length ? loops : null;
+      const out = [];
+      for (const [g, list] of byGroup)
+        if (list.length >= 4) out.push({ name: tris.names[g] || `Corps ${out.length + 1}`, tris: list });
+      if (out.length > 1) return out.sort((a, b) => b.tris.length - a.tris.length);
     }
-
-    let loops = faceLoops(+1) || faceLoops(-1);
-    if (!loops) throw new Error("Impossible d'identifier la grande face de la plaque dans ce maillage.");
-
-    const bb0 = G.bbox(loops[0]);
-    const tolSimplify = opts.simplifyTol !== undefined
-      ? opts.simplifyTol : Math.max(0.05, Math.max(bb0.w, bb0.h) * 2e-4);
-    loops = loops.map(l => G.simplifyRing(l, tolSimplify));
-    const region = G.ringsToRegion(loops);
-    if (!region) throw new Error('Contour de plaque invalide.');
-    return { region, thickness, normal: N0, source: 'STL', nTriangles: tris.length };
+    let size = 0;
+    const bb = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+    for (const t of tris) for (const v of t.v) for (let k = 0; k < 3; k++) {
+      if (v[k] < bb.min[k]) bb.min[k] = v[k];
+      if (v[k] > bb.max[k]) bb.max[k] = v[k];
+    }
+    for (let k = 0; k < 3; k++) size = Math.max(size, bb.max[k] - bb.min[k]);
+    const tol = (size || 1) * 1e-6;
+    const vid = new Map();
+    const idOf = (p) => {
+      const k = Math.round(p[0] / tol) + '_' + Math.round(p[1] / tol) + '_' + Math.round(p[2] / tol);
+      let i = vid.get(k);
+      if (i === undefined) { i = vid.size; vid.set(k, i); }
+      return i;
+    };
+    const triV = tris.map(t => t.v.map(idOf));
+    const parent = new Int32Array(tris.length).map((_, i) => i);
+    const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+    const union = (x, y) => { const a = find(x), b = find(y); if (a !== b) parent[a] = b; };
+    const edgeOwner = new Map();
+    triV.forEach((tv, i) => {
+      for (let k = 0; k < 3; k++) {
+        const a = tv[k], b = tv[(k + 1) % 3];
+        const key = a < b ? a + ',' + b : b + ',' + a;
+        const prev = edgeOwner.get(key);
+        if (prev === undefined) edgeOwner.set(key, i); else union(prev, i);
+      }
+    });
+    const groups = new Map();
+    tris.forEach((t, i) => {
+      const r = find(i);
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r).push(t);
+    });
+    const solids = [...groups.values()]
+      .filter(g => g.length >= 4)
+      .sort((a, b) => b.length - a.length)
+      .map((g, i) => ({ name: `Corps ${i + 1}`, tris: g }));
+    return solids.length ? solids : [{ name: 'Corps 1', tris }];
   }
 
-  function importSTL(buffer, opts) {
-    return plateFromTriangles(parseSTL(buffer), opts);
+  function importSTL(buffer) {
+    const tris = parseSTL(buffer);
+    const solids = splitSolids(tris);
+    solids.forEach((s, i) => { if (!s.name) s.name = `Corps ${i + 1}`; });
+    return { solids, source: 'STL', warnings: [], nTriangles: tris.length };
   }
 
   /* ================= STEP ================= */
@@ -1588,14 +1841,10 @@
 
   function parseSTEP(text) {
     const ents = new Map();
-    // Retire les commentaires /* ... */
     text = text.replace(/\/\*[\s\S]*?\*\//g, ' ');
     const re = /#(\d+)\s*=\s*([A-Z_0-9]+)\s*\(([\s\S]*?)\)\s*;/g;
     let m;
-    while ((m = re.exec(text))) {
-      ents.set(+m[1], { type: m[2], args: tokenizeArgs(m[3]) });
-    }
-    // Entités complexes : #12 = ( A(..) B(..) ) ;
+    while ((m = re.exec(text))) ents.set(+m[1], { type: m[2], args: tokenizeArgs(m[3]) });
     const re2 = /#(\d+)\s*=\s*\(([\s\S]*?)\)\s*;/g;
     while ((m = re2.exec(text))) {
       if (ents.has(+m[1])) continue;
@@ -1605,10 +1854,8 @@
   }
 
   function stepUnitScale(ents, text) {
-    // Détecte pouce / mètre / centimètre ; défaut millimètre.
-    for (const [, e] of ents) {
+    for (const [, e] of ents)
       if (e.type === 'CONVERSION_BASED_UNIT' && /INCH/i.test(e.args.join(','))) return 25.4;
-    }
     if (/CONVERSION_BASED_UNIT\s*\(\s*'INCH'/i.test(text)) return 25.4;
     for (const [, e] of ents) {
       if (/SI_UNIT/.test(e.type)) {
@@ -1620,37 +1867,57 @@
     return 1;
   }
 
+  /* --- Matrices 4x3 (rotation + translation) --- */
+  const IDENT = { r: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], t: [0, 0, 0] };
+  function applyM(M, p) {
+    return [
+      M.r[0][0] * p[0] + M.r[0][1] * p[1] + M.r[0][2] * p[2] + M.t[0],
+      M.r[1][0] * p[0] + M.r[1][1] * p[1] + M.r[1][2] * p[2] + M.t[1],
+      M.r[2][0] * p[0] + M.r[2][1] * p[1] + M.r[2][2] * p[2] + M.t[2]];
+  }
+  function mulM(A, B) {  // A ∘ B
+    const r = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+      r[i][j] = A.r[i][0] * B.r[0][j] + A.r[i][1] * B.r[1][j] + A.r[i][2] * B.r[2][j];
+    return { r, t: applyM(A, B.t) };
+  }
+  function invM(A) {
+    const r = [[A.r[0][0], A.r[1][0], A.r[2][0]], [A.r[0][1], A.r[1][1], A.r[2][1]], [A.r[0][2], A.r[1][2], A.r[2][2]]];
+    const t = [
+      -(r[0][0] * A.t[0] + r[0][1] * A.t[1] + r[0][2] * A.t[2]),
+      -(r[1][0] * A.t[0] + r[1][1] * A.t[1] + r[1][2] * A.t[2]),
+      -(r[2][0] * A.t[0] + r[2][1] * A.t[1] + r[2][2] * A.t[2])];
+    return { r, t };
+  }
+  const isIdentity = (M) => Math.abs(M.t[0]) + Math.abs(M.t[1]) + Math.abs(M.t[2]) < 1e-9 &&
+    Math.abs(M.r[0][0] - 1) + Math.abs(M.r[1][1] - 1) + Math.abs(M.r[2][2] - 1) < 1e-9;
+
   function importSTEP(text, opts) {
     opts = opts || {};
     const ents = parseSTEP(text);
     const scale = stepUnitScale(ents, text);
-    const ref = (s) => (typeof s === 'string' && s[0] === '#') ? ents.get(+s.slice(1)) : null;
+    const warnings = [];
     const refId = (s) => +String(s).slice(1);
     const listRefs = (s) => String(s).replace(/^\(|\)$/g, '').split(',').map(x => x.trim()).filter(x => x[0] === '#');
+    const label = (s) => (String(s).match(/^'(.*)'$/) || [, ''])[1];
 
     const pointCache = new Map();
     function point(id) {
       if (pointCache.has(id)) return pointCache.get(id);
       const e = ents.get(id);
-      if (!e) return null;
       let p = null;
-      if (e.type === 'CARTESIAN_POINT') {
+      if (e && e.type === 'CARTESIAN_POINT') {
         const nums = String(e.args[1]).replace(/[()]/g, '').split(',').map(parseFloat);
         p = [(nums[0] || 0) * scale, (nums[1] || 0) * scale, (nums[2] || 0) * scale];
-      } else if (e.type === 'VERTEX_POINT') {
-        p = point(refId(e.args[1]));
-      }
+      } else if (e && e.type === 'VERTEX_POINT') p = point(refId(e.args[1]));
       pointCache.set(id, p);
       return p;
     }
     function direction(id) {
       const e = ents.get(id);
-      if (!e) return null;
-      if (e.type === 'DIRECTION') {
-        const nums = String(e.args[1]).replace(/[()]/g, '').split(',').map(parseFloat);
-        return unit([nums[0] || 0, nums[1] || 0, nums[2] || 0]);
-      }
-      return null;
+      if (!e || e.type !== 'DIRECTION') return null;
+      const nums = String(e.args[1]).replace(/[()]/g, '').split(',').map(parseFloat);
+      return unit([nums[0] || 0, nums[1] || 0, nums[2] || 0]);
     }
     function placement(id) {
       const e = ents.get(id);
@@ -1658,39 +1925,43 @@
       const loc = point(refId(e.args[1]));
       const axis = e.args[2] && e.args[2] !== '$' ? direction(refId(e.args[2])) : [0, 0, 1];
       const refd = e.args[3] && e.args[3] !== '$' ? direction(refId(e.args[3])) : null;
-      return { loc, axis: axis || [0, 0, 1], ref: refd };
+      return { loc: loc || [0, 0, 0], axis: axis || [0, 0, 1], ref: refd };
+    }
+    function placementMatrix(id) {
+      const pl = placement(id);
+      if (!pl) return IDENT;
+      const N = unit(pl.axis);
+      let U = pl.ref ? unit(pl.ref) : planeBasis(N).U;
+      U = unit(sub(U, [N[0] * dot(U, N), N[1] * dot(U, N), N[2] * dot(U, N)]));
+      const V = cross(N, U);
+      return { r: [[U[0], V[0], N[0]], [U[1], V[1], N[1]], [U[2], V[2], N[2]]], t: pl.loc };
     }
 
-    /* Discrétise une arête entre deux sommets selon sa courbe support. */
+    /* --- Discrétisation des arêtes --- */
     function edgePoints(edgeCurveId, orientedSense, sagitta) {
       const e = ents.get(edgeCurveId);
       if (!e || e.type !== 'EDGE_CURVE') return null;
-      let p1 = point(refId(e.args[1]));
-      let p2 = point(refId(e.args[2]));
+      const p1 = point(refId(e.args[1])), p2 = point(refId(e.args[2]));
       const curve = ents.get(refId(e.args[3]));
       const sameSense = /\.T\./.test(e.args[4] || '.T.');
       let sense = sameSense;
       if (!orientedSense) sense = !sense;
       if (!p1 || !p2) return null;
-      let pts = [p1];
+      const pts = [p1];
       if (curve && curve.type === 'CIRCLE') {
         const pl = placement(refId(curve.args[1]));
         const R = parseFloat(curve.args[2]) * scale;
-        if (pl && pl.loc) {
+        if (pl) {
           const N = unit(pl.axis);
           let U = pl.ref ? unit(pl.ref) : planeBasis(N).U;
           U = unit(sub(U, [N[0] * dot(U, N), N[1] * dot(U, N), N[2] * dot(U, N)]));
           const V = cross(N, U);
-          const ang = (p) => {
-            const d = sub(p, pl.loc);
-            return Math.atan2(dot(d, V), dot(d, U));
-          };
-          let a1 = ang(p1), a2 = ang(p2);
+          const ang = (p) => { const d = sub(p, pl.loc); return Math.atan2(dot(d, V), dot(d, U)); };
+          const a1 = ang(p1), a2 = ang(p2);
           let sweep = a2 - a1;
-          const ccw = sameSense;
-          if (ccw) { while (sweep <= 1e-9) sweep += 2 * Math.PI; }
+          if (sameSense) { while (sweep <= 1e-9) sweep += 2 * Math.PI; }
           else { while (sweep >= -1e-9) sweep -= 2 * Math.PI; }
-          if (Math.abs(Math.hypot(...sub(p1, p2))) < 1e-9) sweep = ccw ? 2 * Math.PI : -2 * Math.PI;
+          if (norm(sub(p1, p2)) < 1e-9) sweep = sameSense ? 2 * Math.PI : -2 * Math.PI;
           const sag = sagitta || Math.max(R / 40, 0.2);
           const dTheta = 2 * Math.acos(Math.max(-1, Math.min(1, 1 - Math.min(sag / R, 1))));
           const nSeg = Math.max(2, Math.min(256, Math.ceil(Math.abs(sweep) / Math.max(dTheta, 0.02))));
@@ -1703,7 +1974,6 @@
           }
         }
       } else if (curve && /B_SPLINE_CURVE/.test(curve.type)) {
-        // Approximation par le polygone de contrôle (suffisant pour un contour de plaque)
         const cps = listRefs(curve.args[2] || '()').map(s => point(refId(s))).filter(Boolean);
         if (cps.length > 2) for (let i = 1; i < cps.length - 1; i++) pts.push(cps[i]);
       }
@@ -1712,93 +1982,634 @@
       return pts;
     }
 
-    /* Boucles d'une face. */
     function boundLoop(boundId, sagitta) {
       const b = ents.get(boundId);
       if (!b || !/FACE_(OUTER_)?BOUND/.test(b.type)) return null;
       const loopE = ents.get(refId(b.args[1]));
       const boundOrient = /\.T\./.test(b.args[2] || '.T.');
       if (!loopE || loopE.type !== 'EDGE_LOOP') return null;
-      const oriented = listRefs(loopE.args[1]);
       const pts = [];
-      for (const oe of oriented) {
+      for (const oe of listRefs(loopE.args[1])) {
         const o = ents.get(refId(oe));
         if (!o || o.type !== 'ORIENTED_EDGE') continue;
-        const sense = /\.T\./.test(o.args[4] || '.T.');
-        const ep = edgePoints(refId(o.args[3]), sense, sagitta);
+        const ep = edgePoints(refId(o.args[3]), /\.T\./.test(o.args[4] || '.T.'), sagitta);
         if (!ep) continue;
-        for (const p of ep) {
-          if (!pts.length || Math.hypot(...sub(p, pts[pts.length - 1])) > 1e-7) pts.push(p);
-        }
+        for (const p of ep) if (!pts.length || norm(sub(p, pts[pts.length - 1])) > 1e-7) pts.push(p);
       }
-      if (pts.length > 2 && Math.hypot(...sub(pts[0], pts[pts.length - 1])) < 1e-7) pts.pop();
+      if (pts.length > 2 && norm(sub(pts[0], pts[pts.length - 1])) < 1e-7) pts.pop();
       if (pts.length < 3) return null;
       return boundOrient ? pts : pts.reverse();
     }
 
-    /* Toutes les faces planes, la plus grande d'abord. */
-    const faces = [];
-    for (const [id, e] of ents) {
-      if (e.type !== 'ADVANCED_FACE' && e.type !== 'FACE_SURFACE') continue;
+    /* --- Faces planes d'une face avancée --- */
+    let nCurved = 0;
+    function planarFace(faceId) {
+      const e = ents.get(faceId);
+      if (!e || (e.type !== 'ADVANCED_FACE' && e.type !== 'FACE_SURFACE')) return null;
       const surf = ents.get(refId(e.args[2]));
-      if (!surf || surf.type !== 'PLANE') continue;
+      if (!surf || surf.type !== 'PLANE') { nCurved++; return null; }
       const pl = placement(refId(surf.args[1]));
-      if (!pl) continue;
-      const bounds = listRefs(e.args[1]);
-      const rings3d = [];
-      for (const bId of bounds) {
+      if (!pl) return null;
+      const faceSense = /\.T\./.test(e.args[3] || '.T.');
+      const loops = [];
+      for (const bId of listRefs(e.args[1])) {
         const lp = boundLoop(refId(bId), opts.sagitta);
-        if (lp) rings3d.push({ pts: lp, outer: /OUTER/.test((ents.get(refId(bId)) || {}).type || '') });
+        if (lp) loops.push({ pts: lp, outer: /OUTER/.test((ents.get(refId(bId)) || {}).type || '') });
       }
-      if (!rings3d.length) continue;
-      const basis = planeBasis(pl.axis);
-      const rings2d = rings3d.map(r => ({
-        outer: r.outer,
-        ring: r.pts.map(p => [dot(sub(p, pl.loc), basis.U), dot(sub(p, pl.loc), basis.V)])
-      }));
-      let area = 0;
-      for (const r of rings2d) area += (r.outer ? 1 : -1) * Math.abs(G.polygonArea(r.ring));
-      faces.push({ id, area: Math.abs(area), rings2d, basis, origin: pl.loc, normal: basis.N });
-    }
-    if (!faces.length) throw new Error(
-      "Aucune face plane exploitable trouvée dans ce STEP. Utilisez un export STL, ou saisissez la géométrie manuellement.");
-    faces.sort((a, b) => b.area - a.area);
-    const f = faces[0];
-
-    // Épaisseur = écart entre la face retenue et la face parallèle opposée la plus éloignée
-    let thickness = 0;
-    for (const g of faces) {
-      if (Math.abs(Math.abs(dot(g.normal, f.normal)) - 1) > 1e-3) continue;
-      const d = Math.abs(dot(sub(g.origin, f.origin), f.normal));
-      if (d > thickness && d < Math.sqrt(f.area)) thickness = d;
+      if (!loops.length) return null;
+      loops.sort((a, b) => (b.outer ? 1 : 0) - (a.outer ? 1 : 0));
+      const N = unit(pl.axis);
+      return { normal: faceSense ? N : [-N[0], -N[1], -N[2]], loops: loops.map(l => l.pts) };
     }
 
-    const rings = f.rings2d.map(r => r.ring);
-    const bb0 = G.bbox(rings[0]);
-    const tolSimplify = opts.simplifyTol !== undefined
-      ? opts.simplifyTol : Math.max(0.02, Math.max(bb0.w, bb0.h) * 1e-4);
-    const region = G.ringsToRegion(rings.map(r => G.simplifyRing(r, tolSimplify)));
-    if (!region) throw new Error('Contour STEP invalide.');
+    /* --- Corps : coques fermées --- */
+    const shells = [];
+    for (const [id, e] of ents) {
+      if (e.type === 'MANIFOLD_SOLID_BREP' || e.type === 'BREP_WITH_VOIDS') {
+        shells.push({ id, name: label(e.args[0]), shellIds: [refId(e.args[1])] });
+      } else if (e.type === 'SHELL_BASED_SURFACE_MODEL') {
+        shells.push({ id, name: label(e.args[0]), shellIds: listRefs(e.args[1]).map(refId) });
+      }
+    }
+    if (!shells.length) {
+      // Pas de structure de corps : on prend toutes les faces comme un corps unique.
+      const faces = [];
+      for (const [id, e] of ents) if (e.type === 'ADVANCED_FACE' || e.type === 'FACE_SURFACE') {
+        const f = planarFace(id);
+        if (f) faces.push(f);
+      }
+      if (!faces.length) throw new Error(
+        "Aucune face plane exploitable dans ce STEP. Essayez un export STL, ou saisissez la géométrie manuellement.");
+      return { solids: [{ name: 'Corps 1', faces }], source: 'STEP', warnings, unitScale: scale, nCurved };
+    }
+
+    /* --- Transformations d'assemblage --- */
+    const repOfItem = new Map();          // item -> représentation
+    const repItems = new Map();
+    for (const [id, e] of ents) {
+      if (!/SHAPE_REPRESENTATION|REPRESENTATION$/.test(e.type)) continue;
+      const items = listRefs(e.args[1] || '()').map(refId);
+      if (!items.length) continue;
+      repItems.set(id, items);
+      for (const it of items) repOfItem.set(it, id);
+    }
+    const parentOf = new Map();           // rep enfant -> {parent, M}
+    let nTransforms = 0;
+    for (const [, e] of ents) {
+      let a = null;
+      if (e.type === 'COMPLEX' && /REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION/.test(e.raw || '')) {
+        const rr = (e.raw.match(/REPRESENTATION_RELATIONSHIP\s*\(([^)]*)\)/) || [])[1];
+        const tr = (e.raw.match(/REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION\s*\(([^)]*)\)/) || [])[1];
+        if (rr && tr) a = { reps: tokenizeArgs(rr), trans: tokenizeArgs(tr)[0] };
+      }
+      if (!a) continue;
+      const child = refId(a.reps[2]), parent = refId(a.reps[3]);
+      const idt = ents.get(refId(a.trans));
+      let M = IDENT;
+      if (idt && idt.type === 'ITEM_DEFINED_TRANSFORMATION') {
+        const M1 = placementMatrix(refId(idt.args[2]));
+        const M2 = placementMatrix(refId(idt.args[3]));
+        M = mulM(M2, invM(M1));
+        if (!isIdentity(M)) nTransforms++;
+      }
+      parentOf.set(child, { parent, M });
+    }
+    function absoluteMatrix(repId) {
+      let M = IDENT, cur = repId, guard = 0;
+      while (parentOf.has(cur) && guard++ < 50) {
+        const p = parentOf.get(cur);
+        M = mulM(p.M, M);
+        cur = p.parent;
+      }
+      return M;
+    }
+
+    /* --- Noms de pièces --- */
+    const productNames = [];
+    for (const [, e] of ents) if (e.type === 'PRODUCT') productNames.push(label(e.args[0]));
+
+    const solids = [];
+    for (const sh of shells) {
+      const faceIds = [];
+      for (const sid of sh.shellIds) {
+        const shell = ents.get(sid);
+        if (!shell || !/SHELL/.test(shell.type)) continue;
+        for (const f of listRefs(shell.args[1])) faceIds.push(refId(f));
+      }
+      const faces = [];
+      for (const fid of faceIds) { const f = planarFace(fid); if (f) faces.push(f); }
+      if (!faces.length) continue;
+      const M = absoluteMatrix(repOfItem.get(sh.id));
+      if (!isIdentity(M)) for (const f of faces) {
+        f.loops = f.loops.map(l => l.map(p => applyM(M, p)));
+        f.normal = unit(applyM({ r: M.r, t: [0, 0, 0] }, f.normal));
+      }
+      solids.push({
+        name: sh.name || productNames[solids.length] || `Corps ${solids.length + 1}`,
+        faces, nFaces: faceIds.length
+      });
+    }
+    if (!solids.length) throw new Error(
+      "Aucun corps exploitable dans ce STEP. Essayez un export STL.");
+
+    if (nTransforms > 0) warnings.push(
+      `Assemblage : ${nTransforms} transformation(s) de positionnement ont été appliquées. ` +
+      `Vérifiez visuellement dans l'onglet « Assemblage » que les pièces sont bien placées les unes ` +
+      `par rapport aux autres — les conventions de transformation varient d'un logiciel de CAO à l'autre. ` +
+      `En cas de doute, exportez l'assemblage en STL, qui ne présente pas cette ambiguïté.`);
+    if (nCurved > 0) warnings.push(
+      `${nCurved} face(s) non planes (cylindres, congés, surfaces gauches) ont été ignorées pour la ` +
+      `mesure d'épaisseur et la détection des contacts. Sur des pièces d'ossature usuelles l'effet est nul, ` +
+      `mais un corps entièrement courbe ne sera pas détecté.`);
+
+    return { solids, source: 'STEP', warnings, unitScale: scale, nCurved };
+  }
+
+  /* ================= Géométries paramétriques ================= */
+  function extrudeRegion(region, thickness, name) {
+    const tris = [];
+    const m = root.Mesh.meshRegion(region, Math.max(Math.hypot(
+      G.bbox(region.outer).w, G.bbox(region.outer).h) / 18, 5));
+    const push = (a, b, c) => {
+      const n = cross(sub(b, a), sub(c, a));
+      tris.push({ n: unit(n), v: [a, b, c] });
+    };
+    const top = (i) => [m.nodes[i][0], m.nodes[i][1], thickness];
+    const bot = (i) => [m.nodes[i][0], m.nodes[i][1], 0];
+    for (const t of m.elems) {
+      push(top(t[0]), top(t[1]), top(t[2]));
+      push(bot(t[0]), bot(t[2]), bot(t[1]));
+    }
+    const cnt = new Map();
+    for (const t of m.elems) for (let k = 0; k < 3; k++) {
+      const a = t[k], b = t[(k + 1) % 3];
+      const key = a < b ? a + ',' + b : b + ',' + a;
+      cnt.set(key, (cnt.get(key) || 0) + 1);
+    }
+    for (const [key, c] of cnt) {
+      if (c !== 1) continue;
+      const [a, b] = key.split(',').map(Number);
+      push(bot(a), bot(b), top(b));
+      push(bot(a), top(b), top(a));
+    }
+    return { name: name || 'Panneau', tris };
+  }
+
+  function rectangle(a, b, t) {
+    t = t || 20;
     return {
-      region, thickness, normal: f.normal, source: 'STEP',
-      nFaces: faces.length, unitScale: scale
+      solids: [extrudeRegion({ outer: [[0, 0], [a, 0], [a, b], [0, b]], holes: [] }, t, `Rectangle ${a}×${b}`)],
+      source: 'manuel', warnings: []
     };
   }
-
-  /* Géométries paramétriques de secours. */
-  function rectangle(a, b) {
-    return { region: { outer: [[0, 0], [a, 0], [a, b], [0, b]], holes: [] }, thickness: 0, source: 'manuel' };
-  }
-  function disc(R, n) {
+  function disc(R, t, n) {
+    t = t || 20;
     const ring = [];
     n = n || 96;
-    for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n; ring.push([R * Math.cos(t), R * Math.sin(t)]); }
-    return { region: { outer: ring, holes: [] }, thickness: 0, source: 'manuel' };
+    for (let i = 0; i < n; i++) { const a = 2 * Math.PI * i / n; ring.push([R * Math.cos(a), R * Math.sin(a)]); }
+    return { solids: [extrudeRegion({ outer: ring, holes: [] }, t, `Disque Ø${2 * R}`)], source: 'manuel', warnings: [] };
   }
 
   root.Importers = {
-    importSTL, importSTEP, parseSTL, parseSTEP, plateFromTriangles,
-    rectangle, disc, planeBasis, smallestPrincipalDirection
+    importSTL, importSTEP, parseSTL, parseSTEP, splitSolids,
+    rectangle, disc, extrudeRegion, planeBasis, smallestPrincipalDirection
+  };
+})(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/solids.js ===== */
+/* Solides d'un assemblage : segmentation, mesure d'épaisseur réelle et
+   détection des contacts, dans le repère du panneau.
+
+   Un solide expose la même interface quelle que soit son origine :
+     bbox      étendue dans le repère (u, v, h) du panneau
+     intervals(u,v)   segments [h0,h1] où il y a de la matière le long de la normale
+     thickness(u,v)   longueur totale de matière traversée
+
+   - Solide maillé (STL)  : lancer de rayon sur les triangles.
+   - Solide B-Rep (STEP)  : empilement des faces planes perpendiculaires à la
+     normale du panneau. Une face dont la normale sortante s'oppose au rayon fait
+     entrer dans la matière, une face dont la normale l'accompagne en fait sortir.
+     Les faces obliques ou courbes (chanfreins, congés) sont ignorées : sur des
+     pièces d'ossature (plats, tubes, platines) l'écart est négligeable, mais un
+     solide sans aucune face perpendiculaire est signalé comme non mesurable. */
+(function (root) {
+  'use strict';
+  const G = root.Geom;
+
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const unit = (a) => { const n = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / n, a[1] / n, a[2] / n]; };
+
+  /* ---------- Repère lié au panneau ---------- */
+  function frameFor(rawSolid) {
+    const pts = solidPoints(rawSolid);
+    const N = root.Importers.smallestPrincipalDirection(pts);
+    const basis = root.Importers.planeBasis(N);
+    let cx = 0, cy = 0, cz = 0;
+    for (const p of pts) { cx += p[0]; cy += p[1]; cz += p[2]; }
+    const n = pts.length || 1;
+    return { N: basis.N, U: basis.U, V: basis.V, origin: [cx / n, cy / n, cz / n] };
+  }
+
+  function solidPoints(raw) {
+    const pts = [];
+    if (raw.tris) for (const t of raw.tris) for (const v of t.v) pts.push(v);
+    if (raw.faces) for (const f of raw.faces) for (const l of f.loops) for (const p of l) pts.push(p);
+    return pts;
+  }
+
+  const toFrame = (p, fr) => {
+    const d = sub(p, fr.origin);
+    return [dot(d, fr.U), dot(d, fr.V), dot(d, fr.N)];
+  };
+
+  /* ---------- Grille de rangement 2D ---------- */
+  function Bucket(bb, targetCells) {
+    const w = Math.max(bb.umax - bb.umin, 1e-6), h = Math.max(bb.vmax - bb.vmin, 1e-6);
+    const cs = Math.max(Math.sqrt(w * h / Math.max(1, targetCells)), 1e-6);
+    this.u0 = bb.umin; this.v0 = bb.vmin; this.cs = cs;
+    this.nu = Math.max(1, Math.ceil(w / cs) + 1);
+    this.nv = Math.max(1, Math.ceil(h / cs) + 1);
+    this.cells = new Array(this.nu * this.nv);
+  }
+  Bucket.prototype.idx = function (iu, iv) { return iv * this.nu + iu; };
+  Bucket.prototype.insert = function (umin, vmin, umax, vmax, item) {
+    const i0 = Math.max(0, Math.floor((umin - this.u0) / this.cs));
+    const i1 = Math.min(this.nu - 1, Math.floor((umax - this.u0) / this.cs));
+    const j0 = Math.max(0, Math.floor((vmin - this.v0) / this.cs));
+    const j1 = Math.min(this.nv - 1, Math.floor((vmax - this.v0) / this.cs));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const k = this.idx(i, j);
+        (this.cells[k] || (this.cells[k] = [])).push(item);
+      }
+  };
+  Bucket.prototype.at = function (u, v) {
+    const i = Math.floor((u - this.u0) / this.cs), j = Math.floor((v - this.v0) / this.cs);
+    if (i < 0 || j < 0 || i >= this.nu || j >= this.nv) return null;
+    return this.cells[this.idx(i, j)] || null;
+  };
+
+  /* ---------- Assemblage des intersections en segments de matière ---------- */
+  /* Un rayon qui passe exactement par une arête partagée est compté une fois par
+     triangle voisin : on fusionne les intersections identiques avant tout calcul. */
+  function dedupeHits(hits, eps) {
+    if (hits.length < 2) return hits;
+    hits.sort((a, b) => a.h - b.h || (a.enter === b.enter ? 0 : a.enter ? -1 : 1));
+    const out = [hits[0]];
+    for (let i = 1; i < hits.length; i++) {
+      const p = out[out.length - 1];
+      if (hits[i].enter === p.enter && Math.abs(hits[i].h - p.h) <= eps) continue;
+      out.push(hits[i]);
+    }
+    return out;
+  }
+
+  function hitsToIntervals(hits) {
+    if (hits.length < 2) return [];
+    hits.sort((a, b) => a.h - b.h);
+    const out = [];
+    let depth = 0, start = 0;
+    for (const hit of hits) {
+      const prev = depth;
+      depth += hit.enter ? 1 : -1;
+      if (depth < 0) depth = 0;
+      if (prev === 0 && depth > 0) start = hit.h;
+      else if (prev > 0 && depth === 0 && hit.h > start) out.push([start, hit.h]);
+    }
+    return out;
+  }
+
+  /* ---------- Solide maillé ---------- */
+  function prepareMesh(raw, fr) {
+    const tris = [];
+    for (const t of raw.tris) {
+      const a = toFrame(t.v[0], fr), b = toFrame(t.v[1], fr), c = toFrame(t.v[2], fr);
+      const n = cross(sub(b, a), sub(c, a));
+      if (Math.abs(n[2]) < 1e-12) continue;      // triangle vu par la tranche
+      tris.push({ a, b, c, up: n[2] > 0 });
+    }
+    const bb = bboxOf(raw, fr);
+    const bucket = new Bucket(bb, Math.max(64, tris.length / 3));
+    for (const t of tris) {
+      bucket.insert(
+        Math.min(t.a[0], t.b[0], t.c[0]), Math.min(t.a[1], t.b[1], t.c[1]),
+        Math.max(t.a[0], t.b[0], t.c[0]), Math.max(t.a[1], t.b[1], t.c[1]), t);
+    }
+    const eps = Math.max(1e-6, (bb.hmax - bb.hmin) * 1e-5);
+    function hitsAt(u, v) {
+      const cell = bucket.at(u, v);
+      const hits = [];
+      if (!cell) return hits;
+      for (const t of cell) {
+        const d = (t.b[1] - t.c[1]) * (t.a[0] - t.c[0]) + (t.c[0] - t.b[0]) * (t.a[1] - t.c[1]);
+        if (Math.abs(d) < 1e-14) continue;
+        const l1 = ((t.b[1] - t.c[1]) * (u - t.c[0]) + (t.c[0] - t.b[0]) * (v - t.c[1])) / d;
+        const l2 = ((t.c[1] - t.a[1]) * (u - t.c[0]) + (t.a[0] - t.c[0]) * (v - t.c[1])) / d;
+        const l3 = 1 - l1 - l2;
+        const tolBary = -1e-9;
+        if (l1 < tolBary || l2 < tolBary || l3 < tolBary) continue;
+        hits.push({ h: l1 * t.a[2] + l2 * t.b[2] + l3 * t.c[2], enter: !t.up });
+      }
+      return dedupeHits(hits, eps);
+    }
+    return {
+      kind: 'mesh', bbox: bb, measurable: tris.length > 0,
+      intervals: (u, v) => hitsToIntervals(hitsAt(u, v)),
+      thickness: (u, v) => {
+        // Somme des segments de matière : le compteur de profondeur se recale de
+        // lui-même, contrairement à une somme signée des intersections.
+        let s = 0;
+        for (const it of hitsToIntervals(hitsAt(u, v))) s += it[1] - it[0];
+        return s;
+      }
+    };
+  }
+
+  /* ---------- Solide B-Rep : faces planes perpendiculaires à la normale ---------- */
+  function prepareBrep(raw, fr) {
+    const flats = [];
+    for (const f of raw.faces) {
+      const nf = unit(f.normal);
+      const d = dot(nf, fr.N);
+      if (Math.abs(d) < 0.999) continue;          // face non perpendiculaire au rayon
+      const loops = f.loops.map(l => l.map(p => toFrame(p, fr)));
+      if (!loops.length || loops[0].length < 3) continue;
+      let h = 0, np = 0;
+      for (const l of loops) for (const p of l) { h += p[2]; np++; }
+      const rings = loops.map(l => l.map(p => [p[0], p[1]]));
+      const region = G.ringsToRegion(rings);
+      if (!region) continue;
+      flats.push({ h: h / np, enter: d < 0, region });
+    }
+    const bb = bboxOf(raw, fr);
+    const bucket = new Bucket(bb, Math.max(16, flats.length * 2));
+    for (const f of flats) {
+      const b = G.bbox(f.region.outer);
+      bucket.insert(b.xmin, b.ymin, b.xmax, b.ymax, f);
+    }
+    function hitsAt(u, v) {
+      const cell = bucket.at(u, v);
+      const hits = [];
+      if (!cell) return hits;
+      for (const f of cell) if (G.pointInRegion(u, v, f.region)) hits.push({ h: f.h, enter: f.enter });
+      return hits;
+    }
+    return {
+      kind: 'brep', bbox: bb, measurable: flats.length >= 2, nFlats: flats.length,
+      intervals: (u, v) => hitsToIntervals(hitsAt(u, v)),
+      thickness: (u, v) => {
+        let s = 0;
+        for (const it of hitsToIntervals(hitsAt(u, v))) s += it[1] - it[0];
+        return s;
+      }
+    };
+  }
+
+  function bboxOf(raw, fr) {
+    const bb = { umin: Infinity, umax: -Infinity, vmin: Infinity, vmax: -Infinity, hmin: Infinity, hmax: -Infinity };
+    for (const p of solidPoints(raw)) {
+      const q = toFrame(p, fr);
+      if (q[0] < bb.umin) bb.umin = q[0]; if (q[0] > bb.umax) bb.umax = q[0];
+      if (q[1] < bb.vmin) bb.vmin = q[1]; if (q[1] > bb.vmax) bb.vmax = q[1];
+      if (q[2] < bb.hmin) bb.hmin = q[2]; if (q[2] > bb.hmax) bb.hmax = q[2];
+    }
+    return bb;
+  }
+
+  /* Un rayon qui longe exactement une arête ou une paroi verticale peut compter
+     une intersection de trop ou de moins. On tire cinq rayons très légèrement
+     décalés et on retient la médiane : les artefacts de tangence disparaissent
+     sans lisser les variations réelles d'épaisseur. */
+  function robustThickness(raw1) {
+    const d = Math.max(
+      (raw1.bbox.umax - raw1.bbox.umin), (raw1.bbox.vmax - raw1.bbox.vmin)) * 3e-4 + 1e-3;
+    const single = raw1.thickness;
+    return (u, v) => {
+      const s = [single(u, v), single(u + d, v), single(u - d, v), single(u, v + d), single(u, v - d)];
+      s.sort((a, b) => a - b);
+      return s[2];
+    };
+  }
+
+  function prepare(raw, fr) {
+    const s = raw.tris ? prepareMesh(raw, fr) : prepareBrep(raw, fr);
+    s.name = raw.name;
+    s.raw = raw;
+    s.thicknessRaw = s.thickness;
+    s.thickness = robustThickness(s);
+    return s;
+  }
+
+  /* ---------- Empreinte du panneau (union des surfaces vues de dessus) ----------
+     Les sommets sont soudés dans le plan : une paroi verticale de poche fait
+     coïncider le bord du fond de poche et le bord de l'ouverture, les deux
+     arêtes s'annulent, et il ne reste que le contour extérieur réel et les
+     trous débouchants. */
+  function footprint(raw, fr, tol) {
+    const pts = [], key = new Map();
+    tol = tol || 1e-3;
+    const idOf = (u, v) => {
+      const k = Math.round(u / tol) + '_' + Math.round(v / tol);
+      if (key.has(k)) return key.get(k);
+      key.set(k, pts.length); pts.push([u, v]);
+      return pts.length - 1;
+    };
+    const edges = new Map();
+    const addEdge = (i, j) => {
+      if (i === j) return;
+      const k = i < j ? i + ',' + j : j + ',' + i;
+      edges.set(k, (edges.get(k) || 0) + 1);
+    };
+    const addRing = (ring2d) => {
+      const ids = ring2d.map(p => idOf(p[0], p[1]));
+      for (let i = 0; i < ids.length; i++) addEdge(ids[i], ids[(i + 1) % ids.length]);
+    };
+
+    if (raw.tris) {
+      for (const t of raw.tris) {
+        const a = toFrame(t.v[0], fr), b = toFrame(t.v[1], fr), c = toFrame(t.v[2], fr);
+        const n = cross(sub(b, a), sub(c, a));
+        if (n[2] <= 1e-12) continue;              // ne garde que les faces vues de dessus
+        addRing([a, b, c].map(p => [p[0], p[1]]));
+      }
+    } else {
+      for (const f of raw.faces) {
+        if (dot(unit(f.normal), fr.N) < 0.7) continue;
+        for (const l of f.loops) addRing(l.map(p => { const q = toFrame(p, fr); return [q[0], q[1]]; }));
+      }
+    }
+    const boundary = [];
+    for (const [k, c] of edges) if (c === 1) { const [i, j] = k.split(',').map(Number); boundary.push([i, j]); }
+    if (!boundary.length) return null;
+    const loops = G.chainEdges(boundary, pts);
+    if (!loops.length) return null;
+    const bb0 = G.bbox(loops[0]);
+    const simp = Math.max(0.05, Math.max(bb0.w, bb0.h) * 2e-4);
+    return G.ringsToRegion(loops.map(l => G.simplifyRing(l, simp)));
+  }
+
+  /* ---------- Champ d'épaisseur échantillonné ---------- */
+  function thicknessField(panel, region, nSamples) {
+    const bb = G.bbox(region.outer);
+    const target = nSamples || 200;
+    const cs = Math.max(Math.max(bb.w, bb.h) / target, 0.5);
+    const nu = Math.ceil(bb.w / cs) + 1, nv = Math.ceil(bb.h / cs) + 1;
+    const val = new Float32Array(nu * nv);
+    let tmin = Infinity, tmax = 0, sum = 0, cnt = 0;
+    for (let j = 0; j < nv; j++) {
+      for (let i = 0; i < nu; i++) {
+        const u = bb.xmin + i * cs, v = bb.ymin + j * cs;
+        let t = 0;
+        if (G.pointInRegion(u, v, region)) t = panel.thickness(u, v);
+        val[j * nu + i] = t;
+        // Les points au ras du contour donnent des rayons rasants : ils servent au
+        // champ mais pas aux extremums affichés.
+        if (t > 1e-6 && G.distToBoundary(u, v, region) > cs) {
+          if (t < tmin) tmin = t;
+          if (t > tmax) tmax = t;
+          sum += t; cnt++;
+        }
+      }
+    }
+    if (!cnt) { tmin = 0; }
+    return makeField({
+      u0: bb.xmin, v0: bb.ymin, cs, nu, nv, val,
+      min: cnt ? tmin : 0, max: tmax, mean: cnt ? sum / cnt : 0,
+      variable: cnt > 0 && (tmax - tmin) > Math.max(0.15, 0.02 * tmax)
+    });
+  }
+
+  /* Rattache la méthode de lecture à un champ d'épaisseur (utile à la relecture
+     d'un projet enregistré, où seules les données brutes sont conservées). */
+  function makeField(d) {
+    return Object.assign(d, {
+      /* Épaisseur en un point : moyenne des cases voisines non nulles, pour ne pas
+         hériter d'un zéro situé hors matière juste à côté du bord. */
+      at(u, v) {
+        const fi = (u - this.u0) / this.cs, fj = (v - this.v0) / this.cs;
+        const i0 = Math.max(0, Math.min(this.nu - 1, Math.round(fi)));
+        const j0 = Math.max(0, Math.min(this.nv - 1, Math.round(fj)));
+        let s = 0, n = 0;
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++) {
+            const i = i0 + di, j = j0 + dj;
+            if (i < 0 || j < 0 || i >= this.nu || j >= this.nv) continue;
+            const t = this.val[j * this.nu + i];
+            if (t > 1e-6) { s += t; n++; }
+          }
+        return n ? s / n : 0;
+      }
+    });
+  }
+
+  /* ---------- Contacts entre le panneau et les autres solides ---------- */
+  /* Renvoie pour chaque solide un masque des zones où il touche le panneau,
+     avec le côté du contact (dessous = appui, dessus = objet posé). */
+  function detectContacts(panel, others, region, opts) {
+    opts = opts || {};
+    const tol = opts.tol === undefined ? 0.5 : opts.tol;      // jeu accepté (mm)
+    const bb = G.bbox(region.outer);
+    const cs = Math.max(opts.cellSize || Math.max(bb.w, bb.h) / 220, 0.5);
+    const nu = Math.ceil(bb.w / cs) + 1, nv = Math.ceil(bb.h / cs) + 1;
+
+    // Faces inférieure et supérieure du panneau, échantillonnées
+    const pBot = new Float32Array(nu * nv), pTop = new Float32Array(nu * nv);
+    const inside = new Uint8Array(nu * nv);
+    for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+      const u = bb.xmin + i * cs, v = bb.ymin + j * cs;
+      if (!G.pointInRegion(u, v, region)) continue;
+      const iv = panel.intervals(u, v);
+      if (!iv.length) continue;
+      inside[j * nu + i] = 1;
+      pBot[j * nu + i] = iv[0][0];
+      pTop[j * nu + i] = iv[iv.length - 1][1];
+    }
+
+    const results = [];
+    for (const o of others) {
+      const mask = new Uint8Array(nu * nv);
+      let nBelow = 0, nAbove = 0, cells = 0;
+      if (o.bbox.umax < bb.xmin - tol || o.bbox.umin > bb.xmax + tol ||
+          o.bbox.vmax < bb.ymin - tol || o.bbox.vmin > bb.ymax + tol) {
+        results.push({ solid: o, cells: 0, area: 0, side: null, mask: null, nu, nv, cs, u0: bb.xmin, v0: bb.ymin });
+        continue;
+      }
+      for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+        const k = j * nu + i;
+        if (!inside[k]) continue;
+        const u = bb.xmin + i * cs, v = bb.ymin + j * cs;
+        if (u < o.bbox.umin - tol || u > o.bbox.umax + tol || v < o.bbox.vmin - tol || v > o.bbox.vmax + tol) continue;
+        const iv = o.intervals(u, v);
+        if (!iv.length) continue;
+        let touch = 0;
+        for (const [h0, h1] of iv) {
+          if (Math.abs(h1 - pBot[k]) <= tol || (h0 < pBot[k] - tol && h1 > pBot[k] + tol)) touch |= 1; // dessous
+          if (Math.abs(h0 - pTop[k]) <= tol || (h0 < pTop[k] - tol && h1 > pTop[k] + tol)) touch |= 2; // dessus
+        }
+        if (touch) {
+          mask[k] = touch;
+          cells++;
+          if (touch & 1) nBelow++;
+          if (touch & 2) nAbove++;
+        }
+      }
+      results.push({
+        solid: o, cells, area: cells * cs * cs,
+        side: cells === 0 ? null : (nBelow >= nAbove ? 'dessous' : 'dessus'),
+        nBelow, nAbove,
+        mask: cells ? mask : null, nu, nv, cs, u0: bb.xmin, v0: bb.ymin
+      });
+    }
+    return results;
+  }
+
+  /* Test d'appartenance à un masque de contact (case la plus proche). */
+  function maskAt(c, x, y, side) {
+    if (!c.mask) return false;
+    const i = Math.round((x - c.u0) / c.cs), j = Math.round((y - c.v0) / c.cs);
+    if (i < 0 || j < 0 || i >= c.nu || j >= c.nv) return false;
+    const m = c.mask[j * c.nu + i];
+    if (!m) return false;
+    if (side === 'dessous') return !!(m & 1);
+    if (side === 'dessus') return !!(m & 2);
+    return true;
+  }
+
+  /* Contour approché d'un masque, pour le dessin (segments des cases de bord). */
+  function maskOutline(c, side) {
+    const segs = [];
+    if (!c.mask) return segs;
+    const bit = side === 'dessus' ? 2 : 1;
+    const on = (i, j) => (i >= 0 && j >= 0 && i < c.nu && j < c.nv) && !!(c.mask[j * c.nu + i] & bit);
+    for (let j = 0; j < c.nv; j++) for (let i = 0; i < c.nu; i++) {
+      if (!on(i, j)) continue;
+      const x = c.u0 + (i - 0.5) * c.cs, y = c.v0 + (j - 0.5) * c.cs, s = c.cs;
+      if (!on(i - 1, j)) segs.push([x, y, x, y + s]);
+      if (!on(i + 1, j)) segs.push([x + s, y, x + s, y + s]);
+      if (!on(i, j - 1)) segs.push([x, y, x + s, y]);
+      if (!on(i, j + 1)) segs.push([x, y + s, x + s, y + s]);
+    }
+    return segs;
+  }
+
+  /* Indice de « ressemblance à une plaque » : sert à proposer le panneau par défaut. */
+  function plateScore(raw) {
+    const fr = frameFor(raw);
+    const bb = bboxOf(raw, fr);
+    const e = bb.hmax - bb.hmin;
+    const d = Math.max(bb.umax - bb.umin, bb.vmax - bb.vmin);
+    if (e <= 1e-9) return 0;
+    const area = (bb.umax - bb.umin) * (bb.vmax - bb.vmin);
+    return area * Math.min(d / e / 10, 1);
+  }
+
+  root.Solids = {
+    dedupeHits, frameFor, prepare, footprint, thicknessField, makeField, detectContacts,
+    maskAt, maskOutline, plateScore, bboxOf, toFrame, hitsToIntervals
   };
 })(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
 
@@ -1858,7 +2669,7 @@
     const P = (x, y) => view.toScreen(x, y);
 
     // Bande d'appui
-    if (state.support.width > 0) {
+    if (state.supportMode !== 'contacts' && state.support.width > 0) {
       ctx.save();
       ctx.beginPath();
       pathRegion(ctx, state.region, P);
@@ -1881,12 +2692,47 @@
     ctx.strokeStyle = colLine;
     ctx.stroke();
 
-    // Hachures d'appui sur le contour
-    ctx.lineWidth = 2.2;
-    ctx.strokeStyle = 'rgba(37,133,142,0.9)';
-    ctx.beginPath();
-    ringPath(ctx, state.region.outer, P);
-    ctx.stroke();
+    if (state.supportMode !== 'contacts') {
+      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = 'rgba(37,133,142,0.9)';
+      ctx.beginPath();
+      ringPath(ctx, state.region.outer, P);
+      ctx.stroke();
+    }
+
+    // Zones d'appui déduites des contacts
+    if (state.supportMode === 'contacts' && state.contacts) {
+      ctx.save();
+      for (const c of state.contacts) {
+        if (!c.enabled || !c.contact.mask) continue;
+        const segs = root.Solids.maskOutline(c.contact, c.contact.side);
+        ctx.fillStyle = c.type === 'encastre' ? 'rgba(31,138,76,0.28)' : 'rgba(37,133,142,0.22)';
+        // Remplissage par plages horizontales contiguës : évite le moiré des cases
+        const m = c.contact;
+        const bit = c.contact.side === 'dessus' ? 2 : 1;
+        for (let j = 0; j < m.nv; j++) {
+          let i = 0;
+          while (i < m.nu) {
+            if (!(m.mask[j * m.nu + i] & bit)) { i++; continue; }
+            let k = i;
+            while (k + 1 < m.nu && (m.mask[j * m.nu + k + 1] & bit)) k++;
+            const p0 = P(m.u0 + (i - 0.5) * m.cs, m.v0 + (j - 0.5) * m.cs);
+            const p1 = P(m.u0 + (k + 0.5) * m.cs, m.v0 + (j + 0.5) * m.cs);
+            ctx.fillRect(p0[0], p1[1], p1[0] - p0[0], p0[1] - p1[1]);
+            i = k + 1;
+          }
+        }
+        ctx.strokeStyle = c.type === 'encastre' ? 'rgba(31,138,76,0.95)' : 'rgba(37,133,142,0.95)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (const [x0, y0, x1, y1] of segs) {
+          const a = P(x0, y0), b = P(x1, y1);
+          ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     // Zones de charge
     for (const l of state.loads) {
@@ -1979,14 +2825,16 @@
     if (!res) return;
 
     const mesh = res.mesh, u = res.u;
+    const perElem = opts.field === 'ep';
     const field = opts.field === 'sigma' ? res.vonMises : null;
     const nN = mesh.nodes.length;
 
-    // Valeurs nodales du champ affiché
-    const val = new Float64Array(nN);
+    // Valeurs du champ affiché (aux nœuds, ou par élément pour l'épaisseur)
+    const val = new Float64Array(perElem ? mesh.elems.length : nN);
     let vmin = Infinity, vmax = -Infinity;
-    for (let n = 0; n < nN; n++) {
-      val[n] = field ? field[n] : Math.abs(u[3 * n]);
+    const nv = val.length;
+    for (let n = 0; n < nv; n++) {
+      val[n] = perElem ? res.elemT[n] : (field ? field[n] : Math.abs(u[3 * n]));
       if (val[n] < vmin) vmin = val[n];
       if (val[n] > vmax) vmax = val[n];
     }
@@ -2064,7 +2912,7 @@
       const lam = Math.abs(nx * lightDir[0] + ny * lightDir[1] + nz * lightDir[2]);
       const shade = 0.72 + 0.28 * lam;
 
-      const vm = (val[a] + val[b] + val[c]) / 3;
+      const vm = perElem ? val[e] : (val[a] + val[b] + val[c]) / 3;
       const col = colormap((vm - vmin) / (vmax - vmin));
       ctx.fillStyle = `rgb(${Math.round(col[0] * shade)},${Math.round(col[1] * shade)},${Math.round(col[2] * shade)})`;
       ctx.beginPath();
@@ -2082,12 +2930,12 @@
       }
     }
 
-    // Appuis
+    // Appuis : bleu = portant, orange = décollé (contact unilatéral)
     if (opts.showSupports) {
-      ctx.fillStyle = 'rgba(20,110,140,0.85)';
       for (let n = 0; n < nN; n++) {
         if (!res.supported[n]) continue;
-        ctx.beginPath(); ctx.arc(sx[n], sy[n], 1.8, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = res.supported[n] === 2 ? 'rgba(232,89,12,0.9)' : 'rgba(20,110,140,0.85)';
+        ctx.beginPath(); ctx.arc(sx[n], sy[n], res.supported[n] === 2 ? 2.4 : 1.8, 0, 2 * Math.PI); ctx.fill();
       }
     }
 
@@ -2098,7 +2946,8 @@
     ctx.beginPath(); ctx.arc(sx[wn], sy[wn], 6, 0, 2 * Math.PI); ctx.stroke();
     ctx.restore();
 
-    drawColorbar(ctx, W, H, vmin, vmax, opts.field === 'sigma' ? 'MPa (von Mises, peau)' : 'mm (flèche)');
+    drawColorbar(ctx, W, H, vmin, vmax,
+      opts.field === 'sigma' ? 'MPa (von Mises, peau)' : (perElem ? 'mm (épaisseur)' : 'mm (flèche)'));
     return { vmin, vmax };
   }
 
@@ -2130,107 +2979,406 @@
     ctx.restore();
   }
 
-  root.Render = { drawPlan, drawDeformed, makeView, colormap, cssColor: css };
+  /* ---------------- Vue assemblage 3D ---------------- */
+  /* Affiche le panneau et les autres pièces dans le repère du panneau, pour
+     vérifier d'un coup d'œil que l'assemblage est correctement positionné. */
+  function drawAssembly(canvas, st, view3d) {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (!st.imported || !st.frame) return;
+
+    const So = root.Solids;
+    // Facettes de tous les corps, exprimées dans le repère du panneau
+    const facets = [];
+    st.imported.solids.forEach((raw, idx) => {
+      const isPanel = idx === st.panelIdx;
+      const c = st.contactByIndex && st.contactByIndex.get(idx);
+      const kind = isPanel ? 'panel' : (c && c.enabled ? 'contact' : (c ? 'touch' : 'other'));
+      const add = (pts) => {
+        if (pts.length < 3) return;
+        let h = 0;
+        for (const p of pts) h += p[2];
+        facets.push({ pts, h: h / pts.length, kind });
+      };
+      if (raw.tris) for (const t of raw.tris) add(t.v.map(p => So.toFrame(p, st.frame)));
+      else for (const f of raw.faces) for (const l of f.loops) add(l.map(p => So.toFrame(p, st.frame)));
+    });
+    if (!facets.length) return;
+
+    let umin = Infinity, umax = -Infinity, vmin = Infinity, vmax = -Infinity, hmin = Infinity, hmax = -Infinity;
+    for (const f of facets) for (const p of f.pts) {
+      if (p[0] < umin) umin = p[0]; if (p[0] > umax) umax = p[0];
+      if (p[1] < vmin) vmin = p[1]; if (p[1] > vmax) vmax = p[1];
+      if (p[2] < hmin) hmin = p[2]; if (p[2] > hmax) hmax = p[2];
+    }
+    const cu = (umin + umax) / 2, cv = (vmin + vmax) / 2, ch = (hmin + hmax) / 2;
+    const diag = Math.hypot(umax - umin, vmax - vmin, hmax - hmin) || 1;
+    const cy1 = Math.cos(view3d.yaw), sy1 = Math.sin(view3d.yaw);
+    const cp = Math.cos(view3d.pitch), sp = Math.sin(view3d.pitch);
+    const scale = Math.min(W, H) / diag * 0.85 * view3d.zoom;
+    const proj = (p) => {
+      const X = p[0] - cu, Y = p[1] - cv, Z = p[2] - ch;
+      const x1 = X * cy1 - Y * sy1, y1 = X * sy1 + Y * cy1;
+      return [W / 2 + x1 * scale + view3d.panX, H / 2 - (y1 * cp - Z * sp) * scale + view3d.panY,
+        y1 * sp + Z * cp];
+    };
+
+    for (const f of facets) {
+      f.proj = f.pts.map(proj);
+      f.depth = f.proj.reduce((s, p) => s + p[2], 0) / f.proj.length;
+    }
+    facets.sort((a, b) => a.depth - b.depth);
+
+    const COL = {
+      panel: [70, 130, 165], contact: [40, 150, 95], touch: [150, 150, 150], other: [130, 133, 140]
+    };
+    for (const f of facets) {
+      // ombrage par l'orientation apparente de la facette
+      const p = f.proj;
+      const ax = p[1][0] - p[0][0], ay = p[1][1] - p[0][1];
+      const bx = p[2][0] - p[0][0], by = p[2][1] - p[0][1];
+      const twist = ax * by - ay * bx;
+      const shade = 0.7 + 0.3 * Math.min(1, Math.abs(twist) / (scale * scale * 400 + 1e-9));
+      const c = COL[f.kind];
+      ctx.fillStyle = `rgba(${Math.round(c[0] * shade)},${Math.round(c[1] * shade)},${Math.round(c[2] * shade)},${f.kind === 'other' ? 0.55 : 0.95})`;
+      ctx.beginPath();
+      ctx.moveTo(p[0][0], p[0][1]);
+      for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.14)';
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
+    }
+
+    // Légende
+    const s = getComputedStyle(document.documentElement);
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    const items = [['Panneau PEHD', COL.panel], ['Pièce portante retenue', COL.contact],
+      ['Contact ignoré', COL.touch], ['Sans contact', COL.other]];
+    items.forEach(([txt, c], i) => {
+      const y = 18 + i * 18;
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+      ctx.fillRect(14, y - 9, 11, 11);
+      ctx.fillStyle = s.getPropertyValue('--fg').trim() || '#111';
+      ctx.fillText(txt, 31, y);
+    });
+  }
+
+  root.Render = { drawPlan, drawDeformed, drawAssembly, makeView, colormap, cssColor: css };
 })(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
 
 </script>
 <script>
 /* ===== js/app.js ===== */
-/* Interface : édition du modèle, lancement du calcul, affichage des résultats. */
+/* Interface : import d'assemblage, choix du panneau, appuis par contact,
+   édition des charges, lancement du calcul et affichage des résultats. */
 (function (PP) {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const G = PP.Geom, Mat = PP.Material, Imp = PP.Importers, R = PP.Render;
+  const G = PP.Geom, Mat = PP.Material, Imp = PP.Importers, R = PP.Render, So = PP.Solids;
 
   const state = {
-    region: null, detectedThickness: 0, source: null, fileName: null,
-    thickness: 20, duree: '1j', temp: '23', selfWeight: true,
+    imported: null, fileName: null, source: null,
+    panelIdx: 0, oneBody: false,
+    frame: null, panel: null, others: [], region: null,
+    thicknessField: null, thicknessMode: 'auto', thickness: 20,
+    contacts: [], contactByIndex: new Map(), contactTol: 0.5,
+    supportMode: 'contour', unilateral: true,
     support: { width: 30, type: 'simple', holesSupported: false },
+    duree: '1j', temp: '23', selfWeight: true,
     loads: [], selected: null, tool: 'select',
     criteria: { deflectionRatio: 200, safetyFactor: 2 },
     meshSize: null, meshAuto: true,
     result: null, view: 'plan',
     view3d: { yaw: -0.55, pitch: 1.0, zoom: 1, panX: 0, panY: 0 },
-    ampSlider: 50, field: 'w', wire: false, undef: true, showSup: true
+    viewAsm: { yaw: -0.6, pitch: 0.45, zoom: 1, panX: 0, panY: 0 },
+    ampSlider: 50, field: 'w', wire: false, undef: true, showSup: true,
+    warnings: []
   };
   let planView = null;
 
-  /* ==================== Géométrie ==================== */
-  function setGeometry(res, name) {
-    state.region = res.region;
-    state.detectedThickness = res.thickness || 0;
-    state.source = res.source;
-    state.fileName = name || null;
-    state.result = null;
+  /* ==================== Import et reconstruction ==================== */
+  function busy(on, txt) {
+    $('busy').hidden = !on;
+    if (txt) $('busy').textContent = txt;
+  }
+
+  async function loadFile(file) {
+    $('geo-error').textContent = '';
+    const lower = file.name.toLowerCase();
+    busy(true, 'Lecture du fichier…');
+    try {
+      if (lower.endsWith('.json')) { loadProject(JSON.parse(await file.text())); busy(false); return; }
+      const imp = lower.endsWith('.stl')
+        ? Imp.importSTL(await file.arrayBuffer())
+        : (lower.endsWith('.step') || lower.endsWith('.stp'))
+          ? Imp.importSTEP(await file.text())
+          : null;
+      if (!imp) throw new Error('Format non reconnu : utilisez .stl, .step ou .stp.');
+      applyImport(imp, file.name);
+    } catch (e) {
+      busy(false);
+      $('geo-error').textContent = e.message || String(e);
+      console.error(e);
+    }
+  }
+
+  function applyImport(imp, fileName) {
+    state.imported = imp;
+    state.fileName = fileName || null;
+    state.source = imp.source;
+    state.warnings = (imp.warnings || []).slice();
     state.loads = [];
     state.selected = null;
-    // Recentre le repère sur la plaque
-    const bb = G.bbox(state.region.outer);
-    const dx = -bb.xmin, dy = -bb.ymin;
-    const shift = (ring) => ring.map(p => [p[0] + dx, p[1] + dy]);
-    state.region = { outer: shift(state.region.outer), holes: state.region.holes.map(shift) };
-    if (res.thickness > 0.5 && res.thickness < 200) {
-      state.thickness = Math.round(res.thickness * 10) / 10;
-      $('thickness').value = state.thickness;
-    }
-    autoMesh();
-    setView('plan');
-    updateGeoInfo();
-    renderLoads();
-    draw();
+    state.result = null;
+    // Le panneau proposé par défaut est le corps le plus « plaque »
+    let best = 0, bs = -1;
+    imp.solids.forEach((s, i) => { const sc = So.plateScore(s); if (sc > bs) { bs = sc; best = i; } });
+    state.panelIdx = best;
+    state.oneBody = false;
+    rebuild();
   }
+
+  function mergedSolid(solids) {
+    const tris = [], faces = [];
+    for (const s of solids) {
+      if (s.tris) tris.push(...s.tris);
+      if (s.faces) faces.push(...s.faces);
+    }
+    const out = { name: 'Ensemble du fichier' };
+    if (tris.length) out.tris = tris;
+    if (faces.length) out.faces = faces;
+    return out;
+  }
+
+  /* Reconstruit repère, empreinte, épaisseur et contacts après tout changement
+     de géométrie ou de corps sélectionné. */
+  function rebuild() {
+    busy(true, 'Analyse de la géométrie…');
+    setTimeout(() => {
+      try {
+        const imp = state.imported;
+        const raw = state.oneBody ? mergedSolid(imp.solids) : imp.solids[state.panelIdx];
+        const frame = So.frameFor(raw);
+        const panel = So.prepare(raw, frame);
+        const region0 = So.footprint(raw, frame);
+        if (!region0) throw new Error(
+          "Impossible d'extraire le contour de ce corps. Choisissez un autre corps, ou " +
+          "vérifiez que le fichier contient bien un panneau.");
+
+        const field = So.thicknessField(panel, region0, 180);
+        const others = state.oneBody ? []
+          : imp.solids.filter((_, i) => i !== state.panelIdx).map(s => So.prepare(s, frame));
+        const raw2 = So.detectContacts(panel, others, region0, { tol: state.contactTol });
+
+        // Repère utilisateur : origine au coin inférieur gauche de l'empreinte
+        const bb = G.bbox(region0.outer);
+        const dx = -bb.xmin, dy = -bb.ymin;
+        const shift = (ring) => ring.map(p => [p[0] + dx, p[1] + dy]);
+        state.region = { outer: shift(region0.outer), holes: region0.holes.map(shift) };
+        field.u0 += dx; field.v0 += dy;
+        state.thicknessField = field;
+
+        state.contacts = [];
+        state.contactByIndex = new Map();
+        const otherIdx = state.oneBody ? [] : imp.solids.map((_, i) => i).filter(i => i !== state.panelIdx);
+        raw2.forEach((c, k) => {
+          c.u0 += dx; c.v0 += dy;
+          if (!c.cells) return;
+          const entry = { contact: c, enabled: true, type: 'simple', name: c.solid.name, solidIdx: otherIdx[k] };
+          state.contacts.push(entry);
+          state.contactByIndex.set(otherIdx[k], entry);
+        });
+
+        state.frame = frame;
+        state.panel = panel;
+        state.others = others;
+        state.supportMode = state.contacts.length ? 'contacts' : 'contour';
+        state.thicknessMode = field.max > 0 ? 'auto' : 'impose';
+        if (field.max > 0 && !field.variable) state.thickness = Math.round(field.mean * 10) / 10;
+
+        autoMesh();
+        syncInputs();
+        updateGeoInfo();
+        renderSolidList();
+        renderContacts();
+        renderLoads();
+        setView('plan');
+      } catch (e) {
+        $('geo-error').textContent = e.message || String(e);
+        console.error(e);
+      } finally {
+        busy(false);
+      }
+    }, 20);
+  }
+
+  function recomputeContacts() {
+    if (!state.panel || !state.others.length) return;
+    busy(true, 'Recherche des contacts…');
+    setTimeout(() => {
+      const res = So.detectContacts(state.panel, state.others, state.region, { tol: state.contactTol });
+      const prev = new Map(state.contacts.map(c => [c.name, c]));
+      state.contacts = [];
+      state.contactByIndex = new Map();
+      const otherIdx = state.imported.solids.map((_, i) => i).filter(i => i !== state.panelIdx);
+      res.forEach((c, k) => {
+        if (!c.cells) return;
+        const old = prev.get(c.solid.name);
+        const entry = {
+          contact: c, enabled: old ? old.enabled : true, type: old ? old.type : 'simple',
+          name: c.solid.name, solidIdx: otherIdx[k]
+        };
+        state.contacts.push(entry);
+        state.contactByIndex.set(otherIdx[k], entry);
+      });
+      invalidate(); renderContacts(); draw(); busy(false);
+    }, 20);
+  }
+
+  /* ==================== Affichages du panneau gauche ==================== */
+  function renderSolidList() {
+    const imp = state.imported;
+    const box = $('solid-block');
+    if (!imp || imp.solids.length < 2) { box.hidden = true; return; }
+    box.hidden = false;
+    const ul = $('solid-list');
+    ul.innerHTML = '';
+    imp.solids.forEach((s, i) => {
+      const fr = So.frameFor(s);
+      const bb = So.bboxOf(s, fr);
+      const d = [bb.umax - bb.umin, bb.vmax - bb.vmin, bb.hmax - bb.hmin].sort((a, b) => b - a);
+      const c = state.contactByIndex.get(i);
+      const li = document.createElement('li');
+      if (i === state.panelIdx) li.className = 'on';
+      li.innerHTML =
+        `<label><input type="radio" name="solid" value="${i}" ${i === state.panelIdx ? 'checked' : ''}>
+           <span><span class="nm">${escapeHtml(s.name)}</span><br>
+           <span class="dim">${d[0].toFixed(0)} × ${d[1].toFixed(0)} × ${d[2].toFixed(1)} mm` +
+        (i === state.panelIdx ? ' — panneau étudié' : (c ? ` — en contact (${(c.contact.area / 100).toFixed(0)} cm²)` : '')) +
+        `</span></span></label>`;
+      li.querySelector('input').addEventListener('change', () => {
+        state.panelIdx = i; state.result = null; state.loads = []; rebuild();
+      });
+      ul.appendChild(li);
+    });
+  }
+
+  function renderContacts() {
+    const ul = $('contact-list');
+    ul.innerHTML = '';
+    if (!state.contacts.length) {
+      ul.innerHTML = '<li class="hint" style="border:none;background:none;padding:0">' +
+        (state.imported && state.imported.solids.length > 1
+          ? "Aucune pièce ne touche le panneau avec le jeu de détection actuel. Augmentez-le, ou passez en appui sur le contour."
+          : "Le fichier ne contient qu'un corps : utilisez l'appui sur le contour.") + '</li>';
+      return;
+    }
+    state.contacts.forEach((c, i) => {
+      const li = document.createElement('li');
+      li.innerHTML =
+        `<div class="hd">
+           <input type="checkbox" data-i="${i}" data-k="enabled" ${c.enabled ? 'checked' : ''} style="width:auto">
+           <span>${escapeHtml(c.name)}</span></div>
+         <div class="grid" style="grid-template-columns:1fr">
+           <select data-i="${i}" data-k="type">
+             <option value="simple" ${c.type === 'simple' ? 'selected' : ''}>Appui simple (posé dessus)</option>
+             <option value="encastre" ${c.type === 'encastre' ? 'selected' : ''}>Encastrement (vissé / bridé)</option>
+           </select>
+         </div>
+         <div class="det" style="color:var(--muted);font-size:11px;margin-top:4px">
+           contact ${c.contact.side} · ${(c.contact.area / 100).toFixed(0)} cm²</div>`;
+      ul.appendChild(li);
+    });
+    ul.querySelectorAll('[data-k]').forEach(el => {
+      el.addEventListener('change', () => {
+        const c = state.contacts[+el.dataset.i];
+        c[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value;
+        invalidate(); draw();
+      });
+    });
+  }
+
+  const escapeHtml = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   function updateGeoInfo() {
     const el = $('geo-info');
     if (!state.region) { el.innerHTML = ''; return; }
     const bb = G.bbox(state.region.outer);
     const A = G.regionArea(state.region);
-    const mass = A * state.thickness * Mat.PEHD500.rho * 1000; // kg
+    const tf = state.thicknessField;
+    const tMean = state.thicknessMode === 'auto' && tf ? tf.mean : state.thickness;
+    const mass = A * tMean * Mat.PEHD500.rho * 1000;
     const rows = [
-      ['Source', state.fileName ? state.fileName : state.source],
+      ['Source', state.fileName || state.source],
+      ['Corps étudié', state.imported ? (state.oneBody ? 'ensemble du fichier'
+        : state.imported.solids[state.panelIdx].name) : '—'],
       ['Encombrement', `${bb.w.toFixed(1)} × ${bb.h.toFixed(1)} mm`],
       ['Surface', `${(A / 1e6).toFixed(3)} m²`],
-      ['Trous détectés', String(state.region.holes.length)],
-      ['Épaisseur détectée', state.detectedThickness ? state.detectedThickness.toFixed(1) + ' mm' : '—'],
-      ['Masse plaque', mass.toFixed(1) + ' kg']
+      ['Trous', String(state.region.holes.length)],
+      ['Masse estimée', mass.toFixed(1) + ' kg']
     ];
-    el.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+    el.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${escapeHtml(v)}</dd>`).join('');
+    updateThicknessInfo();
+    renderWarnings();
   }
 
-  async function loadFile(file) {
-    $('geo-error').textContent = '';
-    const name = file.name, lower = name.toLowerCase();
-    try {
-      if (lower.endsWith('.stl')) {
-        setGeometry(Imp.importSTL(await file.arrayBuffer()), name);
-      } else if (lower.endsWith('.step') || lower.endsWith('.stp')) {
-        setGeometry(Imp.importSTEP(await file.text()), name);
-      } else if (lower.endsWith('.json')) {
-        loadProject(JSON.parse(await file.text()));
-      } else {
-        throw new Error('Format non reconnu : utilisez .stl, .step ou .stp.');
-      }
-    } catch (e) {
-      $('geo-error').textContent = e.message || String(e);
-      console.error(e);
+  function renderWarnings() {
+    const w = state.warnings;
+    $('geo-warn').innerHTML = w.length
+      ? '<ul class="warn-list" style="margin-top:6px">' + w.map(x => `<li>${escapeHtml(x)}</li>`).join('') + '</ul>'
+      : '';
+  }
+
+  function updateThicknessInfo() {
+    const tf = state.thicknessField;
+    const el = $('thick-measured');
+    $('thick-impose').hidden = state.thicknessMode !== 'auto' ? false : true;
+    el.hidden = state.thicknessMode !== 'auto';
+    if (!tf || state.thicknessMode !== 'auto') { el.innerHTML = ''; return; }
+    if (tf.variable) {
+      el.innerHTML = `Épaisseur <b>variable</b> mesurée sur le modèle : de <b>${tf.min.toFixed(1)}</b> ` +
+        `à <b>${tf.max.toFixed(1)} mm</b> (moyenne ${tf.mean.toFixed(1)} mm). ` +
+        `Chaque élément du maillage reçoit son épaisseur locale : les zones fraisées sont ` +
+        `bien prises en compte comme plus souples. Champ visible dans l'onglet Déformée 3D.`;
+    } else {
+      el.innerHTML = `Épaisseur <b>constante</b> mesurée sur le modèle : <b>${tf.mean.toFixed(1)} mm</b>.`;
     }
   }
 
-  /* ==================== Maillage automatique ==================== */
+  /* ==================== Maillage ==================== */
   function autoMesh() {
     if (!state.region) return;
     const A = G.regionArea(state.region);
     const bb = G.bbox(state.region.outer);
     const diag = Math.hypot(bb.w, bb.h);
-    let h = Math.sqrt(A / (1400 * 0.43));           // ~1400 nœuds visés
+    let h = Math.sqrt(A / (1400 * 0.43));
+    // Une épaisseur variable demande un maillage plus fin pour bien placer les marches
+    if (state.thicknessMode === 'auto' && state.thicknessField && state.thicknessField.variable) h *= 0.72;
     h = Math.max(diag / 160, Math.min(diag / 14, h));
-    // Assez fin pour décrire les zones de charge et la bande d'appui
     for (const l of state.loads) {
       if (l.type !== 'zone') continue;
       const d = l.shape === 'circle' ? 2 * l.r : Math.min(l.w, l.h);
       h = Math.min(h, d / 2.5);
     }
-    if (state.support.width > 0) h = Math.min(h, Math.max(state.support.width, diag / 160));
+    if (state.supportMode === 'contour' && state.support.width > 0)
+      h = Math.min(h, Math.max(state.support.width, diag / 160));
+    if (state.supportMode === 'contacts' && state.contacts.length) {
+      // assez fin pour décrire la largeur des zones portantes
+      let wmin = Infinity;
+      for (const c of state.contacts) {
+        if (!c.enabled) continue;
+        const s = Math.sqrt(c.contact.area);
+        if (s < wmin) wmin = s;
+      }
+      if (isFinite(wmin)) h = Math.min(h, Math.max(wmin / 2.5, diag / 200));
+    }
     h = Math.max(h, diag / 220);
     if (state.meshAuto) {
       state.meshSize = Math.round(h * 10) / 10;
@@ -2252,16 +3400,32 @@
     const bb = G.bbox(state.region.outer);
     const d = Math.min(bb.w, bb.h);
     return shape === 'circle'
-      ? { type: 'zone', shape: 'circle', x, y, r: d * 0.12, force: 1000 }
-      : { type: 'zone', shape: 'rect', x, y, w: d * 0.25, h: d * 0.25, angle: 0, force: 1000 };
+      ? { type: 'zone', shape: 'circle', x, y, r: d * 0.12, force: 1000, unit: 'N' }
+      : { type: 'zone', shape: 'rect', x, y, w: d * 0.25, h: d * 0.25, angle: 0, force: 1000, unit: 'N' };
+  }
+
+  const round = (v) => Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100;
+
+  function unitFactor(l, unit) {
+    if (unit === 'kg') return 9.81;
+    if (unit === 'kPa') return PP.Model.zoneArea(l) * 1e-3;
+    return 1;
+  }
+  const toUnit = (l, u) => l.force / unitFactor(l, u);
+  const fromUnit = (l, u, v) => v * unitFactor(l, u);
+
+  function loadSummary(l) {
+    const kg = (l.force / 9.81).toFixed(0);
+    if (l.type === 'point') return `${l.force.toFixed(0)} N — soit ${kg} kg posés en un point`;
+    const A = PP.Model.zoneArea(l);
+    return `${l.force.toFixed(0)} N (${kg} kg) sur ${(A / 1e6).toFixed(3)} m² — ` +
+      `pression ${(l.force / A * 1000).toFixed(1)} kPa`;
   }
 
   function renderLoads() {
     const ul = $('load-list');
     ul.innerHTML = '';
-    let total = 0;
     state.loads.forEach((l, i) => {
-      total += l.force;
       const li = document.createElement('li');
       if (l === state.selected) li.className = 'sel';
       const title = l.type === 'point' ? 'Force ponctuelle'
@@ -2270,9 +3434,7 @@
       const units = l.type === 'point' ? ['N', 'kg'] : ['N', 'kg', 'kPa'];
       const fields = [['x', 'X', l.x], ['y', 'Y', l.y]];
       if (l.type === 'zone' && l.shape === 'circle') fields.push(['r', 'R', l.r]);
-      if (l.type === 'zone' && l.shape === 'rect') {
-        fields.push(['w', 'L', l.w], ['h', 'l', l.h], ['angle', '° ', l.angle || 0]);
-      }
+      if (l.type === 'zone' && l.shape === 'rect') fields.push(['w', 'L', l.w], ['h', 'l', l.h], ['angle', '° ', l.angle || 0]);
       li.innerHTML =
         `<div class="hd"><span class="sw"></span>${i + 1}. ${title}
            <span style="flex:1"></span>
@@ -2291,12 +3453,12 @@
         `</div>
          <div class="det" style="color:var(--muted);font-size:11px;margin-top:4px">${loadSummary(l)}</div>`;
       li.addEventListener('mousedown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
         state.selected = l; renderLoads(); draw();
       });
       ul.appendChild(li);
     });
-    ul.querySelectorAll('input').forEach(inp => {
+    ul.querySelectorAll('input[data-k]').forEach(inp => {
       inp.addEventListener('input', () => {
         const l = state.loads[+inp.dataset.i];
         const v = parseFloat(inp.value);
@@ -2304,7 +3466,8 @@
         if (inp.dataset.k === '__force') l.force = fromUnit(l, l.unit || 'N', v);
         else l[inp.dataset.k] = v;
         invalidate(); draw(); updateTotals();
-        li_refreshSummary(inp, l);
+        const d = inp.closest('li').querySelector('.det');
+        if (d) d.textContent = loadSummary(l);
       });
     });
     ul.querySelectorAll('select[data-unit]').forEach(sel => {
@@ -2328,31 +3491,6 @@
     const total = state.loads.reduce((s, l) => s + (l.force || 0), 0);
     $('load-total').textContent = state.loads.length
       ? `Total : ${total.toFixed(0)} N (${(total / 9.81).toFixed(0)} kg)` : '';
-  }
-
-  const round = (v) => Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100;
-
-  /* Conversion force <-> unité de saisie. kPa = kN/m² sur l'aire de la zone. */
-  function unitFactor(l, unit) {
-    if (unit === 'kg') return 9.81;
-    if (unit === 'kPa') return PP.Model.zoneArea(l) * 1e-3;
-    return 1;
-  }
-  const toUnit = (l, u) => l.force / unitFactor(l, u);
-  const fromUnit = (l, u, v) => v * unitFactor(l, u);
-
-  function loadSummary(l) {
-    const kg = (l.force / 9.81).toFixed(0);
-    if (l.type === 'point') return `${l.force.toFixed(0)} N — soit ${kg} kg posés en un point`;
-    const A = PP.Model.zoneArea(l);
-    return `${l.force.toFixed(0)} N (${kg} kg) sur ${(A / 1e6).toFixed(3)} m² — ` +
-      `pression ${(l.force / A * 1000).toFixed(1)} kPa`;
-  }
-
-  function li_refreshSummary(inp, l) {
-    const li = inp.closest('li');
-    const d = li && li.querySelector('.det');
-    if (d) d.textContent = loadSummary(l);
   }
 
   /* ==================== Interaction vue plan ==================== */
@@ -2381,7 +3519,7 @@
         return;
       }
       if (state.tool === 'point') {
-        const l = { type: 'point', x: round(x), y: round(y), force: 1000 };
+        const l = { type: 'point', x: round(x), y: round(y), force: 1000, unit: 'N' };
         state.loads.push(l); state.selected = l;
         setTool('select'); invalidate(); renderLoads(); draw();
         return;
@@ -2399,9 +3537,8 @@
         drag.l.x = round(x + drag.dx); drag.l.y = round(y + drag.dy);
       } else {
         const l = drag.l;
-        if (l.shape === 'circle') {
-          l.r = Math.max(1, round(Math.hypot(x - drag.x0, y - drag.y0)));
-        } else {
+        if (l.shape === 'circle') l.r = Math.max(1, round(Math.hypot(x - drag.x0, y - drag.y0)));
+        else {
           l.w = Math.max(1, round(Math.abs(x - drag.x0)));
           l.h = Math.max(1, round(Math.abs(y - drag.y0)));
           l.x = round((x + drag.x0) / 2); l.y = round((y + drag.y0) / 2);
@@ -2425,7 +3562,7 @@
   }
 
   /* ==================== Interaction 3D ==================== */
-  function setup3DEvents(cv) {
+  function setup3DEvents(cv, getView) {
     let last = null, btn = 0;
     cv.addEventListener('contextmenu', e => e.preventDefault());
     cv.addEventListener('pointerdown', (e) => {
@@ -2434,21 +3571,21 @@
     });
     cv.addEventListener('pointermove', (e) => {
       if (!last) return;
+      const v = getView();
       const dx = e.clientX - last[0], dy = e.clientY - last[1];
       last = [e.clientX, e.clientY];
-      if (btn === 2 || e.shiftKey) {
-        state.view3d.panX += dx; state.view3d.panY += dy;
-      } else {
-        state.view3d.yaw += dx * 0.008;
-        state.view3d.pitch = Math.max(0.02, Math.min(Math.PI / 2, state.view3d.pitch - dy * 0.008));
+      if (btn === 2 || e.shiftKey) { v.panX += dx; v.panY += dy; }
+      else {
+        v.yaw += dx * 0.008;
+        v.pitch = Math.max(0.02, Math.min(Math.PI / 2, v.pitch - dy * 0.008));
       }
       draw();
     });
     cv.addEventListener('pointerup', () => { last = null; });
     cv.addEventListener('wheel', (e) => {
       e.preventDefault();
-      state.view3d.zoom *= Math.exp(-e.deltaY * 0.0012);
-      state.view3d.zoom = Math.max(0.2, Math.min(12, state.view3d.zoom));
+      const v = getView();
+      v.zoom = Math.max(0.2, Math.min(12, v.zoom * Math.exp(-e.deltaY * 0.0012)));
       draw();
     }, { passive: false });
   }
@@ -2456,14 +3593,16 @@
   /* ==================== Dessin ==================== */
   function draw() {
     if (state.view === 'plan') {
-      if (!state.region) { const c = $('cv-plan').getContext('2d'); c.clearRect(0, 0, 9999, 9999); return; }
+      if (!state.region) return;
       planView = R.makeView($('cv-plan'), state.region);
       R.drawPlan($('cv-plan'), state, planView);
+    } else if (state.view === 'asm') {
+      R.drawAssembly($('cv-asm'), state, state.viewAsm);
     } else if (state.result) {
       const amp = autoAmp() * (state.ampSlider / 50);
       $('amp-val').textContent = '× ' + (amp < 10 ? amp.toFixed(1) : Math.round(amp));
       R.drawDeformed($('cv-def'), state.result, state.view3d, {
-        amp, field: state.field, wireframe: state.wire,
+        amp: state.field === 'ep' ? amp : amp, field: state.field, wireframe: state.wire,
         showUndeformed: state.undef, showSupports: state.showSup, region: state.region
       });
     }
@@ -2473,16 +3612,17 @@
     if (!state.result) return 1;
     const bb = G.bbox(state.region.outer);
     const target = Math.max(bb.w, bb.h) * 0.12;
-    const w = Math.abs(state.result.wmax) || 1e-6;
-    return Math.max(0.2, Math.min(5000, target / w));
+    return Math.max(0.2, Math.min(5000, target / (Math.abs(state.result.wmax) || 1e-6)));
   }
 
   function setView(v) {
     state.view = v;
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.view === v));
     $('cv-plan').hidden = v !== 'plan';
+    $('cv-asm').hidden = v !== 'asm';
     $('cv-def').hidden = v !== 'def';
     $('viewbar-plan').hidden = v !== 'plan';
+    $('viewbar-asm').hidden = v !== 'asm';
     $('viewbar-def').hidden = v !== 'def';
     draw();
   }
@@ -2492,18 +3632,26 @@
   /* ==================== Calcul ==================== */
   function run() {
     if (!state.region) { $('geo-error').textContent = "Importez d'abord une géométrie."; return; }
-    $('busy').hidden = false;
+    busy(true, 'Calcul en cours…');
     setTimeout(() => {
       try {
         const mat = Mat.properties(state.duree, state.temp);
+        const useField = state.thicknessMode === 'auto' && state.thicknessField && state.thicknessField.max > 0;
         const res = PP.Model.run({
           region: state.region,
           thickness: state.thickness,
+          thicknessField: useField ? state.thicknessField : null,
           meshSize: state.meshSize,
-          support: state.support,
+          support: {
+            mode: state.supportMode,
+            contacts: state.contacts,
+            width: state.support.width, type: state.support.type,
+            holesSupported: state.support.holesSupported
+          },
           loads: state.loads,
           material: { E: mat.E, nu: mat.nu, rho: mat.rho, sigmaY: mat.sigmaY },
           selfWeight: state.selfWeight,
+          unilateral: state.unilateral,
           criteria: state.criteria
         });
         res.mat = mat;
@@ -2513,17 +3661,17 @@
       } catch (e) {
         $('geo-error').textContent = 'Erreur de calcul : ' + (e.message || e);
         console.error(e);
-      } finally {
-        $('busy').hidden = true;
-      }
+      } finally { busy(false); }
     }, 30);
   }
+
+  const fmtCoef = (c) => isFinite(c) ? c.toFixed(2) : '∞';
 
   function showResults(res, mat) {
     const v = $('verdict');
     const cls = res.verdict === 'OK' ? 'ok' : (res.verdict === 'LIMITE' ? 'limite' : 'bad');
     v.className = 'verdict ' + cls;
-    const msg = res.verdict === 'OK' ? 'Plaque conforme aux deux critères'
+    const msg = res.verdict === 'OK' ? 'Panneau conforme aux deux critères'
       : res.verdict === 'LIMITE' ? 'Juste acceptable — peu de marge'
       : 'Critère dépassé — épaissir, réduire la portée ou la charge';
     v.innerHTML =
@@ -2547,7 +3695,7 @@
         `taux ${(res.sigmaMax / res.sigmaAdm * 100).toFixed(0)} % · seuil d'écoulement ${mat.sigmaY.toFixed(1)} MPa / ${state.criteria.safetyFactor}`);
 
     const A = G.regionArea(state.region);
-    const mass = A * state.thickness * Mat.PEHD500.rho * 1000;
+    const mass = A * res.tMean * Mat.PEHD500.rho * 1000;
     const kv = [
       ['Flèche maximale', wAbs.toFixed(2) + ' mm'],
       ['Flèche admissible', res.fAdm.toFixed(2) + ' mm'],
@@ -2560,67 +3708,120 @@
       ['Charge totale appliquée', res.appliedTotal.toFixed(0) + ' N (' + (res.appliedTotal / 9.81).toFixed(0) + ' kg)'],
       ['Réaction totale d\'appui', res.reactionTotal.toFixed(0) + ' N'],
       ['Nœuds / éléments', `${res.mesh.nodes.length} / ${res.mesh.elems.length}`],
+      ['Contact unilatéral', res.released > 0
+        ? `${res.released} nœud(s) décollés (${res.iterations} itérations)` : 'aucun décollement'],
       ['Temps de résolution', res.solveMs + ' ms']
     ];
     $('res-kv').innerHTML = kv.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('');
 
+    const supTxt = state.supportMode === 'contacts'
+      ? `${state.contacts.filter(c => c.enabled).length} pièce(s) en contact` +
+        ` (${state.contacts.filter(c => c.enabled && c.type === 'encastre').length} encastrée(s))`
+      : (state.support.type === 'simple' ? 'Appui simple' : 'Encastrement') + ' sur ' + state.support.width + ' mm de contour';
     const hyp = [
       ['Matériau', Mat.PEHD500.nom],
-      ['Épaisseur', state.thickness + ' mm'],
+      ['Épaisseur', res.variableThickness
+        ? `variable, ${res.tMin.toFixed(1)} à ${res.tMax.toFixed(1)} mm (moy. ${res.tMean.toFixed(1)})`
+        : res.tMean.toFixed(1) + ' mm'],
+      ['Origine de l\'épaisseur', state.thicknessMode === 'auto' ? 'mesurée sur le modèle' : 'imposée'],
       ['Module E retenu', mat.E.toFixed(0) + ' MPa'],
       ['Coef. de Poisson', mat.nu.toFixed(2)],
       ['Durée de charge', mat.dureeLabel + ' (k=' + mat.kFluage.toFixed(2) + ')'],
       ['Température', mat.tempLabel],
       ['Seuil d\'écoulement', mat.sigmaY.toFixed(1) + ' MPa'],
-      ['Appui', (state.support.type === 'simple' ? 'Appui simple' : 'Encastrement') + ' sur ' + state.support.width + ' mm'],
+      ['Appuis', supTxt + (state.unilateral ? ', contact unilatéral' : ', liaison bilatérale')],
       ['Poids propre', state.selfWeight ? 'inclus (' + mass.toFixed(1) + ' kg)' : 'non inclus'],
       ['Théorie', 'Plaque mince de Kirchhoff, petits déplacements, élasticité linéaire']
     ];
-    $('hyp-kv').innerHTML = hyp.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('');
+    $('hyp-kv').innerHTML = hyp.map(([k, val]) => `<dt>${k}</dt><dd>${escapeHtml(val)}</dd>`).join('');
 
-    $('warnings').innerHTML = res.warnings.length
+    const all = res.warnings.concat(state.warnings);
+    $('warnings').innerHTML = all.length
       ? '<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 6px">Points de vigilance</h3><ul class="warn-list">'
-        + res.warnings.map(w => `<li>${w}</li>`).join('') + '</ul>'
+        + all.map(w => `<li>${escapeHtml(w)}</li>`).join('') + '</ul>'
       : '';
   }
 
-  const fmtCoef = (c) => isFinite(c) ? c.toFixed(2) : '∞';
+  /* ==================== Projet ==================== */
+  const b64 = {
+    enc: (arr) => { let s = ''; for (let i = 0; i < arr.length; i++) s += String.fromCharCode(arr[i]); return btoa(s); },
+    dec: (str) => { const s = atob(str); const a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
+  };
 
-  /* ==================== Projet : sauvegarde / ouverture ==================== */
   function saveProject() {
+    if (!state.region) return;
+    const tf = state.thicknessField;
     const data = {
-      format: 'plaque-pehd-v1',
-      region: state.region, detectedThickness: state.detectedThickness,
-      source: state.source, fileName: state.fileName,
-      thickness: state.thickness, duree: state.duree, temp: state.temp,
-      selfWeight: state.selfWeight, support: state.support, loads: state.loads,
-      criteria: state.criteria, meshSize: state.meshSize, meshAuto: state.meshAuto
+      format: 'plaque-pehd-v2',
+      fileName: state.fileName, source: state.source,
+      region: state.region,
+      thicknessMode: state.thicknessMode, thickness: state.thickness,
+      thicknessField: tf ? {
+        u0: tf.u0, v0: tf.v0, cs: tf.cs, nu: tf.nu, nv: tf.nv,
+        val: Array.from(tf.val).map(x => Math.round(x * 100) / 100),
+        min: tf.min, max: tf.max, mean: tf.mean, variable: tf.variable
+      } : null,
+      supportMode: state.supportMode, support: state.support, contactTol: state.contactTol,
+      contacts: state.contacts.map(c => ({
+        name: c.name, enabled: c.enabled, type: c.type,
+        mask: b64.enc(c.contact.mask), side: c.contact.side, area: c.contact.area,
+        u0: c.contact.u0, v0: c.contact.v0, cs: c.contact.cs, nu: c.contact.nu, nv: c.contact.nv
+      })),
+      duree: state.duree, temp: state.temp, selfWeight: state.selfWeight, unilateral: state.unilateral,
+      loads: state.loads, criteria: state.criteria,
+      meshSize: state.meshSize, meshAuto: state.meshAuto, warnings: state.warnings
     };
-    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (state.fileName || 'plaque-pehd').replace(/\.[^.]+$/, '') + '.plaque.json';
+    a.download = (state.fileName || 'panneau-pehd').replace(/\.[^.]+$/, '') + '.plaque.json';
     a.click();
     URL.revokeObjectURL(a.href);
   }
 
   function loadProject(d) {
-    if (!d || d.format !== 'plaque-pehd-v1') throw new Error('Fichier projet non reconnu.');
-    Object.assign(state, {
-      region: d.region, detectedThickness: d.detectedThickness || 0, source: d.source,
-      fileName: d.fileName, thickness: d.thickness, duree: d.duree, temp: d.temp,
-      selfWeight: d.selfWeight, support: d.support, loads: d.loads || [],
-      criteria: d.criteria, meshSize: d.meshSize, meshAuto: d.meshAuto, result: null, selected: null
-    });
-    syncInputs();
-    updateGeoInfo(); renderLoads(); updateMeshInfo(); setView('plan');
+    if (!d || (d.format !== 'plaque-pehd-v2' && d.format !== 'plaque-pehd-v1'))
+      throw new Error('Fichier projet non reconnu.');
+    state.imported = null; state.frame = null; state.panel = null; state.others = [];
+    state.fileName = d.fileName; state.source = d.source || 'projet enregistré';
+    state.region = d.region;
+    state.thicknessMode = d.thicknessMode || 'impose';
+    state.thickness = d.thickness || 20;
+    state.thicknessField = d.thicknessField
+      ? So.makeField(Object.assign({}, d.thicknessField, { val: Float32Array.from(d.thicknessField.val) }))
+      : null;
+    state.supportMode = d.supportMode || 'contour';
+    state.support = d.support || state.support;
+    state.contactTol = d.contactTol !== undefined ? d.contactTol : 0.5;
+    state.contacts = (d.contacts || []).map(c => ({
+      name: c.name, enabled: c.enabled, type: c.type,
+      contact: {
+        mask: b64.dec(c.mask), side: c.side, area: c.area, cells: 1,
+        u0: c.u0, v0: c.v0, cs: c.cs, nu: c.nu, nv: c.nv
+      }
+    }));
+    state.contactByIndex = new Map();
+    state.duree = d.duree; state.temp = d.temp; state.selfWeight = d.selfWeight;
+    state.unilateral = d.unilateral !== false;
+    state.loads = d.loads || []; state.criteria = d.criteria;
+    state.meshSize = d.meshSize; state.meshAuto = d.meshAuto;
+    state.warnings = d.warnings || [];
+    state.result = null; state.selected = null;
+    syncInputs(); updateGeoInfo(); renderSolidList(); renderContacts(); renderLoads();
+    updateMeshInfo(); setView('plan');
   }
 
   function syncInputs() {
+    $('thick-mode').value = state.thicknessMode;
     $('thickness').value = state.thickness;
     $('duree').value = state.duree;
     $('temp').value = state.temp;
     $('selfweight').checked = state.selfWeight;
+    $('sup-mode').value = state.supportMode;
+    $('sup-contacts').hidden = state.supportMode !== 'contacts';
+    $('sup-contour').hidden = state.supportMode === 'contacts';
+    $('contact-tol').value = state.contactTol;
+    $('sup-uni').checked = state.unilateral;
     $('sup-width').value = state.support.width;
     $('sup-type').value = state.support.type;
     $('sup-holes').checked = state.support.holesSupported;
@@ -2628,7 +3829,11 @@
     $('crit-sf').value = state.criteria.safetyFactor;
     $('mesh-size').value = state.meshSize || '';
     $('mesh-auto').checked = state.meshAuto;
+    $('one-body').checked = state.oneBody;
+    $('field').querySelector('option[value=ep]').hidden =
+      !(state.thicknessMode === 'auto' && state.thicknessField && state.thicknessField.variable);
     updateMatInfo();
+    updateThicknessInfo();
   }
 
   function updateMatInfo() {
@@ -2645,32 +3850,29 @@
 
   /* ==================== Initialisation ==================== */
   function init() {
-    // Matériau : listes déroulantes
     $('duree').innerHTML = Mat.DUREES.map(d => `<option value="${d.id}">${d.label}</option>`).join('');
     $('temp').innerHTML = Mat.TEMPERATURES.map(t => `<option value="${t.id}">${t.label}</option>`).join('');
     $('thick-chips').innerHTML = [5, 8, 10, 12, 15, 20, 25, 30, 40, 50]
       .map(t => `<button class="chip" data-t="${t}">${t}</button>`).join('');
-    syncInputs();
 
-    // Fichiers
     const drop = $('drop'), file = $('file');
     drop.addEventListener('click', () => file.click());
     file.addEventListener('change', () => { if (file.files[0]) loadFile(file.files[0]); file.value = ''; });
-    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
-      e.preventDefault(); drop.classList.add('over');
-    }));
-    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => {
-      e.preventDefault(); drop.classList.remove('over');
-    }));
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
     drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
     document.addEventListener('dragover', e => e.preventDefault());
     document.addEventListener('drop', e => e.preventDefault());
 
-    // Géométries simples
     $('geo-rect').addEventListener('click', () => geoParams('rect'));
     $('geo-disc').addEventListener('click', () => geoParams('disc'));
+    $('one-body').addEventListener('change', e => {
+      state.oneBody = e.target.checked; state.result = null; rebuild();
+    });
 
-    // Épaisseur / matériau
+    $('thick-mode').addEventListener('change', e => {
+      state.thicknessMode = e.target.value; invalidate(); syncInputs(); updateGeoInfo();
+    });
     $('thickness').addEventListener('input', e => {
       const v = parseFloat(e.target.value);
       if (isFinite(v) && v > 0) { state.thickness = v; invalidate(); updateGeoInfo(); }
@@ -2685,21 +3887,26 @@
     $('temp').addEventListener('change', e => { state.temp = e.target.value; invalidate(); updateMatInfo(); });
     $('selfweight').addEventListener('change', e => { state.selfWeight = e.target.checked; invalidate(); });
 
-    // Appuis
+    $('sup-mode').addEventListener('change', e => {
+      state.supportMode = e.target.value; invalidate(); syncInputs(); autoMesh(); draw();
+    });
+    $('contact-tol').addEventListener('change', e => {
+      const v = parseFloat(e.target.value);
+      if (isFinite(v) && v >= 0) { state.contactTol = v; recomputeContacts(); }
+    });
     $('sup-width').addEventListener('input', e => {
       const v = parseFloat(e.target.value);
       if (isFinite(v) && v >= 0) { state.support.width = v; invalidate(); autoMesh(); draw(); }
     });
+    $('sup-uni').addEventListener('change', e => { state.unilateral = e.target.checked; invalidate(); });
     $('sup-type').addEventListener('change', e => { state.support.type = e.target.value; invalidate(); });
     $('sup-holes').addEventListener('change', e => { state.support.holesSupported = e.target.checked; invalidate(); draw(); });
 
-    // Outils de charge
     $('tools').addEventListener('click', e => { if (e.target.dataset.tool) setTool(e.target.dataset.tool); });
     $('load-clear').addEventListener('click', () => {
       state.loads = []; state.selected = null; invalidate(); renderLoads(); draw();
     });
 
-    // Critères
     $('crit-defl').addEventListener('change', e => {
       state.criteria.deflectionRatio = +e.target.value; invalidate(); updateMatInfo();
     });
@@ -2708,7 +3915,6 @@
       if (isFinite(v) && v >= 1) { state.criteria.safetyFactor = v; invalidate(); updateMatInfo(); }
     });
 
-    // Maillage
     $('mesh-auto').addEventListener('change', e => {
       state.meshAuto = e.target.checked; $('mesh-size').disabled = state.meshAuto; autoMesh();
     });
@@ -2718,7 +3924,6 @@
       if (isFinite(v) && v > 0) { state.meshSize = v; invalidate(); updateMeshInfo(); }
     });
 
-    // Calcul, vues
     $('btn-run').addEventListener('click', run);
     document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
     $('field').addEventListener('change', e => { state.field = e.target.value; draw(); });
@@ -2729,14 +3934,16 @@
     $('view-reset').addEventListener('click', () => {
       state.view3d = { yaw: -0.55, pitch: 1.0, zoom: 1, panX: 0, panY: 0 }; draw();
     });
+    $('asm-reset').addEventListener('click', () => {
+      state.viewAsm = { yaw: -0.6, pitch: 0.45, zoom: 1, panX: 0, panY: 0 }; draw();
+    });
     $('view-png').addEventListener('click', () => {
       const a = document.createElement('a');
-      a.href = $('cv-def').toDataURL('image/png');
-      a.download = 'deformee-plaque-pehd.png';
+      a.href = (state.view === 'asm' ? $('cv-asm') : $('cv-def')).toDataURL('image/png');
+      a.download = 'panneau-pehd.png';
       a.click();
     });
 
-    // Projet
     $('btn-save').addEventListener('click', saveProject);
     $('btn-load').addEventListener('click', () => {
       const inp = document.createElement('input');
@@ -2747,33 +3954,42 @@
     $('btn-print').addEventListener('click', () => window.print());
 
     setupPlanEvents($('cv-plan'));
-    setup3DEvents($('cv-def'));
+    setup3DEvents($('cv-def'), () => state.view3d);
+    setup3DEvents($('cv-asm'), () => state.viewAsm);
     window.addEventListener('resize', draw);
     setTool('select');
 
-    // Démarrage sur un exemple : plaque 1000 × 700 posée sur un cadre
-    setGeometry(Imp.rectangle(1000, 700), null);
-    state.source = 'exemple (rectangle 1000 × 700)';
-    updateGeoInfo();
+    applyImport(Imp.rectangle(1000, 700, 20), null);
+    state.source = 'exemple (rectangle 1000 × 700, ép. 20)';
   }
 
   function geoParams(kind) {
     const el = $('geo-params');
     el.hidden = false;
     if (kind === 'rect') {
-      el.innerHTML = `<label class="field" style="flex:1"><span>Longueur</span><input type="number" id="gp-a" value="1000"></label>
-                      <label class="field" style="flex:1"><span>Largeur</span><input type="number" id="gp-b" value="700"></label>
+      el.innerHTML = `<label class="field" style="flex:1"><span>Long.</span><input type="number" id="gp-a" value="1000"></label>
+                      <label class="field" style="flex:1"><span>Larg.</span><input type="number" id="gp-b" value="700"></label>
+                      <label class="field" style="flex:1"><span>Ép.</span><input type="number" id="gp-t" value="20"></label>
                       <button class="ghost" id="gp-ok">Créer</button>`;
       $('gp-ok').onclick = () => {
-        const a = parseFloat($('gp-a').value), b = parseFloat($('gp-b').value);
-        if (a > 0 && b > 0) { setGeometry(Imp.rectangle(a, b), null); state.source = `rectangle ${a} × ${b}`; updateGeoInfo(); el.hidden = true; }
+        const a = parseFloat($('gp-a').value), b = parseFloat($('gp-b').value), t = parseFloat($('gp-t').value);
+        if (a > 0 && b > 0 && t > 0) {
+          applyImport(Imp.rectangle(a, b, t), null);
+          state.source = `rectangle ${a} × ${b} × ${t}`;
+          updateGeoInfo(); el.hidden = true;
+        }
       };
     } else {
-      el.innerHTML = `<label class="field" style="flex:1"><span>Diamètre</span><input type="number" id="gp-d" value="800"></label>
+      el.innerHTML = `<label class="field" style="flex:1"><span>Diam.</span><input type="number" id="gp-d" value="800"></label>
+                      <label class="field" style="flex:1"><span>Ép.</span><input type="number" id="gp-t" value="20"></label>
                       <button class="ghost" id="gp-ok">Créer</button>`;
       $('gp-ok').onclick = () => {
-        const d = parseFloat($('gp-d').value);
-        if (d > 0) { setGeometry(Imp.disc(d / 2), null); state.source = `disque Ø${d}`; updateGeoInfo(); el.hidden = true; }
+        const d = parseFloat($('gp-d').value), t = parseFloat($('gp-t').value);
+        if (d > 0 && t > 0) {
+          applyImport(Imp.disc(d / 2, t), null);
+          state.source = `disque Ø${d} × ${t}`;
+          updateGeoInfo(); el.hidden = true;
+        }
       };
     }
   }

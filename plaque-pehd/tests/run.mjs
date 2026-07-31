@@ -134,14 +134,122 @@ const Dp = E * t * t * t / (12 * (1 - nu * nu));
   }
 }
 
-// 8. Cohérence du modèle complet (model.js)
+// 8. Épaisseur variable : plaque en flexion cylindrique contre poutre à inertie variable.
+//    Bande de portée L appuyée sur ses deux bords, très longue transversalement :
+//    au milieu de la largeur, la plaque fléchit comme une poutre de rigidité D(x).
+{
+  console.log('\n--- Epaisseur variable ---');
+  const L = 600, W = 2400, q = 0.02, t1 = 24, t2 = 14;
+  const tAt = (x) => (x < L / 2 ? t1 : t2);
+  const Dx = (x) => E * Math.pow(tAt(x), 3) / (12 * (1 - nu * nu));
+
+  // Référence : M(x) = q x (L-x) / 2 (isostatique, indépendant de l'inertie),
+  // puis w'' = -M/D intégré deux fois avec w(0) = w(L) = 0.
+  const nInt = 200000, dx = L / nInt;
+  const f = new Float64Array(nInt + 1);
+  for (let i = 0; i <= nInt; i++) {
+    const x = i * dx;
+    f[i] = -(q * x * (L - x) / 2) / Dx(x);
+  }
+  const wRef = (x) => {
+    let s = 0;
+    const n = Math.round(x / dx);
+    for (let i = 0; i < n; i++) s += ((x - i * dx) * f[i] + (x - (i + 1) * dx) * f[i + 1]) / 2 * dx;
+    return s;
+  };
+  let s2 = 0;
+  for (let i = 0; i < nInt; i++) s2 += ((L - i * dx) * f[i] + (L - (i + 1) * dx) * f[i + 1]) / 2 * dx;
+  const C = -s2 / L;
+  let refMax = 0, refX = 0;
+  for (let i = 0; i <= 400; i++) {
+    const x = L * i / 400;
+    const w = wRef(x) + C * x;
+    if (Math.abs(w) > Math.abs(refMax)) { refMax = w; refX = x; }
+  }
+
+  /* Calcul plaque : seuls les deux bords x=0 et x=L sont appuyés, de sorte que la
+     bande soit en flexion cylindrique au milieu de sa largeur. */
+  const mesh = PP.Mesh.meshRegion(rectRegion(L, W), 15);
+  const nN = mesh.nodes.length, nE = mesh.elems.length;
+  const elemD = new Array(nE);
+  for (let e = 0; e < nE; e++) {
+    const el = mesh.elems[e];
+    const cx = (mesh.nodes[el[0]][0] + mesh.nodes[el[1]][0] + mesh.nodes[el[2]][0]) / 3;
+    elemD[e] = PP.Fem.bendingD(E, nu, tAt(cx));
+  }
+  const Fv = new Float64Array(3 * nN), fixed = new Int8Array(3 * nN);
+  uniformLoad(q)(mesh, Fv);
+  for (let n = 0; n < nN; n++) {
+    const x = mesh.nodes[n][0];
+    if (x < 1e-6 || x > L - 1e-6) fixed[3 * n] = 1;
+  }
+  const uu = PP.Fem.solve(mesh, elemD, Fv, fixed);
+  let wPlate = 0;
+  for (let n = 0; n < nN; n++) {
+    if (Math.abs(mesh.nodes[n][1] - W / 2) > 40) continue;
+    if (Math.abs(uu[3 * n]) > Math.abs(wPlate)) wPlate = uu[3 * n];
+  }
+  console.log(`  epaisseurs ${t1}/${t2} mm ; reference poutre = ${Math.abs(refMax).toFixed(4)} mm a x=${refX.toFixed(0)} mm`);
+  check('Plaque a epaisseur variable (flexion cylindrique)', Math.abs(wPlate), Math.abs(refMax), 3);
+
+  // Contrôle croisé : un champ d'épaisseur constant doit redonner le calcul à épaisseur unique.
+  const resField = PP.Model.run({
+    region: rectRegion(1000, 1000), thicknessField: { at: () => 20, min: 20, max: 20 },
+    meshSize: 40, support: { width: 0, type: 'simple', mode: 'contour' },
+    loads: [{ type: 'zone', shape: 'rect', x: 500, y: 500, w: 1000, h: 1000, force: 5000 }],
+    material: { E, nu, rho: 0, sigmaY: 25 }, selfWeight: false,
+    criteria: { deflectionRatio: 200, safetyFactor: 2 }
+  });
+  const resScalar = PP.Model.run({
+    region: rectRegion(1000, 1000), thickness: 20,
+    meshSize: 40, support: { width: 0, type: 'simple', mode: 'contour' },
+    loads: [{ type: 'zone', shape: 'rect', x: 500, y: 500, w: 1000, h: 1000, force: 5000 }],
+    material: { E, nu, rho: 0, sigmaY: 25 }, selfWeight: false,
+    criteria: { deflectionRatio: 200, safetyFactor: 2 }
+  });
+  check('Champ constant identique au calcul a epaisseur unique (fleche)',
+    Math.abs(resField.wmax), Math.abs(resScalar.wmax), 0.01);
+  check('Champ constant identique au calcul a epaisseur unique (contrainte)',
+    resField.sigmaMax, resScalar.sigmaMax, 0.01);
+}
+
+// 9. Chaîne complète (model.js) contre la solution analytique :
+//    appui sur le contour seul, charge uniforme, plaque carrée.
+{
+  const opts = {
+    region: rectRegion(a, a), thickness: t, meshSize: 25,
+    support: { width: 0, type: 'simple', mode: 'contour' },
+    loads: [{ type: 'zone', shape: 'rect', x: a / 2, y: a / 2, w: a, h: a, force: q * a * a }],
+    material: { E, nu, rho: 0, sigmaY: 25 }, selfWeight: false,
+    criteria: { deflectionRatio: 200, safetyFactor: 2 }
+  };
+  // Appuis bilatéraux : c'est l'hypothèse de la solution de référence (coins maintenus).
+  const res = PP.Model.run(Object.assign({ unilateral: false }, opts));
+  check('Chaine complete : carre appuye sur son contour', Math.abs(res.wmax), 0.00406 * q * Math.pow(a, 4) / Dp, 3);
+  check('Chaine complete : equilibre', res.reactionTotal, q * a * a, 1);
+
+  /* Contact unilatéral : les coins d'une plaque simplement posée se soulèvent, ce que
+     la solution classique ignore en supposant des coins maintenus. La flèche doit donc
+     être plus forte, et des nœuds doivent être libérés. */
+  const uni = PP.Model.run(opts);
+  const ratio = Math.abs(uni.wmax) / Math.abs(res.wmax);
+  console.log(`  coins libres : ${uni.released} noeuds decolles, fleche x${ratio.toFixed(3)} ` +
+    `(${Math.abs(res.wmax).toFixed(2)} -> ${Math.abs(uni.wmax).toFixed(2)} mm, ${uni.iterations} iterations)`);
+  if (!(uni.released > 0 && ratio > 1.02 && ratio < 1.3)) {
+    failures++;
+    console.log('FAIL  Soulevement des coins non conforme aux attentes');
+  } else console.log('OK    Soulevement des coins pris en compte (fleche majoree, equilibre conserve)');
+  check('Contact unilateral : equilibre conserve', uni.reactionTotal, q * a * a, 1);
+}
+
+// 10. Cohérence du modèle complet (model.js)
 {
   console.log('\n--- Modele complet (model.js) ---');
   const res = PP.Model.run({
     region: rectRegion(1000, 1000),
     thickness: 20,
     meshSize: 30,
-    support: { width: 30, type: 'simple', holesSupported: false },
+    support: { width: 30, type: 'simple', holesSupported: false, mode: 'contour' },
     loads: [{ type: 'zone', shape: 'rect', x: 500, y: 500, w: 1000, h: 1000, force: 10000 }],
     material: { E: 900, nu: 0.3, rho: 0.95e-9, sigmaY: 25 },
     selfWeight: false,

@@ -77,18 +77,81 @@
     }
   */
   function run(opts) {
-    const t = opts.thickness;
     const mat = opts.material;
     const region = opts.region;
 
     const mesh = opts.mesh || M.meshRegion(region, opts.meshSize);
     const nN = mesh.nodes.length;
-    const D = F3.bendingD(mat.E, mat.nu, t);
+    const nE = mesh.elems.length;
 
-    /* ---- Appuis : bande de largeur `width` le long du contour ---- */
+    /* ---- Épaisseur : valeur unique, ou champ mesuré sur la géométrie ---- */
+    const field = opts.thicknessField || null;
+    const tMinValid = 0.5;
+    const elemT = new Float64Array(nE);        // épaisseur équivalente en rigidité
+    const elemTs = new Float64Array(nE);       // épaisseur retenue pour la contrainte
+    let tClamped = 0, tSum = 0, tMin = Infinity, tMax = 0, tStep = 0;
+    // 7 points par élément : sommets, milieux d'arêtes et centre
+    const SAMPLE = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [.5, .5, 0], [0, .5, .5], [.5, 0, .5], [1 / 3, 1 / 3, 1 / 3]];
+    for (let e = 0; e < nE; e++) {
+      const el = mesh.elems[e];
+      let te, ts;
+      if (field) {
+        /* La rigidité varie comme t³ : on moyenne t³ sur l'élément puis on revient à
+           une épaisseur équivalente. La contrainte, elle, est pilotée par la section
+           la plus faible — on retient donc l'épaisseur minimale rencontrée. */
+        let sum3 = 0, n = 0, tmn = Infinity;
+        for (const [l0, l1, l2] of SAMPLE) {
+          const x = l0 * mesh.nodes[el[0]][0] + l1 * mesh.nodes[el[1]][0] + l2 * mesh.nodes[el[2]][0];
+          const y = l0 * mesh.nodes[el[0]][1] + l1 * mesh.nodes[el[1]][1] + l2 * mesh.nodes[el[2]][1];
+          const t1 = field.at(x, y);
+          if (!(t1 >= tMinValid)) continue;
+          sum3 += t1 * t1 * t1; n++;
+          if (t1 < tmn) tmn = t1;
+        }
+        if (!n) { te = ts = Math.max(field.min || tMinValid, tMinValid); tClamped++; }
+        else {
+          te = Math.cbrt(sum3 / n);
+          ts = tmn;
+          if (te / tmn > 1.15) tStep++;      // l'élément est à cheval sur une marche
+        }
+      } else te = ts = opts.thickness;
+      elemT[e] = te;
+      elemTs[e] = ts;
+      tSum += te;
+      if (te < tMin) tMin = te;
+      if (te > tMax) tMax = te;
+    }
+    const t = field ? tSum / nE : opts.thickness;      // épaisseur moyenne, pour l'affichage
+    const elemD = new Array(nE);
+    const Dcache = new Map();
+    for (let e = 0; e < nE; e++) {
+      const key = Math.round(elemT[e] * 1000);
+      let D0 = Dcache.get(key);
+      if (!D0) { D0 = F3.bendingD(mat.E, mat.nu, elemT[e]); Dcache.set(key, D0); }
+      elemD[e] = D0;
+    }
+    const D = field ? elemD : F3.bendingD(mat.E, mat.nu, opts.thickness);
+
+    /* ---- Appuis ---- */
     const fixed = new Int8Array(3 * nN);
-    const supportW = Math.max(0, opts.support.width || 0);
     const supported = new Uint8Array(nN);
+    const supportW = Math.max(0, opts.support.width || 0);
+    const contacts = (opts.support.mode === 'contacts' && opts.support.contacts) ? opts.support.contacts : null;
+
+    if (contacts) {
+      /* Appuis déduits des pièces qui touchent le panneau dans l'assemblage. */
+      for (let n = 0; n < nN; n++) {
+        const [x, y] = mesh.nodes[n];
+        for (const c of contacts) {
+          if (!c.enabled) continue;
+          if (!root.Solids.maskAt(c.contact, x, y, c.contact.side)) continue;
+          supported[n] = 1;
+          fixed[3 * n] = 1;
+          if (c.type === 'encastre') { fixed[3 * n + 1] = 1; fixed[3 * n + 2] = 1; }
+          break;
+        }
+      }
+    } else
     for (let n = 0; n < nN; n++) {
       const [x, y] = mesh.nodes[n];
       let d = Infinity;
@@ -121,10 +184,11 @@
     // Poids propre
     if (opts.selfWeight) {
       const g = 9810; // mm/s²
-      const q = mat.rho * t * g; // N/mm²
-      for (const el of mesh.elems) {
+      for (let e = 0; e < nE; e++) {
+        const el = mesh.elems[e];
         const p = el.map(i => mesh.nodes[i]);
         const A = triArea(p[0], p[1], p[2]);
+        const q = mat.rho * elemT[e] * g; // N/mm²
         for (const n of el) F[3 * n] += q * A / 3;
         appliedTotal += q * A;
       }
@@ -171,37 +235,119 @@
       }
     }
 
-    /* ---- Résolution ---- */
+    /* ---- Résolution avec contact unilatéral ----
+       Un panneau seulement posé ne peut pas être retenu vers le haut. On résout
+       donc par ensemble actif : à chaque itération, les nœuds d'appui dont la
+       réaction devient une traction sont libérés, et les nœuds libérés qui
+       repasseraient sous le plan d'appui sont réactivés. Les liaisons de type
+       encastrement (vissées, bridées) restent bilatérales. */
+    const unilateral = new Uint8Array(nN);
+    if (opts.unilateral !== false) {
+      if (contacts) {
+        for (let n = 0; n < nN; n++) {
+          if (!fixed[3 * n]) continue;
+          const [x, y] = mesh.nodes[n];
+          for (const c of contacts) {
+            if (!c.enabled) continue;
+            if (root.Solids.maskAt(c.contact, x, y, c.contact.side) && c.type !== 'encastre') {
+              unilateral[n] = 1; break;
+            }
+          }
+        }
+      } else if (opts.support.type === 'simple') {
+        for (let n = 0; n < nN; n++) if (fixed[3 * n]) unilateral[n] = 1;
+      }
+    }
+
     const t0 = Date.now();
-    const u = F3.solve(mesh, D, F, fixed);
+    const KeAll = F3.elementStiffnesses(mesh, D);
+    const cache = { Ke: KeAll };
+    const active = new Int8Array(fixed);
+    let u = null, Fint = null, iterations = 0, released = 0, converged = false;
+    let solvedActive = null;
+
+    function internalForces(uu) {
+      const fi = new Float64Array(3 * nN);
+      for (let e = 0; e < nE; e++) {
+        const el = mesh.elems[e];
+        const Ke = KeAll[e];
+        const ue = new Float64Array(9);
+        for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) ue[3 * a + b] = uu[3 * el[a] + b];
+        for (let a = 0; a < 9; a++) {
+          let sm = 0;
+          for (let b = 0; b < 9; b++) sm += Ke[a * 9 + b] * ue[b];
+          fi[3 * el[(a / 3) | 0] + (a % 3)] += sm;
+        }
+      }
+      return fi;
+    }
+
+    /* La solution renvoyée correspond toujours au jeu d'appuis avec lequel elle a été
+       calculée : une modification de l'ensemble actif n'est adoptée que si elle est
+       suivie d'une nouvelle résolution. L'équilibre global reste donc exact même si
+       l'itération s'arrête avant stationnarité complète. */
+    const wTol = 1e-3;
+    let wPrev = null;
+    /* Anti-cyclage : un nœud à la frontière du décollement peut osciller d'une
+       itération à l'autre. Au-delà de trois changements d'état, on fige le sien. */
+    const flips = new Uint8Array(nN);
+    for (let it = 0; it < 25; it++) {
+      iterations = it + 1;
+      u = F3.solve(mesh, D, F, active, cache);
+      solvedActive = Int8Array.from(active);   // jeu d'appuis correspondant à `u`
+      Fint = internalForces(u);
+
+      let nActive = 0, rMax = 0;
+      for (let n = 0; n < nN; n++) {
+        if (!active[3 * n]) continue;
+        nActive++;
+        rMax = Math.max(rMax, Math.abs(F[3 * n] - Fint[3 * n]));
+      }
+      const tolR = Math.max(rMax * 1e-6, 1e-9);
+
+      const next = Int8Array.from(active);
+      let changed = 0, nAct = nActive;
+      for (let n = 0; n < nN; n++) {
+        if (!unilateral[n]) continue;
+        if (flips[n] >= 3) continue;
+        if (active[3 * n]) {
+          if (F[3 * n] - Fint[3 * n] < -tolR && nAct > 6) { next[3 * n] = 0; nAct--; changed++; flips[n]++; }
+        } else if (fixed[3 * n] && u[3 * n] > 1e-7) { next[3 * n] = 1; nAct++; changed++; flips[n]++; }
+      }
+      if (!changed) { converged = true; break; }
+
+      let wNow = 0;
+      for (let n = 0; n < nN; n++) if (Math.abs(u[3 * n]) > Math.abs(wNow)) wNow = u[3 * n];
+      const dw = wPrev === null ? Infinity : Math.abs(wNow - wPrev) / Math.max(Math.abs(wNow), 1e-9);
+      wPrev = wNow;
+      // Flèche stabilisée et ensemble actif presque figé : inutile d'aller plus loin.
+      /* Arrêt anticipé seulement si la flèche est réellement figée : le décollement
+         progresse de proche en proche et s'arrêter trop tôt sous-estimerait la flèche. */
+      if (it >= 3 && dw < wTol && changed < 0.005 * Math.max(nActive, 1)) { converged = true; break; }
+      active.set(next);
+    }
+
+    active.set(solvedActive);
+    released = 0;
+    for (let n = 0; n < nN; n++) if (fixed[3 * n] && !active[3 * n]) released++;
     const solveMs = Date.now() - t0;
 
     /* ---- Réactions (équilibre) ---- */
-    const Fint = new Float64Array(3 * nN);
-    for (const el of mesh.elems) {
-      const p = el.map(i => mesh.nodes[i]);
-      const Ke = F3.dktStiffness(p[0][0], p[0][1], p[1][0], p[1][1], p[2][0], p[2][1], D);
-      const ue = new Float64Array(9);
-      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) ue[3 * a + b] = u[3 * el[a] + b];
-      for (let a = 0; a < 9; a++) {
-        let s = 0;
-        for (let b = 0; b < 9; b++) s += Ke[a * 9 + b] * ue[b];
-        Fint[3 * el[(a / 3) | 0] + (a % 3)] += s;
-      }
-    }
     let reactionTotal = 0, reactionMax = 0;
     const reactions = new Float64Array(nN);
     for (let n = 0; n < nN; n++) {
-      if (!fixed[3 * n]) continue;
+      if (!active[3 * n]) continue;
       // Réaction d'appui comptée positive quand elle s'oppose à la charge.
       const R = F[3 * n] - Fint[3 * n];
       reactions[n] = R;
       reactionTotal += R;
       if (Math.abs(R) > Math.abs(reactionMax)) reactionMax = R;
     }
+    // 1 = appui effectif, 2 = appui décollé (libéré par le contact unilatéral)
+    for (let n = 0; n < nN; n++) if (fixed[3 * n] && !active[3 * n]) supported[n] = 2;
 
     /* ---- Post-traitement ---- */
-    const post = F3.postprocess(mesh, D, u, t);
+    const post = F3.postprocess(mesh, D, u, field ? elemTs : t);
     let wmax = 0, wmaxNode = 0;
     for (let n = 0; n < nN; n++) {
       const w = u[3 * n];
@@ -218,7 +364,7 @@
     /* ---- Portée de référence : 2 x distance max à un appui ---- */
     let Lref = 0;
     const supNodes = [];
-    for (let n = 0; n < nN; n++) if (supported[n]) supNodes.push(mesh.nodes[n]);
+    for (let n = 0; n < nN; n++) if (active[3 * n]) supNodes.push(mesh.nodes[n]);
     for (let n = 0; n < nN; n++) {
       let d = Infinity;
       for (const s of supNodes) {
@@ -255,32 +401,44 @@
       `Charge ponctuelle : la contrainte locale au point d'application est théoriquement infinie ` +
       `(singularité). La valeur affichée dépend de la finesse du maillage — pour un contrôle de ` +
       `résistance locale, modéliser la surface réelle d'appui avec une zone répartie.`);
-    if (opts.support.type === 'simple') {
-      // Une plaque seulement posée ne peut pas être retenue vers le haut :
-      // une réaction négative signale un décollement du bâti.
-      let uplift = 0, upliftMax = 0;
-      for (let n = 0; n < nN; n++) {
-        if (!fixed[3 * n]) continue;
-        if (reactions[n] < -1e-6 * Math.abs(reactionMax)) { uplift++; upliftMax = Math.min(upliftMax, reactions[n]); }
-      }
-      if (uplift > 0.02 * nSupported) warnings.push(
-        `Décollement : sur ${uplift} nœuds d'appui la réaction est négative, ` +
-        `c'est-à-dire que la plaque tendrait à se soulever du bâti. Avec un appui simple ` +
-        `(sans fixation), ces zones se soulèveraient réellement et la flèche serait supérieure ` +
-        `au calcul. Fixez la plaque dans ces zones, ou recentrez le chargement.`);
+    if (!converged) warnings.push(
+      `Le contact unilatéral n'a pas convergé en 25 itérations : le panneau bascule ou n'est pas ` +
+      `tenu de façon stable. Vérifiez les appuis retenus et la position des charges.`);
+    if (released > 0) {
+      warnings.push(
+        `Décollement pris en compte : ${released} nœud(s) d'appui se soulèvent du bâti et ont été ` +
+        `libérés (contact unilatéral). C'est le comportement réel d'un panneau simplement posé ; ` +
+        `pour éviter ce décollement, fixez le panneau dans ces zones en passant la liaison ` +
+        `correspondante en « encastrement ».`);
     }
     const q = M.meshQuality(mesh);
     if (q.minAngle < 12) warnings.push(`Maillage : angle minimal ${q.minAngle.toFixed(1)}° — géométrie à simplifier ou maille à affiner.`);
+    if (field) {
+      if (tClamped > 0) warnings.push(
+        `${tClamped} élément(s) tombent sur une zone d'épaisseur quasi nulle (perçage, dégagement) : ` +
+        `l'épaisseur minimale mesurée y a été substituée. Vérifiez que ces zones ne sont pas structurantes.`);
+      if (tStep > 0.08 * nE) warnings.push(
+        `${tStep} éléments sont à cheval sur une variation d'épaisseur : affinez le maillage ` +
+        `(§ 6) pour mieux placer les marches d'usinage. La rigidité y est homogénéisée sur t³ et ` +
+        `la contrainte calculée sur l'épaisseur la plus faible de l'élément, ce qui va dans le sens ` +
+        `de la sécurité.`);
+      if (tMax / Math.max(tMin, 1e-6) > 3) warnings.push(
+        `Épaisseur très contrastée (${tMin.toFixed(1)} à ${tMax.toFixed(1)} mm) : aux marches d'usinage, ` +
+        `la théorie des plaques ignore la concentration de contrainte locale au raccordement. ` +
+        `Prévoyez un rayon de raccordement et une marge sur la contrainte dans ces zones.`);
+    }
     if (t > 0 && Lref / t < 10) warnings.push(
       `Élancement portée/épaisseur = ${(Lref / t).toFixed(1)} (< 10) : plaque épaisse, ` +
       `le cisaillement transverse (non pris en compte par la théorie de Kirchhoff) majorerait la flèche.`);
 
     return {
-      mesh, u, D, F, fixed, supported, reactions,
+      mesh, u, D, F, fixed: active, supported, reactions, released, iterations,
       wmax, wmaxNode, sigmaMax, sigmaNode, vonMises: post.vonMises, momentsNode: post.momentsNode,
       Lref, fAdm, sigmaAdm, safety, safetyDefl, safetyStress, verdict,
-      reactionTotal, reactionMax, appliedTotal, zoneInfo, warnings, solveMs,
-      area: G.regionArea(region), nSupported
+      reactionTotal, reactionMax, appliedTotal, zoneInfo, warnings, solveMs, converged,
+      area: G.regionArea(region), nSupported,
+      elemT, elemTs, tMean: t, tMin: field ? tMin : opts.thickness, tMax: field ? tMax : opts.thickness,
+      variableThickness: !!field
     };
   }
 

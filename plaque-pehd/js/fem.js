@@ -226,14 +226,31 @@
     return x;
   };
 
+  /* Accès à la loi de comportement : constante, tableau par élément, ou fonction. */
+  function dProvider(D) {
+    if (typeof D === 'function') return D;
+    if (D.length === 3 && typeof D[0][0] === 'number') return () => D;
+    return (e) => D[e];
+  }
+  /* Idem pour l'épaisseur : scalaire ou tableau par élément. */
+  function tProvider(t) {
+    if (typeof t === 'number') return () => t;
+    return (e) => t[e];
+  }
+
   /* ---------- Assemblage et résolution ---------- */
   /*
     mesh    : {nodes:[[x,y]], elems:[[i,j,k]]}
-    D       : matrice 3x3
+    D       : matrice 3x3 unique, ou tableau/fonction donnant la matrice de chaque élément
     F       : Float64Array(3*nNodes) forces nodales
     fixed   : Int8Array(3*nNodes), 1 = ddl bloqué
   */
-  function solve(mesh, D, F, fixed) {
+  function solve(mesh, D, F, fixed, cache) {
+    const getD = dProvider(D);
+    /* `cache.Ke` permet de réutiliser les matrices élémentaires d'une résolution à
+       l'autre : indispensable pour l'itération de contact unilatéral, où seules les
+       conditions aux limites changent. */
+    const Ke0 = cache && cache.Ke;
     const nN = mesh.nodes.length;
     const nd = 3 * nN;
     const perm = rcmOrder(nN, mesh.elems);
@@ -250,10 +267,10 @@
     }
     const K = new Skyline(nd, minCol);
 
-    for (const t of mesh.elems) {
-      const [i, j, k] = t;
+    for (let e = 0; e < mesh.elems.length; e++) {
+      const [i, j, k] = mesh.elems[e];
       const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
-      const Ke = dktStiffness(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], D);
+      const Ke = Ke0 ? Ke0[e] : dktStiffness(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], getD(e));
       const dofs = [
         dofOf(i, 0), dofOf(i, 1), dofOf(i, 2),
         dofOf(j, 0), dofOf(j, 1), dofOf(j, 2),
@@ -287,8 +304,21 @@
     return u;
   }
 
+  /* Matrices élémentaires de tout le maillage, calculées une fois pour toutes. */
+  function elementStiffnesses(mesh, D) {
+    const getD = dProvider(D);
+    const out = new Array(mesh.elems.length);
+    for (let e = 0; e < mesh.elems.length; e++) {
+      const [i, j, k] = mesh.elems[e];
+      const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
+      out[e] = dktStiffness(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], getD(e));
+    }
+    return out;
+  }
+
   /* Post-traitement : moments par élément puis lissage aux nœuds. */
   function postprocess(mesh, D, u, t) {
+    const getD = dProvider(D), getT = tProvider(t);
     const nE = mesh.elems.length, nN = mesh.nodes.length;
     const Me = new Array(nE);
     for (let e = 0; e < nE; e++) {
@@ -297,30 +327,39 @@
       const ue = new Float64Array(9);
       const ids = [i, j, k];
       for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) ue[3 * a + b] = u[3 * ids[a] + b];
-      Me[e] = elementMoments(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], D, ue);
+      Me[e] = elementMoments(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], getD(e), ue);
     }
-    // Lissage surfacique (pondération par aire)
-    const acc = new Float64Array(nN * 3), wsum = new Float64Array(nN);
+    /* Contraintes de peau par élément : sigma = 6 M / t_local^2.
+       L'épaisseur pouvant varier d'un élément à l'autre (usinage), le lissage
+       aux nœuds porte sur les contraintes et non sur les moments. */
+    const Se = new Array(nE);
+    for (let e = 0; e < nE; e++) {
+      const te = getT(e);
+      const sec = 6 / (te * te);
+      Se[e] = [Me[e][0] * sec, Me[e][1] * sec, Me[e][2] * sec];
+    }
+    const acc = new Float64Array(nN * 3), accS = new Float64Array(nN * 3), wsum = new Float64Array(nN);
     for (let e = 0; e < nE; e++) {
       const [i, j, k] = mesh.elems[e];
       const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
       const A = Math.abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1])) / 2;
       for (const n of [i, j, k]) {
-        acc[3 * n] += Me[e][0] * A; acc[3 * n + 1] += Me[e][1] * A; acc[3 * n + 2] += Me[e][2] * A;
+        for (let c = 0; c < 3; c++) {
+          acc[3 * n + c] += Me[e][c] * A;
+          accS[3 * n + c] += Se[e][c] * A;
+        }
         wsum[n] += A;
       }
     }
-    const Mn = new Float64Array(nN * 3);
+    const Mn = new Float64Array(nN * 3), Sn = new Float64Array(nN * 3);
     for (let n = 0; n < nN; n++) {
       const w = wsum[n] || 1;
-      Mn[3 * n] = acc[3 * n] / w; Mn[3 * n + 1] = acc[3 * n + 1] / w; Mn[3 * n + 2] = acc[3 * n + 2] / w;
+      for (let c = 0; c < 3; c++) { Mn[3 * n + c] = acc[3 * n + c] / w; Sn[3 * n + c] = accS[3 * n + c] / w; }
     }
-    // Contrainte de peau : sigma = 6 M / t^2, von Mises en surface
-    const sec = 6 / (t * t);
     const vm = new Float64Array(nN);
     let vmMax = 0;
     for (let n = 0; n < nN; n++) {
-      const sx = Mn[3 * n] * sec, sy = Mn[3 * n + 1] * sec, sxy = Mn[3 * n + 2] * sec;
+      const sx = Sn[3 * n], sy = Sn[3 * n + 1], sxy = Sn[3 * n + 2];
       const v = Math.sqrt(sx * sx - sx * sy + sy * sy + 3 * sxy * sxy);
       vm[n] = v;
       if (v > vmMax) vmMax = v;
@@ -329,6 +368,7 @@
   }
 
   root.Fem = {
-    bendingD, dktStiffness, elementMoments, solve, postprocess, Skyline, rcmOrder, dktGeom, dktB
+    bendingD, dktStiffness, elementStiffnesses, elementMoments, solve, postprocess,
+    Skyline, rcmOrder, dktGeom, dktB, dProvider, tProvider
   };
 })(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));

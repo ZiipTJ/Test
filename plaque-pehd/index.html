@@ -146,6 +146,12 @@
   ul.loads .hd { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
   ul.loads .hd .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--load); }
   ul.loads .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 8px; margin-top: 6px; }
+  ul.solids { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  ul.solids li { border: 1px solid var(--line); border-radius: 7px; background: var(--bg); }
+  ul.solids label { display: grid; grid-template-columns: auto 1fr; gap: 7px; padding: 6px 8px; cursor: pointer; align-items: start; }
+  ul.solids li.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  ul.solids .nm { font-weight: 600; font-size: 12.5px; }
+  ul.solids .dim { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
   ul.loads .grid label { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); }
   ul.loads .grid input { padding: 3px 5px; font-size: 12px; }
 
@@ -176,17 +182,16 @@
   <!-- ============ PANNEAU GAUCHE ============ -->
   <aside>
     <details class="sec" open>
-      <summary>1 · Géométrie de la plaque</summary>
+      <summary>1 · Géométrie / assemblage</summary>
       <div class="sec-body">
         <div class="drop" id="drop">
           <strong>Importer un fichier</strong><br>
-          Glissez un <b>.stl</b> ou un <b>.step / .stp</b> ici, ou cliquez pour choisir.
+          Glissez un <b>.step / .stp</b> ou un <b>.stl</b> ici, ou cliquez pour choisir.
         </div>
-        <input type="file" id="file" accept=".stl,.step,.stp,.STL,.STEP,.STP" hidden>
+        <input type="file" id="file" accept=".stl,.step,.stp,.json,.STL,.STEP,.STP" hidden>
         <div class="hint">
-          Le contour de la plus grande face plane est extrait automatiquement, trous compris.
-          L'épaisseur détectée est proposée, mais c'est vous qui la fixez au § 2.
-          Des fichiers d'exemple sont fournis dans <code>tests/samples/</code>.
+          Un assemblage complet est accepté : désignez ci-dessous le panneau PEHD, les autres
+          pièces servent à déduire les appuis. Fichiers d'exemple dans <code>tests/samples/</code>.
         </div>
         <div class="row">
           <span class="hint">ou géométrie simple :</span>
@@ -194,17 +199,33 @@
           <button class="ghost" id="geo-disc">Disque</button>
         </div>
         <div id="geo-params" class="row" hidden></div>
+
+        <div id="solid-block" hidden>
+          <div class="hint" style="margin-bottom:4px"><b>Quel corps est le panneau PEHD ?</b></div>
+          <ul class="solids" id="solid-list"></ul>
+          <label class="field" style="margin-top:6px"><span>Fichier = un seul corps</span>
+            <input type="checkbox" id="one-body" style="width:auto"></label>
+        </div>
         <div id="geo-info" class="kv"></div>
         <div id="geo-error" class="err"></div>
+        <div id="geo-warn"></div>
       </div>
     </details>
 
     <details class="sec" open>
       <summary>2 · Épaisseur et matériau</summary>
       <div class="sec-body">
-        <label class="field"><span>Épaisseur (mm)</span>
-          <input type="number" id="thickness" value="20" min="1" max="200" step="1"></label>
-        <div class="chips" id="thick-chips"></div>
+        <label class="field"><span>Épaisseur</span>
+          <select id="thick-mode">
+            <option value="auto">Mesurée sur le modèle</option>
+            <option value="impose">Imposée</option>
+          </select></label>
+        <div id="thick-measured" class="hint"></div>
+        <div id="thick-impose" hidden>
+          <label class="field"><span>Valeur (mm)</span>
+            <input type="number" id="thickness" value="20" min="1" max="200" step="0.5"></label>
+          <div class="chips" id="thick-chips" style="margin-top:6px"></div>
+        </div>
         <label class="field"><span>Durée d'application</span>
           <select id="duree"></select></label>
         <label class="field"><span>Température de service</span>
@@ -216,20 +237,42 @@
     </details>
 
     <details class="sec" open>
-      <summary>3 · Appuis sur le contour</summary>
+      <summary>3 · Appuis</summary>
       <div class="sec-body">
-        <label class="field"><span>Largeur de repos sur le bâti (mm)</span>
-          <input type="number" id="sup-width" value="30" min="0" max="1000" step="1"></label>
-        <label class="field"><span>Type de liaison</span>
-          <select id="sup-type">
-            <option value="simple">Appui simple (plaque posée)</option>
-            <option value="encastre">Encastrement (plaque vissée / bridée)</option>
+        <label class="field"><span>Origine des appuis</span>
+          <select id="sup-mode">
+            <option value="contacts">Pièces en contact (assemblage)</option>
+            <option value="contour">Bande le long du contour</option>
           </select></label>
-        <label class="field"><span>Bords des trous appuyés aussi</span>
-          <input type="checkbox" id="sup-holes" style="width:auto"></label>
-        <div class="hint">
-          La bande de largeur indiquée le long du contour est bloquée verticalement : elle
-          représente la zone où la plaque repose sur le bâti. Cette largeur réduit d'autant la portée libre.
+
+        <div id="sup-contacts">
+          <div class="hint">Pièces de l'assemblage qui touchent le panneau. Décochez celles qui ne
+            le portent pas réellement.</div>
+          <label class="field"><span>Jeu de détection (mm)</span>
+            <input type="number" id="contact-tol" value="0.5" min="0" max="50" step="0.1"></label>
+          <ul class="loads" id="contact-list"></ul>
+        </div>
+
+        <label class="field"><span>Le panneau peut se soulever</span>
+          <input type="checkbox" id="sup-uni" checked style="width:auto"></label>
+        <div class="hint">Contact unilatéral : les zones d'appui qui se trouveraient tendues sont
+          libérées, comme le ferait un panneau simplement posé. Décochez si le panneau est
+          maintenu vers le haut (vissé, bridé, rainuré) — le calcul est alors nettement plus rapide.</div>
+
+        <div id="sup-contour" hidden>
+          <label class="field"><span>Largeur de repos sur le bâti (mm)</span>
+            <input type="number" id="sup-width" value="30" min="0" max="1000" step="1"></label>
+          <label class="field"><span>Type de liaison</span>
+            <select id="sup-type">
+              <option value="simple">Appui simple (plaque posée)</option>
+              <option value="encastre">Encastrement (plaque vissée / bridée)</option>
+            </select></label>
+          <label class="field"><span>Bords des trous appuyés aussi</span>
+            <input type="checkbox" id="sup-holes" style="width:auto"></label>
+          <div class="hint">
+            La bande de largeur indiquée le long du contour est bloquée verticalement : elle
+            représente la zone où la plaque repose sur le bâti, et réduit d'autant la portée libre.
+          </div>
         </div>
       </div>
     </details>
@@ -289,10 +332,12 @@
   <main>
     <div class="tabs">
       <button class="tab on" data-view="plan">Plan — appuis et charges</button>
+      <button class="tab" data-view="asm">Assemblage 3D</button>
       <button class="tab" data-view="def">Déformée 3D</button>
     </div>
     <div class="canvas-wrap" id="wrap">
       <canvas id="cv-plan"></canvas>
+      <canvas id="cv-asm" hidden></canvas>
       <canvas id="cv-def" hidden></canvas>
       <div class="overlay" id="overlay"></div>
       <div class="busy" id="busy" hidden>Calcul en cours…</div>
@@ -300,11 +345,18 @@
     <div class="viewbar" id="viewbar-plan">
       <span class="hint">Vue de dessus. Les charges se placent et se déplacent à la souris ; les valeurs se règlent au § 4.</span>
     </div>
+    <div class="viewbar" id="viewbar-asm" hidden>
+      <span class="hint">Vérifiez le placement des pièces. Le panneau est en bleu, les pièces en
+        contact en vert, les autres en gris.</span>
+      <span class="spacer" style="flex:1"></span>
+      <button class="ghost" id="asm-reset">Recentrer</button>
+    </div>
     <div class="viewbar" id="viewbar-def" hidden>
       <label>Champ
         <select id="field">
           <option value="w">Flèche</option>
           <option value="sigma">Contrainte von Mises (peau)</option>
+          <option value="ep">Épaisseur</option>
         </select></label>
       <label>Amplification <input type="range" id="amp" min="0" max="100" value="50"><span id="amp-val"></span></label>
       <label><input type="checkbox" id="wire"> Maillage</label>
@@ -339,6 +391,7 @@
 <script src="js/material.js"></script>
 <script src="js/model.js"></script>
 <script src="js/importers.js"></script>
+<script src="js/solids.js"></script>
 <script src="js/render.js"></script>
 <script src="js/app.js"></script>
 </body>
