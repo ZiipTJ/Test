@@ -1,0 +1,2787 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calcul de plaque PEHD 500 — flexion, flèche et vérification</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --fg: #16181d;
+    --muted: #646b78;
+    --line: #d8dce3;
+    --accent: #1f6f8b;
+    --accent-soft: #e6f0f4;
+    --ok: #1f8a4c;
+    --warn: #b26a00;
+    --bad: #c0341d;
+    --load: #e8590c;
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1c1f25; --fg: #e8eaee; --muted: #9aa2b1;
+      --line: #2e333c; --accent: #4aa3c0; --accent-soft: #1d2c33;
+      --ok: #46b877; --warn: #d99a2b; --bad: #e4694f;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 13.5px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+    display: grid; grid-template-rows: auto 1fr;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .spacer { flex: 1; }
+  .layout { display: grid; grid-template-columns: 330px 1fr 310px; min-height: 0; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; grid-auto-rows: min-content; } }
+  aside, .results {
+    background: var(--panel); overflow-y: auto; padding: 4px 0 40px;
+  }
+  aside { border-right: 1px solid var(--line); }
+  .results { border-left: 1px solid var(--line); }
+  main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+  details.sec { border-bottom: 1px solid var(--line); }
+  details.sec > summary {
+    cursor: pointer; padding: 10px 14px; font-weight: 600; font-size: 12.5px;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted);
+    list-style: none; display: flex; align-items: center; gap: 8px;
+  }
+  details.sec > summary::-webkit-details-marker { display: none; }
+  details.sec > summary::before { content: "▸"; font-size: 10px; transition: transform .15s; }
+  details.sec[open] > summary::before { transform: rotate(90deg); }
+  .sec-body { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+  label.field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+  label.field > span { color: var(--muted); }
+  input[type=number], input[type=text], select {
+    width: 100%; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font: inherit; font-size: 13px;
+  }
+  label.field input[type=number] { width: 92px; text-align: right; }
+  label.field select { width: 165px; }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+    border-radius: 999px; padding: 2px 9px; font-size: 12px; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button {
+    font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--fg);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+    width: 100%; padding: 9px; font-size: 14px;
+  }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.ghost { padding: 3px 8px; font-size: 12px; }
+  .hint { color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; font-size: 12.5px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+
+  .tabs { display: flex; gap: 2px; padding: 8px 12px 0; background: var(--panel); border-bottom: 1px solid var(--line); }
+  .tab {
+    border: 1px solid var(--line); border-bottom: none; background: var(--bg);
+    padding: 6px 14px; border-radius: 7px 7px 0 0; cursor: pointer; font-size: 13px; color: var(--muted);
+    position: relative; top: 1px;
+  }
+  .tab.on { background: var(--panel); color: var(--fg); font-weight: 600; }
+  .canvas-wrap { position: relative; flex: 1; min-height: 380px; background: var(--panel); }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .overlay {
+    position: absolute; left: 12px; top: 10px; display: flex; gap: 6px; align-items: center;
+    flex-wrap: wrap; pointer-events: none;
+  }
+  .overlay > * { pointer-events: auto; }
+  .overlay .pill {
+    background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line);
+    border-radius: 999px; padding: 3px 10px; font-size: 12px;
+  }
+  .viewbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 7px 12px; border-top: 1px solid var(--line); background: var(--panel); font-size: 12.5px;
+  }
+  .viewbar input[type=range] { width: 130px; }
+
+  .verdict {
+    margin: 12px 14px; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--line);
+    text-align: center;
+  }
+  .verdict .badge { font-size: 22px; font-weight: 750; letter-spacing: -0.02em; }
+  .verdict .coef { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .verdict.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); border-color: var(--ok); }
+  .verdict.ok .badge { color: var(--ok); }
+  .verdict.limite { background: color-mix(in srgb, var(--warn) 12%, transparent); border-color: var(--warn); }
+  .verdict.limite .badge { color: var(--warn); }
+  .verdict.bad { background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: var(--bad); }
+  .verdict.bad .badge { color: var(--bad); }
+  .verdict.idle { color: var(--muted); }
+
+  .bar { height: 7px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 3px; }
+  .bar > i { display: block; height: 100%; border-radius: 4px; }
+  .crit { margin-bottom: 10px; }
+  .crit .top { display: flex; justify-content: space-between; font-size: 12.5px; }
+  .crit .det { color: var(--muted); font-size: 11.5px; }
+
+  ul.loads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  ul.loads li {
+    border: 1px solid var(--line); border-radius: 7px; padding: 7px 8px; background: var(--bg);
+  }
+  ul.loads li.sel { border-color: var(--load); box-shadow: 0 0 0 1px var(--load) inset; }
+  ul.loads .hd { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+  ul.loads .hd .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--load); }
+  ul.loads .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 8px; margin-top: 6px; }
+  ul.loads .grid label { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted); }
+  ul.loads .grid input { padding: 3px 5px; font-size: 12px; }
+
+  .warn-list { margin: 0; padding-left: 16px; font-size: 11.8px; color: var(--warn); line-height: 1.45; }
+  .warn-list li { margin-bottom: 5px; }
+  .err { color: var(--bad); font-size: 12px; }
+  .drop { border: 1.5px dashed var(--line); border-radius: var(--radius); padding: 14px; text-align: center; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+  .drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--fg); }
+  .busy { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--panel) 75%, transparent); font-weight: 600; }
+  @media print {
+    aside, .tabs, .viewbar, header .spacer, .noprint { display: none !important; }
+    .layout { grid-template-columns: 1fr 320px; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Plaque PEHD 500 — calcul de flexion</h1>
+  <span class="sub">Éléments finis de plaque (DKT) · flèche, contrainte, vérification</span>
+  <span class="spacer"></span>
+  <button class="ghost noprint" id="btn-save">Enregistrer le projet</button>
+  <button class="ghost noprint" id="btn-load">Ouvrir un projet</button>
+  <button class="ghost noprint" id="btn-print">Rapport / impression</button>
+</header>
+
+<div class="layout">
+  <!-- ============ PANNEAU GAUCHE ============ -->
+  <aside>
+    <details class="sec" open>
+      <summary>1 · Géométrie de la plaque</summary>
+      <div class="sec-body">
+        <div class="drop" id="drop">
+          <strong>Importer un fichier</strong><br>
+          Glissez un <b>.stl</b> ou un <b>.step / .stp</b> ici, ou cliquez pour choisir.
+        </div>
+        <input type="file" id="file" accept=".stl,.step,.stp,.STL,.STEP,.STP" hidden>
+        <div class="hint">
+          Le contour de la plus grande face plane est extrait automatiquement, trous compris.
+          L'épaisseur détectée est proposée, mais c'est vous qui la fixez au § 2.
+          Des fichiers d'exemple sont fournis dans <code>tests/samples/</code>.
+        </div>
+        <div class="row">
+          <span class="hint">ou géométrie simple :</span>
+          <button class="ghost" id="geo-rect">Rectangle</button>
+          <button class="ghost" id="geo-disc">Disque</button>
+        </div>
+        <div id="geo-params" class="row" hidden></div>
+        <div id="geo-info" class="kv"></div>
+        <div id="geo-error" class="err"></div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>2 · Épaisseur et matériau</summary>
+      <div class="sec-body">
+        <label class="field"><span>Épaisseur (mm)</span>
+          <input type="number" id="thickness" value="20" min="1" max="200" step="1"></label>
+        <div class="chips" id="thick-chips"></div>
+        <label class="field"><span>Durée d'application</span>
+          <select id="duree"></select></label>
+        <label class="field"><span>Température de service</span>
+          <select id="temp"></select></label>
+        <label class="field"><span>Poids propre de la plaque</span>
+          <input type="checkbox" id="selfweight" checked style="width:auto"></label>
+        <div class="hint" id="mat-info"></div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>3 · Appuis sur le contour</summary>
+      <div class="sec-body">
+        <label class="field"><span>Largeur de repos sur le bâti (mm)</span>
+          <input type="number" id="sup-width" value="30" min="0" max="1000" step="1"></label>
+        <label class="field"><span>Type de liaison</span>
+          <select id="sup-type">
+            <option value="simple">Appui simple (plaque posée)</option>
+            <option value="encastre">Encastrement (plaque vissée / bridée)</option>
+          </select></label>
+        <label class="field"><span>Bords des trous appuyés aussi</span>
+          <input type="checkbox" id="sup-holes" style="width:auto"></label>
+        <div class="hint">
+          La bande de largeur indiquée le long du contour est bloquée verticalement : elle
+          représente la zone où la plaque repose sur le bâti. Cette largeur réduit d'autant la portée libre.
+        </div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>4 · Chargements verticaux</summary>
+      <div class="sec-body">
+        <div class="chips" id="tools">
+          <button class="chip on" data-tool="select">Sélection</button>
+          <button class="chip" data-tool="point">+ Force ponctuelle</button>
+          <button class="chip" data-tool="rect">+ Zone rectangle</button>
+          <button class="chip" data-tool="circle">+ Zone ronde</button>
+        </div>
+        <div class="hint" id="tool-hint">Cliquez une charge pour la sélectionner, glissez-la pour la déplacer.</div>
+        <ul class="loads" id="load-list"></ul>
+        <div class="row">
+          <button class="ghost" id="load-clear">Tout supprimer</button>
+          <span class="hint" id="load-total"></span>
+        </div>
+      </div>
+    </details>
+
+    <details class="sec" open>
+      <summary>5 · Critères de vérification</summary>
+      <div class="sec-body">
+        <label class="field"><span>Flèche admissible</span>
+          <select id="crit-defl">
+            <option value="100">L / 100 (souple)</option>
+            <option value="150">L / 150</option>
+            <option value="200" selected>L / 200 (courant)</option>
+            <option value="300">L / 300 (sévère)</option>
+            <option value="500">L / 500 (très sévère)</option>
+          </select></label>
+        <label class="field"><span>Coef. de sécurité matière</span>
+          <input type="number" id="crit-sf" value="2" min="1" max="10" step="0.1"></label>
+        <div class="hint" id="crit-info"></div>
+      </div>
+    </details>
+
+    <details class="sec">
+      <summary>6 · Maillage</summary>
+      <div class="sec-body">
+        <label class="field"><span>Taille de maille (mm)</span>
+          <input type="number" id="mesh-size" min="2" step="1"></label>
+        <label class="field"><span>Automatique</span>
+          <input type="checkbox" id="mesh-auto" checked style="width:auto"></label>
+        <div class="hint" id="mesh-info"></div>
+      </div>
+    </details>
+
+    <div style="padding: 14px;">
+      <button class="primary" id="btn-run">Calculer la déformation</button>
+    </div>
+  </aside>
+
+  <!-- ============ ZONE CENTRALE ============ -->
+  <main>
+    <div class="tabs">
+      <button class="tab on" data-view="plan">Plan — appuis et charges</button>
+      <button class="tab" data-view="def">Déformée 3D</button>
+    </div>
+    <div class="canvas-wrap" id="wrap">
+      <canvas id="cv-plan"></canvas>
+      <canvas id="cv-def" hidden></canvas>
+      <div class="overlay" id="overlay"></div>
+      <div class="busy" id="busy" hidden>Calcul en cours…</div>
+    </div>
+    <div class="viewbar" id="viewbar-plan">
+      <span class="hint">Vue de dessus. Les charges se placent et se déplacent à la souris ; les valeurs se règlent au § 4.</span>
+    </div>
+    <div class="viewbar" id="viewbar-def" hidden>
+      <label>Champ
+        <select id="field">
+          <option value="w">Flèche</option>
+          <option value="sigma">Contrainte von Mises (peau)</option>
+        </select></label>
+      <label>Amplification <input type="range" id="amp" min="0" max="100" value="50"><span id="amp-val"></span></label>
+      <label><input type="checkbox" id="wire"> Maillage</label>
+      <label><input type="checkbox" id="undef" checked> Contour initial</label>
+      <label><input type="checkbox" id="sup-show" checked> Appuis</label>
+      <button class="ghost" id="view-reset">Recentrer</button>
+      <button class="ghost" id="view-png">Exporter PNG</button>
+      <span class="hint">Glisser : rotation · molette : zoom · clic droit : déplacer</span>
+    </div>
+  </main>
+
+  <!-- ============ RÉSULTATS ============ -->
+  <div class="results">
+    <div class="verdict idle" id="verdict">
+      <div class="badge">—</div>
+      <div class="coef">Lancez le calcul pour obtenir le verdict</div>
+    </div>
+    <div style="padding: 0 14px 14px;">
+      <div id="criteria"></div>
+      <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:16px 0 6px">Résultats</h3>
+      <dl class="kv" id="res-kv"></dl>
+      <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:16px 0 6px">Hypothèses</h3>
+      <dl class="kv" id="hyp-kv"></dl>
+      <div id="warnings" style="margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== js/geom.js ===== */
+/* Géométrie 2D : polygones, contours, distances.
+   Toutes les longueurs sont en millimètres. */
+(function (root) {
+  'use strict';
+
+  function polygonArea(pts) {
+    let a = 0;
+    for (let i = 0, n = pts.length; i < n; i++) {
+      const p = pts[i], q = pts[(i + 1) % n];
+      a += p[0] * q[1] - q[0] * p[1];
+    }
+    return a / 2;
+  }
+
+  function polygonCentroid(pts) {
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0, n = pts.length; i < n; i++) {
+      const p = pts[i], q = pts[(i + 1) % n];
+      const f = p[0] * q[1] - q[0] * p[1];
+      a += f; cx += (p[0] + q[0]) * f; cy += (p[1] + q[1]) * f;
+    }
+    a /= 2;
+    if (Math.abs(a) < 1e-12) return [pts[0][0], pts[0][1]];
+    return [cx / (6 * a), cy / (6 * a)];
+  }
+
+  function bbox(pts) {
+    let xmin = Infinity, ymin = Infinity, xmax = -Infinity, ymax = -Infinity;
+    for (const p of pts) {
+      if (p[0] < xmin) xmin = p[0];
+      if (p[0] > xmax) xmax = p[0];
+      if (p[1] < ymin) ymin = p[1];
+      if (p[1] > ymax) ymax = p[1];
+    }
+    return { xmin, ymin, xmax, ymax, w: xmax - xmin, h: ymax - ymin };
+  }
+
+  /* Point dans un anneau (règle pair/impair, robuste aux sommets). */
+  function pointInRing(x, y, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1];
+      const xj = ring[j][0], yj = ring[j][1];
+      if ((yi > y) !== (yj > y)) {
+        const xInt = (xj - xi) * (y - yi) / (yj - yi) + xi;
+        if (x < xInt) inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  /* Un « Region » = contour extérieur + trous. */
+  function pointInRegion(x, y, region) {
+    if (!pointInRing(x, y, region.outer)) return false;
+    for (const h of region.holes) if (pointInRing(x, y, h)) return false;
+    return true;
+  }
+
+  function distPointSegment(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const l2 = dx * dx + dy * dy;
+    if (l2 < 1e-18) return Math.hypot(px - ax, py - ay);
+    let t = ((px - ax) * dx + (py - ay) * dy) / l2;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  /* Distance d'un point au bord de la région (contour ext. + trous). */
+  function distToBoundary(x, y, region) {
+    let d = Infinity;
+    const rings = [region.outer].concat(region.holes);
+    for (const ring of rings) {
+      for (let i = 0, n = ring.length; i < n; i++) {
+        const a = ring[i], b = ring[(i + 1) % n];
+        const dd = distPointSegment(x, y, a[0], a[1], b[0], b[1]);
+        if (dd < d) d = dd;
+      }
+    }
+    return d;
+  }
+
+  function ringPerimeter(ring) {
+    let p = 0;
+    for (let i = 0, n = ring.length; i < n; i++) {
+      const a = ring[i], b = ring[(i + 1) % n];
+      p += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    return p;
+  }
+
+  /* Rééchantillonne un anneau fermé à un pas ~h (garde les sommets vifs). */
+  function resampleRing(ring, h, keepAngleDeg) {
+    const keepCos = Math.cos((keepAngleDeg === undefined ? 25 : keepAngleDeg) * Math.PI / 180);
+    const n = ring.length;
+    const corner = new Array(n).fill(false);
+    for (let i = 0; i < n; i++) {
+      const p = ring[(i - 1 + n) % n], c = ring[i], q = ring[(i + 1) % n];
+      const ux = c[0] - p[0], uy = c[1] - p[1], vx = q[0] - c[0], vy = q[1] - c[1];
+      const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+      if (lu < 1e-9 || lv < 1e-9) { corner[i] = true; continue; }
+      const cosA = (ux * vx + uy * vy) / (lu * lv);
+      corner[i] = cosA < keepCos;
+    }
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const a = ring[i], b = ring[(i + 1) % n];
+      out.push([a[0], a[1]]);
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const k = Math.max(1, Math.round(L / h));
+      for (let j = 1; j < k; j++) {
+        const t = j / k;
+        out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+      }
+    }
+    // Supprime les doublons trop proches, sauf les angles vifs déjà inclus.
+    const cleaned = [];
+    for (const p of out) {
+      if (!cleaned.length) { cleaned.push(p); continue; }
+      const q = cleaned[cleaned.length - 1];
+      if (Math.hypot(p[0] - q[0], p[1] - q[1]) > h * 0.15) cleaned.push(p);
+    }
+    if (cleaned.length > 2) {
+      const f = cleaned[0], l = cleaned[cleaned.length - 1];
+      if (Math.hypot(f[0] - l[0], f[1] - l[1]) < h * 0.15) cleaned.pop();
+    }
+    return cleaned;
+  }
+
+  /* Simplification Douglas-Peucker d'un anneau fermé. */
+  function simplifyRing(ring, tol) {
+    if (ring.length < 4) return ring.slice();
+    function dp(pts, first, last, keep) {
+      let maxD = -1, idx = -1;
+      const a = pts[first], b = pts[last];
+      for (let i = first + 1; i < last; i++) {
+        const d = distPointSegment(pts[i][0], pts[i][1], a[0], a[1], b[0], b[1]);
+        if (d > maxD) { maxD = d; idx = i; }
+      }
+      if (maxD > tol) { dp(pts, first, idx, keep); keep[idx] = true; dp(pts, idx, last, keep); }
+    }
+    const pts = ring.concat([ring[0]]);
+    const keep = new Array(pts.length).fill(false);
+    keep[0] = keep[pts.length - 1] = true;
+    dp(pts, 0, pts.length - 1, keep);
+    const out = [];
+    for (let i = 0; i < pts.length - 1; i++) if (keep[i]) out.push(pts[i]);
+    return out.length >= 3 ? out : ring.slice();
+  }
+
+  /* Chaîne des arêtes de bord (paires d'indices de sommets) en anneaux fermés. */
+  function chainEdges(edges, points) {
+    const adj = new Map();
+    const add = (a, b) => {
+      if (!adj.has(a)) adj.set(a, []);
+      adj.get(a).push(b);
+    };
+    for (const [a, b] of edges) { add(a, b); add(b, a); }
+    const used = new Set();
+    const key = (a, b) => (a < b ? a + '_' + b : b + '_' + a);
+    const loops = [];
+    for (const [a, b] of edges) {
+      if (used.has(key(a, b))) continue;
+      const loop = [a];
+      used.add(key(a, b));
+      let prev = a, cur = b;
+      let guard = 0;
+      while (cur !== a && guard++ < edges.length * 3) {
+        loop.push(cur);
+        const nbrs = adj.get(cur) || [];
+        let next = -1;
+        for (const nb of nbrs) {
+          if (nb === prev) continue;
+          if (used.has(key(cur, nb))) continue;
+          next = nb; break;
+        }
+        if (next < 0) break;
+        used.add(key(cur, next));
+        prev = cur; cur = next;
+      }
+      if (loop.length >= 3) loops.push(loop.map(i => [points[i][0], points[i][1]]));
+    }
+    return loops;
+  }
+
+  /* Construit une région (contour + trous) à partir d'anneaux quelconques. */
+  function ringsToRegion(rings) {
+    const valid = rings.filter(r => r.length >= 3 && Math.abs(polygonArea(r)) > 1e-6);
+    if (!valid.length) return null;
+    valid.sort((a, b) => Math.abs(polygonArea(b)) - Math.abs(polygonArea(a)));
+    const outer = valid[0];
+    const holes = [];
+    for (let i = 1; i < valid.length; i++) {
+      const c = polygonCentroid(valid[i]);
+      if (pointInRing(c[0], c[1], outer)) holes.push(valid[i]);
+    }
+    const ccw = (r) => (polygonArea(r) < 0 ? r.slice().reverse() : r);
+    const cw = (r) => (polygonArea(r) > 0 ? r.slice().reverse() : r);
+    return { outer: ccw(outer), holes: holes.map(cw) };
+  }
+
+  function regionArea(region) {
+    let a = Math.abs(polygonArea(region.outer));
+    for (const h of region.holes) a -= Math.abs(polygonArea(h));
+    return a;
+  }
+
+  root.Geom = {
+    polygonArea, polygonCentroid, bbox, pointInRing, pointInRegion,
+    distPointSegment, distToBoundary, ringPerimeter, resampleRing,
+    simplifyRing, chainEdges, ringsToRegion, regionArea
+  };
+})(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/mesh.js ===== */
+/* Maillage triangulaire d'une région 2D (contour + trous).
+   Delaunay (Bowyer-Watson) sur une nuée de points contour + intérieur. */
+(function (root) {
+  'use strict';
+  const G = root.Geom;
+
+  function circumcircle(ax, ay, bx, by, cx, cy) {
+    const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+    if (Math.abs(d) < 1e-14) return null;
+    const a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+    const ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d;
+    const uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d;
+    const r2 = (ux - ax) * (ux - ax) + (uy - ay) * (uy - ay);
+    return { x: ux, y: uy, r2 };
+  }
+
+  /* Triangulation de Delaunay d'un nuage de points. Renvoie des triplets d'indices. */
+  function delaunay(points) {
+    const n = points.length;
+    if (n < 3) return [];
+    const bb = G.bbox(points);
+    const dmax = Math.max(bb.w, bb.h) || 1;
+    const midx = (bb.xmin + bb.xmax) / 2, midy = (bb.ymin + bb.ymax) / 2;
+    const pts = points.slice();
+    pts.push([midx - 20 * dmax, midy - dmax]);
+    pts.push([midx, midy + 20 * dmax]);
+    pts.push([midx + 20 * dmax, midy - dmax]);
+    const s0 = n, s1 = n + 1, s2 = n + 2;
+
+    let tris = [{ v: [s0, s1, s2], cc: circumcircle(pts[s0][0], pts[s0][1], pts[s1][0], pts[s1][1], pts[s2][0], pts[s2][1]) }];
+
+    // Insertion dans un ordre spatialement cohérent (tri par cellule) pour la vitesse.
+    const order = [];
+    for (let i = 0; i < n; i++) order.push(i);
+    const cell = Math.max(dmax / Math.max(4, Math.sqrt(n) / 2), 1e-9);
+    order.sort((i, j) => {
+      const ri = Math.floor((pts[i][1] - bb.ymin) / cell), rj = Math.floor((pts[j][1] - bb.ymin) / cell);
+      if (ri !== rj) return ri - rj;
+      return (ri % 2 === 0) ? pts[i][0] - pts[j][0] : pts[j][0] - pts[i][0];
+    });
+
+    const edgeCount = new Map();
+    for (const pi of order) {
+      const px = pts[pi][0], py = pts[pi][1];
+      edgeCount.clear();
+      const keep = [];
+      for (const t of tris) {
+        const cc = t.cc;
+        if (cc && (px - cc.x) * (px - cc.x) + (py - cc.y) * (py - cc.y) <= cc.r2 * (1 + 1e-12)) {
+          const v = t.v;
+          for (let e = 0; e < 3; e++) {
+            const a = v[e], b = v[(e + 1) % 3];
+            const k = a < b ? a + ',' + b : b + ',' + a;
+            edgeCount.set(k, (edgeCount.get(k) || 0) + 1);
+          }
+        } else keep.push(t);
+      }
+      tris = keep;
+      for (const [k, c] of edgeCount) {
+        if (c !== 1) continue;
+        const [a, b] = k.split(',').map(Number);
+        const cc = circumcircle(pts[a][0], pts[a][1], pts[b][0], pts[b][1], px, py);
+        if (cc) tris.push({ v: [a, b, pi], cc });
+      }
+    }
+
+    const out = [];
+    for (const t of tris) {
+      if (t.v[0] >= n || t.v[1] >= n || t.v[2] >= n) continue;
+      out.push(t.v);
+    }
+    return out;
+  }
+
+  /* Génère le maillage de la région. h = taille de maille cible (mm). */
+  function meshRegion(region, h) {
+    const rings = [region.outer].concat(region.holes);
+    const pts = [];
+    const boundaryFlag = [];
+    for (const ring of rings) {
+      const rs = G.resampleRing(ring, h);
+      for (const p of rs) { pts.push([p[0], p[1]]); boundaryFlag.push(true); }
+    }
+    const nB = pts.length;
+
+    // Points intérieurs sur grille hexagonale, écartés du bord.
+    const bb = G.bbox(region.outer);
+    const dy = h * Math.sqrt(3) / 2;
+    const minDist = h * 0.62;
+    for (let j = 0, y = bb.ymin + dy * 0.5; y < bb.ymax; j++, y = bb.ymin + dy * (j + 0.5)) {
+      const off = (j % 2) ? h / 2 : 0;
+      for (let x = bb.xmin + off + h * 0.5; x < bb.xmax; x += h) {
+        if (!G.pointInRegion(x, y, region)) continue;
+        if (G.distToBoundary(x, y, region) < minDist) continue;
+        pts.push([x, y]); boundaryFlag.push(false);
+      }
+    }
+
+    const tris = delaunay(pts).filter(t => {
+      const cx = (pts[t[0]][0] + pts[t[1]][0] + pts[t[2]][0]) / 3;
+      const cy = (pts[t[0]][1] + pts[t[1]][1] + pts[t[2]][1]) / 3;
+      if (!G.pointInRegion(cx, cy, region)) return false;
+      const a = area2(pts, t);
+      return a > 1e-9 * h * h;
+    });
+
+    // Oriente en sens direct (aire > 0)
+    for (const t of tris) {
+      if (signedArea(pts, t) < 0) { const s = t[1]; t[1] = t[2]; t[2] = s; }
+    }
+
+    // Supprime les nœuds orphelins
+    const used = new Array(pts.length).fill(false);
+    for (const t of tris) { used[t[0]] = used[t[1]] = used[t[2]] = true; }
+    const remap = new Array(pts.length).fill(-1);
+    const nodes = [], isBoundary = [];
+    for (let i = 0; i < pts.length; i++) {
+      if (!used[i]) continue;
+      remap[i] = nodes.length;
+      nodes.push(pts[i]);
+      isBoundary.push(i < nB);
+    }
+    const elems = tris.map(t => [remap[t[0]], remap[t[1]], remap[t[2]]]);
+
+    return { nodes, elems, isBoundary, h };
+  }
+
+  function signedArea(pts, t) {
+    const [a, b, c] = t;
+    return ((pts[b][0] - pts[a][0]) * (pts[c][1] - pts[a][1]) - (pts[c][0] - pts[a][0]) * (pts[b][1] - pts[a][1])) / 2;
+  }
+  function area2(pts, t) { return Math.abs(signedArea(pts, t)); }
+
+  function meshQuality(mesh) {
+    let minAng = 180, tot = 0;
+    for (const t of mesh.elems) {
+      const p = t.map(i => mesh.nodes[i]);
+      for (let k = 0; k < 3; k++) {
+        const a = p[k], b = p[(k + 1) % 3], c = p[(k + 2) % 3];
+        const u = [b[0] - a[0], b[1] - a[1]], v = [c[0] - a[0], c[1] - a[1]];
+        const ang = Math.acos(Math.max(-1, Math.min(1,
+          (u[0] * v[0] + u[1] * v[1]) / (Math.hypot(u[0], u[1]) * Math.hypot(v[0], v[1]) || 1)))) * 180 / Math.PI;
+        if (ang < minAng) minAng = ang;
+      }
+      tot += Math.abs(signedArea(mesh.nodes, t));
+    }
+    return { minAngle: minAng, area: tot };
+  }
+
+  root.Mesh = { delaunay, meshRegion, meshQuality, signedArea };
+})(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/fem.js ===== */
+/* Éléments finis de plaque mince en flexion — triangle DKT (Batoz).
+   3 nœuds x 3 ddl : w (mm), betax, betay (rad).
+   Unités : mm, N, MPa (N/mm²). */
+(function (root) {
+  'use strict';
+
+  /* ---------- Matrice de comportement flexion ---------- */
+  function bendingD(E, nu, t) {
+    const f = E * t * t * t / (12 * (1 - nu * nu));
+    return [
+      [f, f * nu, 0],
+      [f * nu, f, 0],
+      [0, 0, f * (1 - nu) / 2]
+    ];
+  }
+
+  /* ---------- Matrice B du DKT en un point (xi, eta) ---------- */
+  function dktGeom(x1, y1, x2, y2, x3, y3) {
+    const x23 = x2 - x3, y23 = y2 - y3;
+    const x31 = x3 - x1, y31 = y3 - y1;
+    const x12 = x1 - x2, y12 = y1 - y2;
+    const l23 = x23 * x23 + y23 * y23;
+    const l31 = x31 * x31 + y31 * y31;
+    const l12 = x12 * x12 + y12 * y12;
+    const A = 0.5 * (x31 * y12 - x12 * y31);
+    return {
+      x23, y23, x31, y31, x12, y12, A,
+      P4: -6 * x23 / l23, P5: -6 * x31 / l31, P6: -6 * x12 / l12,
+      t4: -6 * y23 / l23, t5: -6 * y31 / l31, t6: -6 * y12 / l12,
+      q4: 3 * x23 * y23 / l23, q5: 3 * x31 * y31 / l31, q6: 3 * x12 * y12 / l12,
+      r4: 3 * y23 * y23 / l23, r5: 3 * y31 * y31 / l31, r6: 3 * y12 * y12 / l12
+    };
+  }
+
+  function dktB(g, xi, eta) {
+    const { P4, P5, P6, t4, t5, t6, q4, q5, q6, r4, r5, r6 } = g;
+    const Hxx = new Float64Array(9), Hxe = new Float64Array(9);
+    const Hyx = new Float64Array(9), Hye = new Float64Array(9);
+
+    // dHx/dxi
+    Hxx[0] = P6 * (1 - 2 * xi) + (P5 - P6) * eta;
+    Hxx[1] = q6 * (1 - 2 * xi) - (q5 + q6) * eta;
+    Hxx[2] = -4 + 6 * (xi + eta) + r6 * (1 - 2 * xi) - eta * (r5 + r6);
+    Hxx[3] = -P6 * (1 - 2 * xi) + eta * (P4 + P6);
+    Hxx[4] = q6 * (1 - 2 * xi) - eta * (q6 - q4);
+    Hxx[5] = -2 + 6 * xi + r6 * (1 - 2 * xi) + eta * (r4 - r6);
+    Hxx[6] = -eta * (P5 + P4);
+    Hxx[7] = eta * (q4 - q5);
+    Hxx[8] = eta * (r4 - r5);
+
+    // dHx/deta
+    Hxe[0] = -P5 * (1 - 2 * eta) - xi * (P6 - P5);
+    Hxe[1] = q5 * (1 - 2 * eta) - xi * (q5 + q6);
+    Hxe[2] = -4 + 6 * (xi + eta) + r5 * (1 - 2 * eta) - xi * (r5 + r6);
+    Hxe[3] = xi * (P4 + P6);
+    Hxe[4] = xi * (q4 - q6);
+    Hxe[5] = xi * (r4 - r6);
+    Hxe[6] = P5 * (1 - 2 * eta) - xi * (P4 + P5);
+    Hxe[7] = q5 * (1 - 2 * eta) + xi * (q4 - q5);
+    Hxe[8] = -2 + 6 * eta + r5 * (1 - 2 * eta) + xi * (r4 - r5);
+
+    // dHy/dxi
+    Hyx[0] = t6 * (1 - 2 * xi) + (t5 - t6) * eta;
+    Hyx[1] = 1 + r6 * (1 - 2 * xi) - (r5 + r6) * eta;
+    Hyx[2] = -q6 * (1 - 2 * xi) + eta * (q5 + q6);
+    Hyx[3] = -t6 * (1 - 2 * xi) + eta * (t4 + t6);
+    Hyx[4] = -1 + r6 * (1 - 2 * xi) + eta * (r4 - r6);
+    Hyx[5] = -q6 * (1 - 2 * xi) - eta * (q4 - q6);
+    Hyx[6] = -eta * (t4 + t5);
+    Hyx[7] = eta * (r4 - r5);
+    Hyx[8] = -eta * (q4 - q5);
+
+    // dHy/deta
+    Hye[0] = -t5 * (1 - 2 * eta) - xi * (t6 - t5);
+    Hye[1] = 1 + r5 * (1 - 2 * eta) - xi * (r5 + r6);
+    Hye[2] = -q5 * (1 - 2 * eta) + xi * (q5 + q6);
+    Hye[3] = xi * (t4 + t6);
+    Hye[4] = xi * (r4 - r6);
+    Hye[5] = -xi * (q4 - q6);
+    Hye[6] = t5 * (1 - 2 * eta) - xi * (t4 + t5);
+    Hye[7] = -1 + r5 * (1 - 2 * eta) + xi * (r4 - r5);
+    Hye[8] = -q5 * (1 - 2 * eta) - xi * (q4 - q5);
+
+    const c = 1 / (2 * g.A);
+    const B = [new Float64Array(9), new Float64Array(9), new Float64Array(9)];
+    for (let i = 0; i < 9; i++) {
+      B[0][i] = c * (g.y31 * Hxx[i] + g.y12 * Hxe[i]);
+      B[1][i] = c * (-g.x31 * Hyx[i] - g.x12 * Hye[i]);
+      B[2][i] = c * (-g.x31 * Hxx[i] - g.x12 * Hxe[i] + g.y31 * Hyx[i] + g.y12 * Hye[i]);
+    }
+    return B;
+  }
+
+  const GP = [[0.5, 0.0], [0.5, 0.5], [0.0, 0.5]]; // intégration 3 points milieux
+
+  /* Matrice de rigidité élémentaire 9x9 (tableau plat ligne par ligne). */
+  function dktStiffness(x1, y1, x2, y2, x3, y3, D) {
+    const g = dktGeom(x1, y1, x2, y2, x3, y3);
+    const Ke = new Float64Array(81);
+    const w = Math.abs(g.A) / 3;
+    for (const [xi, eta] of GP) {
+      const B = dktB(g, xi, eta);
+      // DB = D * B  (3x9)
+      const DB = [new Float64Array(9), new Float64Array(9), new Float64Array(9)];
+      for (let i = 0; i < 3; i++)
+        for (let j = 0; j < 9; j++)
+          DB[i][j] = D[i][0] * B[0][j] + D[i][1] * B[1][j] + D[i][2] * B[2][j];
+      for (let a = 0; a < 9; a++)
+        for (let b = a; b < 9; b++) {
+          const v = w * (B[0][a] * DB[0][b] + B[1][a] * DB[1][b] + B[2][a] * DB[2][b]);
+          Ke[a * 9 + b] += v;
+          if (a !== b) Ke[b * 9 + a] += v;
+        }
+    }
+    return Ke;
+  }
+
+  /* Moments (Mx, My, Mxy) au centre de l'élément, N.mm/mm. */
+  function elementMoments(x1, y1, x2, y2, x3, y3, D, ue) {
+    const g = dktGeom(x1, y1, x2, y2, x3, y3);
+    const M = [0, 0, 0];
+    for (const [xi, eta] of GP) {
+      const B = dktB(g, xi, eta);
+      for (let i = 0; i < 3; i++) {
+        let k0 = 0, k1 = 0, k2 = 0;
+        for (let j = 0; j < 9; j++) { k0 += B[0][j] * ue[j]; k1 += B[1][j] * ue[j]; k2 += B[2][j] * ue[j]; }
+        M[i] += (D[i][0] * k0 + D[i][1] * k1 + D[i][2] * k2) / 3;
+      }
+    }
+    return M;
+  }
+
+  /* ---------- Renumérotation Cuthill-McKee inverse ---------- */
+  function rcmOrder(nNodes, elems) {
+    const adj = Array.from({ length: nNodes }, () => new Set());
+    for (const t of elems) {
+      for (let i = 0; i < 3; i++)
+        for (let j = 0; j < 3; j++)
+          if (i !== j) adj[t[i]].add(t[j]);
+    }
+    const deg = adj.map(s => s.size);
+    const visited = new Array(nNodes).fill(false);
+    const order = [];
+    for (;;) {
+      let start = -1;
+      for (let i = 0; i < nNodes; i++) if (!visited[i] && (start < 0 || deg[i] < deg[start])) start = i;
+      if (start < 0) break;
+      const queue = [start];
+      visited[start] = true;
+      while (queue.length) {
+        const v = queue.shift();
+        order.push(v);
+        const nbrs = [...adj[v]].filter(n => !visited[n]).sort((a, b) => deg[a] - deg[b]);
+        for (const n of nbrs) { visited[n] = true; queue.push(n); }
+      }
+    }
+    order.reverse();
+    const perm = new Int32Array(nNodes); // ancien -> nouveau
+    for (let i = 0; i < order.length; i++) perm[order[i]] = i;
+    return perm;
+  }
+
+  /* ---------- Solveur skyline LDL^T ---------- */
+  function Skyline(n, minCol) {
+    this.n = n;
+    this.diagIdx = new Int32Array(n);
+    let p = 0;
+    this.colHeight = new Int32Array(n);
+    for (let i = 0; i < n; i++) {
+      const h = i - minCol[i];
+      this.colHeight[i] = h;
+      p += h + 1;
+      this.diagIdx[i] = p - 1; // position de A(i,i)
+    }
+    this.a = new Float64Array(p);
+  }
+  Skyline.prototype.add = function (i, j, v) {
+    if (j < i) { const t = i; i = j; j = t; }   // stocke la partie sup. par colonnes
+    const idx = this.diagIdx[j] - (j - i);
+    if (idx < (j > 0 ? this.diagIdx[j - 1] + 1 : 0)) throw new Error('skyline overflow');
+    this.a[idx] += v;
+  };
+  Skyline.prototype.get = function (i, j) {
+    if (j < i) { const t = i; i = j; j = t; }
+    if (j - i > this.colHeight[j]) return 0;
+    return this.a[this.diagIdx[j] - (j - i)];
+  };
+  /* Factorisation LDL^T en place (colonne par colonne, format skyline). */
+  Skyline.prototype.factorize = function () {
+    const n = this.n, a = this.a, di = this.diagIdx, ch = this.colHeight;
+    for (let j = 0; j < n; j++) {
+      const jstart = j - ch[j];
+      for (let i = jstart; i < j; i++) {
+        const istart = i - ch[i];
+        const k0 = Math.max(jstart, istart);
+        let s = a[di[j] - (j - i)];
+        for (let k = k0; k < i; k++) s -= a[di[i] - (i - k)] * a[di[j] - (j - k)];
+        a[di[j] - (j - i)] = s;
+      }
+      let d = a[di[j]];
+      for (let i = jstart; i < j; i++) {
+        const u = a[di[j] - (j - i)];
+        const l = u / a[di[i]];
+        d -= l * u;
+        a[di[j] - (j - i)] = l;
+      }
+      if (!(Math.abs(d) > 1e-300)) d = 1e-300;
+      a[di[j]] = d;
+    }
+  };
+  Skyline.prototype.solve = function (b) {
+    const n = this.n, a = this.a, di = this.diagIdx, ch = this.colHeight;
+    const x = Float64Array.from(b);
+    for (let j = 0; j < n; j++) {              // L y = b
+      const jstart = j - ch[j];
+      let s = x[j];
+      for (let i = jstart; i < j; i++) s -= a[di[j] - (j - i)] * x[i];
+      x[j] = s;
+    }
+    for (let j = 0; j < n; j++) x[j] /= a[di[j]];   // D
+    for (let j = n - 1; j >= 0; j--) {          // L^T x = y
+      const jstart = j - ch[j];
+      const xj = x[j];
+      for (let i = jstart; i < j; i++) x[i] -= a[di[j] - (j - i)] * xj;
+    }
+    return x;
+  };
+
+  /* ---------- Assemblage et résolution ---------- */
+  /*
+    mesh    : {nodes:[[x,y]], elems:[[i,j,k]]}
+    D       : matrice 3x3
+    F       : Float64Array(3*nNodes) forces nodales
+    fixed   : Int8Array(3*nNodes), 1 = ddl bloqué
+  */
+  function solve(mesh, D, F, fixed) {
+    const nN = mesh.nodes.length;
+    const nd = 3 * nN;
+    const perm = rcmOrder(nN, mesh.elems);
+    const dofOf = (node, k) => 3 * perm[node] + k;
+
+    // Hauteurs de colonnes
+    const minCol = new Int32Array(nd);
+    for (let i = 0; i < nd; i++) minCol[i] = i;
+    for (const t of mesh.elems) {
+      let lo = Infinity;
+      const dofs = [];
+      for (const nId of t) for (let k = 0; k < 3; k++) { const d = dofOf(nId, k); dofs.push(d); if (d < lo) lo = d; }
+      for (const d of dofs) if (lo < minCol[d]) minCol[d] = lo;
+    }
+    const K = new Skyline(nd, minCol);
+
+    for (const t of mesh.elems) {
+      const [i, j, k] = t;
+      const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
+      const Ke = dktStiffness(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], D);
+      const dofs = [
+        dofOf(i, 0), dofOf(i, 1), dofOf(i, 2),
+        dofOf(j, 0), dofOf(j, 1), dofOf(j, 2),
+        dofOf(k, 0), dofOf(k, 1), dofOf(k, 2)];
+      for (let a = 0; a < 9; a++) {
+        for (let b = a; b < 9; b++) {
+          const v = Ke[a * 9 + b];
+          if (v === 0) continue;
+          K.add(dofs[a], dofs[b], v);
+        }
+      }
+    }
+
+    // Conditions aux limites par pénalisation forte (préserve la structure skyline)
+    let kmax = 0;
+    for (let i = 0; i < nd; i++) { const d = K.get(i, i); if (d > kmax) kmax = d; }
+    const pen = kmax * 1e10 || 1e10;
+    const Fp = new Float64Array(nd);
+    for (let n = 0; n < nN; n++)
+      for (let k = 0; k < 3; k++) Fp[dofOf(n, k)] = F[3 * n + k];
+    for (let n = 0; n < nN; n++)
+      for (let k = 0; k < 3; k++)
+        if (fixed[3 * n + k]) { const d = dofOf(n, k); K.add(d, d, pen); Fp[d] = 0; }
+
+    K.factorize();
+    const xp = K.solve(Fp);
+
+    const u = new Float64Array(nd);
+    for (let n = 0; n < nN; n++)
+      for (let k = 0; k < 3; k++) u[3 * n + k] = xp[dofOf(n, k)];
+    return u;
+  }
+
+  /* Post-traitement : moments par élément puis lissage aux nœuds. */
+  function postprocess(mesh, D, u, t) {
+    const nE = mesh.elems.length, nN = mesh.nodes.length;
+    const Me = new Array(nE);
+    for (let e = 0; e < nE; e++) {
+      const [i, j, k] = mesh.elems[e];
+      const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
+      const ue = new Float64Array(9);
+      const ids = [i, j, k];
+      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) ue[3 * a + b] = u[3 * ids[a] + b];
+      Me[e] = elementMoments(p1[0], p1[1], p2[0], p2[1], p3[0], p3[1], D, ue);
+    }
+    // Lissage surfacique (pondération par aire)
+    const acc = new Float64Array(nN * 3), wsum = new Float64Array(nN);
+    for (let e = 0; e < nE; e++) {
+      const [i, j, k] = mesh.elems[e];
+      const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
+      const A = Math.abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1])) / 2;
+      for (const n of [i, j, k]) {
+        acc[3 * n] += Me[e][0] * A; acc[3 * n + 1] += Me[e][1] * A; acc[3 * n + 2] += Me[e][2] * A;
+        wsum[n] += A;
+      }
+    }
+    const Mn = new Float64Array(nN * 3);
+    for (let n = 0; n < nN; n++) {
+      const w = wsum[n] || 1;
+      Mn[3 * n] = acc[3 * n] / w; Mn[3 * n + 1] = acc[3 * n + 1] / w; Mn[3 * n + 2] = acc[3 * n + 2] / w;
+    }
+    // Contrainte de peau : sigma = 6 M / t^2, von Mises en surface
+    const sec = 6 / (t * t);
+    const vm = new Float64Array(nN);
+    let vmMax = 0;
+    for (let n = 0; n < nN; n++) {
+      const sx = Mn[3 * n] * sec, sy = Mn[3 * n + 1] * sec, sxy = Mn[3 * n + 2] * sec;
+      const v = Math.sqrt(sx * sx - sx * sy + sy * sy + 3 * sxy * sxy);
+      vm[n] = v;
+      if (v > vmMax) vmMax = v;
+    }
+    return { momentsElem: Me, momentsNode: Mn, vonMises: vm, vonMisesMax: vmMax };
+  }
+
+  root.Fem = {
+    bendingD, dktStiffness, elementMoments, solve, postprocess, Skyline, rcmOrder, dktGeom, dktB
+  };
+})(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/material.js ===== */
+/* Données matériau PEHD 500 (PE-HD, plaque extrudée type PE500 naturel/noir).
+   Valeurs indicatives issues des fiches techniques usuelles de plaques PE500.
+   À confirmer avec la fiche du fournisseur pour un calcul contractuel. */
+(function (root) {
+  'use strict';
+
+  const PEHD500 = {
+    nom: 'PEHD 500 (PE-HD)',
+    E0: 900,        // module d'élasticité en flexion à 23 °C, charge courte (MPa)
+    nu: 0.42,       // coefficient de Poisson
+    rho: 0.95e-9,   // masse volumique (t/mm³) -> 950 kg/m³
+    sigmaY: 25,     // contrainte au seuil d'écoulement à 23 °C (MPa)
+    alpha: 1.8e-4   // dilatation thermique (1/K)
+  };
+
+  /* Facteur de fluage : module apparent = E0 * k(durée).
+     Le PEHD flue fortement : c'est LE point dimensionnant des plaques PE. */
+  const DUREES = [
+    { id: '1min', label: 'Charge instantanée (< 1 min)', k: 1.00 },
+    { id: '1h', label: '1 heure', k: 0.72 },
+    { id: '1j', label: '1 jour', k: 0.60 },
+    { id: '1sem', label: '1 semaine', k: 0.52 },
+    { id: '1mois', label: '1 mois', k: 0.47 },
+    { id: '1an', label: '1 an', k: 0.40 },
+    { id: 'perm', label: 'Permanent (10 ans et +)', k: 0.33 }
+  ];
+
+  /* Facteur de température sur le module et sur la résistance. */
+  const TEMPERATURES = [
+    { id: '0', label: '0 °C', kE: 1.35, kS: 1.30 },
+    { id: '23', label: '20 – 23 °C', kE: 1.00, kS: 1.00 },
+    { id: '40', label: '40 °C', kE: 0.72, kS: 0.75 },
+    { id: '60', label: '60 °C', kE: 0.50, kS: 0.55 },
+    { id: '80', label: '80 °C', kE: 0.32, kS: 0.38 }
+  ];
+
+  function properties(dureeId, tempId) {
+    const d = DUREES.find(x => x.id === dureeId) || DUREES[0];
+    const t = TEMPERATURES.find(x => x.id === tempId) || TEMPERATURES[1];
+    return {
+      E: PEHD500.E0 * d.k * t.kE,
+      nu: PEHD500.nu,
+      rho: PEHD500.rho,
+      sigmaY: PEHD500.sigmaY * t.kS,
+      kFluage: d.k,
+      kTemp: t.kE,
+      dureeLabel: d.label,
+      tempLabel: t.label
+    };
+  }
+
+  root.Material = { PEHD500, DUREES, TEMPERATURES, properties };
+})(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/model.js ===== */
+/* Orchestration du calcul : maillage -> appuis -> chargements -> résolution -> critères. */
+(function (root) {
+  'use strict';
+  const G = root.Geom, M = root.Mesh, F3 = root.Fem;
+
+  function triArea(p1, p2, p3) {
+    return Math.abs((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1])) / 2;
+  }
+
+  /* Appartenance d'un point à une zone de charge répartie. */
+  function inZone(x, y, z) {
+    if (z.shape === 'circle') {
+      const dx = x - z.x, dy = y - z.y;
+      return dx * dx + dy * dy <= z.r * z.r;
+    }
+    const a = (z.angle || 0) * Math.PI / 180;
+    const c = Math.cos(-a), s = Math.sin(-a);
+    const dx = x - z.x, dy = y - z.y;
+    const lx = dx * c - dy * s, ly = dx * s + dy * c;
+    return Math.abs(lx) <= z.w / 2 && Math.abs(ly) <= z.h / 2;
+  }
+
+  function zoneArea(z) {
+    return z.shape === 'circle' ? Math.PI * z.r * z.r : z.w * z.h;
+  }
+
+  /* Sous-échantillonne un triangle : renvoie la fraction d'aire dans la zone. */
+  const SUB = (function () {
+    // 16 sous-triangles (subdivision 4x4 en coordonnées barycentriques) : centroïdes
+    const pts = [];
+    const n = 4;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n - i; j++) {
+        pts.push([(i + 1 / 3) / n, (j + 1 / 3) / n]);
+        if (j < n - i - 1) pts.push([(i + 2 / 3) / n, (j + 2 / 3) / n]);
+      }
+    }
+    return pts;
+  })();
+
+  function coveredFraction(p1, p2, p3, z) {
+    let c = 0;
+    for (const [l1, l2] of SUB) {
+      const l0 = 1 - l1 - l2;
+      const x = l0 * p1[0] + l1 * p2[0] + l2 * p3[0];
+      const y = l0 * p1[1] + l1 * p2[1] + l2 * p3[1];
+      if (inZone(x, y, z)) c++;
+    }
+    return c / SUB.length;
+  }
+
+  function locateElement(mesh, x, y) {
+    let best = -1, bestD = Infinity, bary = null;
+    for (let e = 0; e < mesh.elems.length; e++) {
+      const [i, j, k] = mesh.elems[e];
+      const p1 = mesh.nodes[i], p2 = mesh.nodes[j], p3 = mesh.nodes[k];
+      const A = (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1]);
+      if (Math.abs(A) < 1e-12) continue;
+      const l1 = ((p2[0] - x) * (p3[1] - y) - (p3[0] - x) * (p2[1] - y)) / A;
+      const l2 = ((p3[0] - x) * (p1[1] - y) - (p1[0] - x) * (p3[1] - y)) / A;
+      const l3 = 1 - l1 - l2;
+      const d = Math.max(0, -l1) + Math.max(0, -l2) + Math.max(0, -l3);
+      if (d < bestD) { bestD = d; best = e; bary = [l1, l2, l3]; }
+      if (d === 0) break;
+    }
+    return { elem: best, bary, outside: bestD > 1e-9 };
+  }
+
+  /*
+    opts = {
+      region, thickness, meshSize,
+      support : {width, type:'simple'|'encastre', holesSupported},
+      loads   : [{type:'point',x,y,force} | {type:'zone',shape:'rect'|'circle',...,force}],
+      material: {E, nu, rho, sigmaY},
+      selfWeight : bool,
+      criteria: {deflectionRatio, safetyFactor}
+    }
+  */
+  function run(opts) {
+    const t = opts.thickness;
+    const mat = opts.material;
+    const region = opts.region;
+
+    const mesh = opts.mesh || M.meshRegion(region, opts.meshSize);
+    const nN = mesh.nodes.length;
+    const D = F3.bendingD(mat.E, mat.nu, t);
+
+    /* ---- Appuis : bande de largeur `width` le long du contour ---- */
+    const fixed = new Int8Array(3 * nN);
+    const supportW = Math.max(0, opts.support.width || 0);
+    const supported = new Uint8Array(nN);
+    for (let n = 0; n < nN; n++) {
+      const [x, y] = mesh.nodes[n];
+      let d = Infinity;
+      const rings = [region.outer].concat(opts.support.holesSupported ? region.holes : []);
+      for (const ring of rings) {
+        for (let i = 0, m = ring.length; i < m; i++) {
+          const a = ring[i], b = ring[(i + 1) % m];
+          const dd = G.distPointSegment(x, y, a[0], a[1], b[0], b[1]);
+          if (dd < d) d = dd;
+        }
+      }
+      if (d <= supportW + 1e-6 || (mesh.isBoundary[n] && supportW === 0 && isOnRings(x, y, rings))) {
+        supported[n] = 1;
+        fixed[3 * n] = 1;
+        if (opts.support.type === 'encastre') { fixed[3 * n + 1] = 1; fixed[3 * n + 2] = 1; }
+      }
+    }
+    let nSupported = 0;
+    for (let n = 0; n < nN; n++) if (supported[n]) nSupported++;
+    if (nSupported < 3) {
+      // sécurité : au minimum le contour extérieur est appuyé
+      for (let n = 0; n < nN; n++) if (mesh.isBoundary[n]) { supported[n] = 1; fixed[3 * n] = 1; nSupported++; }
+    }
+
+    /* ---- Chargements ---- */
+    const F = new Float64Array(3 * nN);
+    const zoneInfo = [];
+    let appliedTotal = 0;
+
+    // Poids propre
+    if (opts.selfWeight) {
+      const g = 9810; // mm/s²
+      const q = mat.rho * t * g; // N/mm²
+      for (const el of mesh.elems) {
+        const p = el.map(i => mesh.nodes[i]);
+        const A = triArea(p[0], p[1], p[2]);
+        for (const n of el) F[3 * n] += q * A / 3;
+        appliedTotal += q * A;
+      }
+    }
+
+    for (const load of opts.loads || []) {
+      if (load.type === 'point') {
+        const loc = locateElement(mesh, load.x, load.y);
+        if (loc.elem < 0) continue;
+        const el = mesh.elems[loc.elem];
+        const b = loc.bary.map(v => Math.max(0, v));
+        const s = b[0] + b[1] + b[2] || 1;
+        for (let i = 0; i < 3; i++) F[3 * el[i]] += load.force * b[i] / s;
+        appliedTotal += load.force;
+      } else {
+        // Charge répartie sur une zone : pression = force / aire de la zone
+        const parts = [];
+        let coveredArea = 0;
+        for (let e = 0; e < mesh.elems.length; e++) {
+          const el = mesh.elems[e];
+          const p = el.map(i => mesh.nodes[i]);
+          const A = triArea(p[0], p[1], p[2]);
+          const f = coveredFraction(p[0], p[1], p[2], load);
+          if (f <= 0) continue;
+          parts.push([e, A * f]);
+          coveredArea += A * f;
+        }
+        if (coveredArea <= 0) {
+          zoneInfo.push({ load, coveredArea: 0, pressure: 0, warning: 'zone hors plaque ou plus fine que la maille' });
+          continue;
+        }
+        // Répartition proportionnelle à l'aire réellement couverte : résultante exacte.
+        const q = load.force / coveredArea;
+        for (const [e, Aeff] of parts) {
+          const el = mesh.elems[e];
+          for (const n of el) F[3 * n] += q * Aeff / 3;
+        }
+        appliedTotal += load.force;
+        zoneInfo.push({
+          load, coveredArea, pressure: q,
+          warning: Math.abs(coveredArea - zoneArea(load)) / zoneArea(load) > 0.15
+            ? 'la zone déborde du contour ou recouvre un trou : seule la partie réellement sur la matière est chargée' : null
+        });
+      }
+    }
+
+    /* ---- Résolution ---- */
+    const t0 = Date.now();
+    const u = F3.solve(mesh, D, F, fixed);
+    const solveMs = Date.now() - t0;
+
+    /* ---- Réactions (équilibre) ---- */
+    const Fint = new Float64Array(3 * nN);
+    for (const el of mesh.elems) {
+      const p = el.map(i => mesh.nodes[i]);
+      const Ke = F3.dktStiffness(p[0][0], p[0][1], p[1][0], p[1][1], p[2][0], p[2][1], D);
+      const ue = new Float64Array(9);
+      for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) ue[3 * a + b] = u[3 * el[a] + b];
+      for (let a = 0; a < 9; a++) {
+        let s = 0;
+        for (let b = 0; b < 9; b++) s += Ke[a * 9 + b] * ue[b];
+        Fint[3 * el[(a / 3) | 0] + (a % 3)] += s;
+      }
+    }
+    let reactionTotal = 0, reactionMax = 0;
+    const reactions = new Float64Array(nN);
+    for (let n = 0; n < nN; n++) {
+      if (!fixed[3 * n]) continue;
+      // Réaction d'appui comptée positive quand elle s'oppose à la charge.
+      const R = F[3 * n] - Fint[3 * n];
+      reactions[n] = R;
+      reactionTotal += R;
+      if (Math.abs(R) > Math.abs(reactionMax)) reactionMax = R;
+    }
+
+    /* ---- Post-traitement ---- */
+    const post = F3.postprocess(mesh, D, u, t);
+    let wmax = 0, wmaxNode = 0;
+    for (let n = 0; n < nN; n++) {
+      const w = u[3 * n];
+      if (Math.abs(w) > Math.abs(wmax)) { wmax = w; wmaxNode = n; }
+    }
+
+    /* Contrainte max hors bande d'appui immédiate (les pics numériques
+       au droit des blocages ne sont pas représentatifs). */
+    let sigmaMax = 0, sigmaNode = 0;
+    for (let n = 0; n < nN; n++) {
+      if (post.vonMises[n] > sigmaMax) { sigmaMax = post.vonMises[n]; sigmaNode = n; }
+    }
+
+    /* ---- Portée de référence : 2 x distance max à un appui ---- */
+    let Lref = 0;
+    const supNodes = [];
+    for (let n = 0; n < nN; n++) if (supported[n]) supNodes.push(mesh.nodes[n]);
+    for (let n = 0; n < nN; n++) {
+      let d = Infinity;
+      for (const s of supNodes) {
+        const dd = (mesh.nodes[n][0] - s[0]) ** 2 + (mesh.nodes[n][1] - s[1]) ** 2;
+        if (dd < d) d = dd;
+      }
+      d = Math.sqrt(d);
+      if (d > Lref) Lref = d;
+    }
+    Lref *= 2;
+
+    /* ---- Critères ---- */
+    const crit = opts.criteria || {};
+    const ratio = crit.deflectionRatio || 200;
+    const sf = crit.safetyFactor || 2;
+    const fAdm = Lref / ratio;
+    const sigmaAdm = mat.sigmaY / sf;
+    const wAbs = Math.abs(wmax);
+    const safetyDefl = wAbs > 1e-12 ? fAdm / wAbs : Infinity;
+    const safetyStress = sigmaMax > 1e-12 ? sigmaAdm / sigmaMax : Infinity;
+    const safety = Math.min(safetyDefl, safetyStress);
+    const verdict = safety >= 1.15 ? 'OK' : (safety >= 1.0 ? 'LIMITE' : 'NON OK');
+
+    const warnings = [];
+    if (wAbs > t / 2) warnings.push(
+      `Flèche (${wAbs.toFixed(1)} mm) supérieure à la demi-épaisseur (${(t / 2).toFixed(1)} mm) : ` +
+      `la théorie des plaques minces en petits déplacements atteint sa limite, ` +
+      `les effets de membrane deviennent significatifs (résultat conservatif sur la flèche).`);
+    if (wAbs > Lref / 50 && Lref > 0) warnings.push(
+      `Flèche supérieure à L/50 : vérifier l'acceptabilité fonctionnelle au-delà du seul critère de résistance.`);
+    for (const zi of zoneInfo) if (zi.warning) warnings.push('Zone de charge : ' + zi.warning);
+    const anyPoint = (opts.loads || []).some(l => l.type === 'point');
+    if (anyPoint) warnings.push(
+      `Charge ponctuelle : la contrainte locale au point d'application est théoriquement infinie ` +
+      `(singularité). La valeur affichée dépend de la finesse du maillage — pour un contrôle de ` +
+      `résistance locale, modéliser la surface réelle d'appui avec une zone répartie.`);
+    if (opts.support.type === 'simple') {
+      // Une plaque seulement posée ne peut pas être retenue vers le haut :
+      // une réaction négative signale un décollement du bâti.
+      let uplift = 0, upliftMax = 0;
+      for (let n = 0; n < nN; n++) {
+        if (!fixed[3 * n]) continue;
+        if (reactions[n] < -1e-6 * Math.abs(reactionMax)) { uplift++; upliftMax = Math.min(upliftMax, reactions[n]); }
+      }
+      if (uplift > 0.02 * nSupported) warnings.push(
+        `Décollement : sur ${uplift} nœuds d'appui la réaction est négative, ` +
+        `c'est-à-dire que la plaque tendrait à se soulever du bâti. Avec un appui simple ` +
+        `(sans fixation), ces zones se soulèveraient réellement et la flèche serait supérieure ` +
+        `au calcul. Fixez la plaque dans ces zones, ou recentrez le chargement.`);
+    }
+    const q = M.meshQuality(mesh);
+    if (q.minAngle < 12) warnings.push(`Maillage : angle minimal ${q.minAngle.toFixed(1)}° — géométrie à simplifier ou maille à affiner.`);
+    if (t > 0 && Lref / t < 10) warnings.push(
+      `Élancement portée/épaisseur = ${(Lref / t).toFixed(1)} (< 10) : plaque épaisse, ` +
+      `le cisaillement transverse (non pris en compte par la théorie de Kirchhoff) majorerait la flèche.`);
+
+    return {
+      mesh, u, D, F, fixed, supported, reactions,
+      wmax, wmaxNode, sigmaMax, sigmaNode, vonMises: post.vonMises, momentsNode: post.momentsNode,
+      Lref, fAdm, sigmaAdm, safety, safetyDefl, safetyStress, verdict,
+      reactionTotal, reactionMax, appliedTotal, zoneInfo, warnings, solveMs,
+      area: G.regionArea(region), nSupported
+    };
+  }
+
+  function isOnRings(x, y, rings) {
+    for (const ring of rings) {
+      for (let i = 0, m = ring.length; i < m; i++) {
+        const a = ring[i], b = ring[(i + 1) % m];
+        if (G.distPointSegment(x, y, a[0], a[1], b[0], b[1]) < 1e-6) return true;
+      }
+    }
+    return false;
+  }
+
+  root.Model = { run, inZone, zoneArea, locateElement };
+})(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/importers.js ===== */
+/* Import de géométrie : STL (binaire + ASCII) et STEP (AP203/AP214, faces planes).
+   Objectif : extraire le contour 2D de la grande face de la plaque + son épaisseur. */
+(function (root) {
+  'use strict';
+  const G = root.Geom;
+
+  /* ================= Algèbre 3D ================= */
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const norm = (a) => Math.hypot(a[0], a[1], a[2]);
+  const unit = (a) => { const n = norm(a) || 1; return [a[0] / n, a[1] / n, a[2] / n]; };
+
+  /* Base orthonormée d'un plan de normale n. */
+  function planeBasis(n) {
+    const N = unit(n);
+    let ref = Math.abs(N[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+    const U = unit(cross(ref, N));
+    const V = cross(N, U);
+    return { N, U, V };
+  }
+
+  /* Jacobi : plus petite direction principale d'un nuage (= normale de la plaque). */
+  function smallestPrincipalDirection(pts) {
+    let cx = 0, cy = 0, cz = 0;
+    for (const p of pts) { cx += p[0]; cy += p[1]; cz += p[2]; }
+    const n = pts.length || 1;
+    cx /= n; cy /= n; cz /= n;
+    let a = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    for (const p of pts) {
+      const d = [p[0] - cx, p[1] - cy, p[2] - cz];
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) a[i][j] += d[i] * d[j];
+    }
+    let v = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    for (let sweep = 0; sweep < 60; sweep++) {
+      let p = 0, q = 1, best = 0;
+      for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++)
+        if (Math.abs(a[i][j]) > best) { best = Math.abs(a[i][j]); p = i; q = j; }
+      if (best < 1e-12) break;
+      const theta = (a[q][q] - a[p][p]) / (2 * a[p][q]);
+      const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      const A = a.map(r => r.slice());
+      for (let k = 0; k < 3; k++) {
+        A[p][k] = c * a[p][k] - s * a[q][k];
+        A[q][k] = s * a[p][k] + c * a[q][k];
+      }
+      const B = A.map(r => r.slice());
+      for (let k = 0; k < 3; k++) {
+        B[k][p] = c * A[k][p] - s * A[k][q];
+        B[k][q] = s * A[k][p] + c * A[k][q];
+      }
+      a = B;
+      const V2 = v.map(r => r.slice());
+      for (let k = 0; k < 3; k++) {
+        V2[k][p] = c * v[k][p] - s * v[k][q];
+        V2[k][q] = s * v[k][p] + c * v[k][q];
+      }
+      v = V2;
+    }
+    let imin = 0;
+    for (let i = 1; i < 3; i++) if (a[i][i] < a[imin][imin]) imin = i;
+    return unit([v[0][imin], v[1][imin], v[2][imin]]);
+  }
+
+  /* ================= STL ================= */
+  function parseSTL(buffer) {
+    const dv = new DataView(buffer);
+    const nTriHeader = buffer.byteLength >= 84 ? dv.getUint32(80, true) : 0;
+    const isBinary = buffer.byteLength === 84 + nTriHeader * 50 && nTriHeader > 0;
+    const tris = [];
+    if (isBinary) {
+      let off = 84;
+      for (let i = 0; i < nTriHeader; i++) {
+        const nx = dv.getFloat32(off, true), ny = dv.getFloat32(off + 4, true), nz = dv.getFloat32(off + 8, true);
+        const v = [];
+        for (let k = 0; k < 3; k++) {
+          const o = off + 12 + k * 12;
+          v.push([dv.getFloat32(o, true), dv.getFloat32(o + 4, true), dv.getFloat32(o + 8, true)]);
+        }
+        tris.push({ n: [nx, ny, nz], v });
+        off += 50;
+      }
+    } else {
+      const txt = new TextDecoder().decode(buffer);
+      const re = /facet\s+normal\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)[\s\S]*?outer\s+loop([\s\S]*?)endloop/g;
+      let m;
+      while ((m = re.exec(txt))) {
+        const n = [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])];
+        const vre = /vertex\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)/g;
+        const v = []; let vm;
+        while ((vm = vre.exec(m[4]))) v.push([parseFloat(vm[1]), parseFloat(vm[2]), parseFloat(vm[3])]);
+        if (v.length === 3) tris.push({ n, v });
+      }
+    }
+    if (!tris.length) throw new Error('Fichier STL illisible ou vide.');
+    return tris;
+  }
+
+  /* Extrait le contour de la grande face d'une plaque maillée. */
+  function plateFromTriangles(tris, opts) {
+    opts = opts || {};
+    const allPts = [];
+    for (const t of tris) for (const v of t.v) allPts.push(v);
+    const N0 = smallestPrincipalDirection(allPts);
+
+    // Épaisseur = étendue selon N0
+    let hmin = Infinity, hmax = -Infinity;
+    for (const p of allPts) { const h = dot(p, N0); if (h < hmin) hmin = h; if (h > hmax) hmax = h; }
+    const thickness = hmax - hmin;
+
+    const basis = planeBasis(N0);
+
+    // Sélection de la face supérieure
+    function faceLoops(sign) {
+      const sel = [];
+      for (const t of tris) {
+        let n = t.n;
+        if (norm(n) < 1e-9) n = cross(sub(t.v[1], t.v[0]), sub(t.v[2], t.v[0]));
+        n = unit(n);
+        if (dot(n, basis.N) * sign > 0.7) sel.push(t);
+      }
+      if (!sel.length) return null;
+      // Soudure des sommets et extraction des arêtes de bord
+      const key = new Map();
+      const pts2 = [];
+      const tol = Math.max(1e-6, (hmax - hmin) * 1e-3);
+      const idOf = (p) => {
+        const u = dot(p, basis.U), v = dot(p, basis.V);
+        const k = Math.round(u / tol) + '_' + Math.round(v / tol);
+        if (key.has(k)) return key.get(k);
+        key.set(k, pts2.length); pts2.push([u, v]);
+        return pts2.length - 1;
+      };
+      const edgeCount = new Map();
+      for (const t of sel) {
+        const a = idOf(t.v[0]), b = idOf(t.v[1]), c = idOf(t.v[2]);
+        for (const [i, j] of [[a, b], [b, c], [c, a]]) {
+          if (i === j) continue;
+          const k = i < j ? i + ',' + j : j + ',' + i;
+          edgeCount.set(k, (edgeCount.get(k) || 0) + 1);
+        }
+      }
+      const edges = [];
+      for (const [k, c] of edgeCount) if (c === 1) { const [i, j] = k.split(',').map(Number); edges.push([i, j]); }
+      if (!edges.length) return null;
+      const loops = G.chainEdges(edges, pts2);
+      return loops.length ? loops : null;
+    }
+
+    let loops = faceLoops(+1) || faceLoops(-1);
+    if (!loops) throw new Error("Impossible d'identifier la grande face de la plaque dans ce maillage.");
+
+    const bb0 = G.bbox(loops[0]);
+    const tolSimplify = opts.simplifyTol !== undefined
+      ? opts.simplifyTol : Math.max(0.05, Math.max(bb0.w, bb0.h) * 2e-4);
+    loops = loops.map(l => G.simplifyRing(l, tolSimplify));
+    const region = G.ringsToRegion(loops);
+    if (!region) throw new Error('Contour de plaque invalide.');
+    return { region, thickness, normal: N0, source: 'STL', nTriangles: tris.length };
+  }
+
+  function importSTL(buffer, opts) {
+    return plateFromTriangles(parseSTL(buffer), opts);
+  }
+
+  /* ================= STEP ================= */
+  function tokenizeArgs(s) {
+    const out = [];
+    let depth = 0, cur = '', inStr = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (inStr) { cur += c; if (c === "'") inStr = false; continue; }
+      if (c === "'") { inStr = true; cur += c; continue; }
+      if (c === '(') { depth++; cur += c; continue; }
+      if (c === ')') { depth--; cur += c; continue; }
+      if (c === ',' && depth === 0) { out.push(cur.trim()); cur = ''; continue; }
+      cur += c;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+
+  function parseSTEP(text) {
+    const ents = new Map();
+    // Retire les commentaires /* ... */
+    text = text.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const re = /#(\d+)\s*=\s*([A-Z_0-9]+)\s*\(([\s\S]*?)\)\s*;/g;
+    let m;
+    while ((m = re.exec(text))) {
+      ents.set(+m[1], { type: m[2], args: tokenizeArgs(m[3]) });
+    }
+    // Entités complexes : #12 = ( A(..) B(..) ) ;
+    const re2 = /#(\d+)\s*=\s*\(([\s\S]*?)\)\s*;/g;
+    while ((m = re2.exec(text))) {
+      if (ents.has(+m[1])) continue;
+      ents.set(+m[1], { type: 'COMPLEX', args: [], raw: m[2] });
+    }
+    return ents;
+  }
+
+  function stepUnitScale(ents, text) {
+    // Détecte pouce / mètre / centimètre ; défaut millimètre.
+    for (const [, e] of ents) {
+      if (e.type === 'CONVERSION_BASED_UNIT' && /INCH/i.test(e.args.join(','))) return 25.4;
+    }
+    if (/CONVERSION_BASED_UNIT\s*\(\s*'INCH'/i.test(text)) return 25.4;
+    for (const [, e] of ents) {
+      if (/SI_UNIT/.test(e.type)) {
+        const a = e.args.join(',');
+        if (/METRE/.test(a) && !/MILLI|CENTI/.test(a)) return 1000;
+        if (/CENTI/.test(a)) return 10;
+      }
+    }
+    return 1;
+  }
+
+  function importSTEP(text, opts) {
+    opts = opts || {};
+    const ents = parseSTEP(text);
+    const scale = stepUnitScale(ents, text);
+    const ref = (s) => (typeof s === 'string' && s[0] === '#') ? ents.get(+s.slice(1)) : null;
+    const refId = (s) => +String(s).slice(1);
+    const listRefs = (s) => String(s).replace(/^\(|\)$/g, '').split(',').map(x => x.trim()).filter(x => x[0] === '#');
+
+    const pointCache = new Map();
+    function point(id) {
+      if (pointCache.has(id)) return pointCache.get(id);
+      const e = ents.get(id);
+      if (!e) return null;
+      let p = null;
+      if (e.type === 'CARTESIAN_POINT') {
+        const nums = String(e.args[1]).replace(/[()]/g, '').split(',').map(parseFloat);
+        p = [(nums[0] || 0) * scale, (nums[1] || 0) * scale, (nums[2] || 0) * scale];
+      } else if (e.type === 'VERTEX_POINT') {
+        p = point(refId(e.args[1]));
+      }
+      pointCache.set(id, p);
+      return p;
+    }
+    function direction(id) {
+      const e = ents.get(id);
+      if (!e) return null;
+      if (e.type === 'DIRECTION') {
+        const nums = String(e.args[1]).replace(/[()]/g, '').split(',').map(parseFloat);
+        return unit([nums[0] || 0, nums[1] || 0, nums[2] || 0]);
+      }
+      return null;
+    }
+    function placement(id) {
+      const e = ents.get(id);
+      if (!e || !/AXIS2_PLACEMENT_3D/.test(e.type)) return null;
+      const loc = point(refId(e.args[1]));
+      const axis = e.args[2] && e.args[2] !== '$' ? direction(refId(e.args[2])) : [0, 0, 1];
+      const refd = e.args[3] && e.args[3] !== '$' ? direction(refId(e.args[3])) : null;
+      return { loc, axis: axis || [0, 0, 1], ref: refd };
+    }
+
+    /* Discrétise une arête entre deux sommets selon sa courbe support. */
+    function edgePoints(edgeCurveId, orientedSense, sagitta) {
+      const e = ents.get(edgeCurveId);
+      if (!e || e.type !== 'EDGE_CURVE') return null;
+      let p1 = point(refId(e.args[1]));
+      let p2 = point(refId(e.args[2]));
+      const curve = ents.get(refId(e.args[3]));
+      const sameSense = /\.T\./.test(e.args[4] || '.T.');
+      let sense = sameSense;
+      if (!orientedSense) sense = !sense;
+      if (!p1 || !p2) return null;
+      let pts = [p1];
+      if (curve && curve.type === 'CIRCLE') {
+        const pl = placement(refId(curve.args[1]));
+        const R = parseFloat(curve.args[2]) * scale;
+        if (pl && pl.loc) {
+          const N = unit(pl.axis);
+          let U = pl.ref ? unit(pl.ref) : planeBasis(N).U;
+          U = unit(sub(U, [N[0] * dot(U, N), N[1] * dot(U, N), N[2] * dot(U, N)]));
+          const V = cross(N, U);
+          const ang = (p) => {
+            const d = sub(p, pl.loc);
+            return Math.atan2(dot(d, V), dot(d, U));
+          };
+          let a1 = ang(p1), a2 = ang(p2);
+          let sweep = a2 - a1;
+          const ccw = sameSense;
+          if (ccw) { while (sweep <= 1e-9) sweep += 2 * Math.PI; }
+          else { while (sweep >= -1e-9) sweep -= 2 * Math.PI; }
+          if (Math.abs(Math.hypot(...sub(p1, p2))) < 1e-9) sweep = ccw ? 2 * Math.PI : -2 * Math.PI;
+          const sag = sagitta || Math.max(R / 40, 0.2);
+          const dTheta = 2 * Math.acos(Math.max(-1, Math.min(1, 1 - Math.min(sag / R, 1))));
+          const nSeg = Math.max(2, Math.min(256, Math.ceil(Math.abs(sweep) / Math.max(dTheta, 0.02))));
+          for (let i = 1; i < nSeg; i++) {
+            const a = a1 + sweep * i / nSeg;
+            pts.push([
+              pl.loc[0] + R * (U[0] * Math.cos(a) + V[0] * Math.sin(a)),
+              pl.loc[1] + R * (U[1] * Math.cos(a) + V[1] * Math.sin(a)),
+              pl.loc[2] + R * (U[2] * Math.cos(a) + V[2] * Math.sin(a))]);
+          }
+        }
+      } else if (curve && /B_SPLINE_CURVE/.test(curve.type)) {
+        // Approximation par le polygone de contrôle (suffisant pour un contour de plaque)
+        const cps = listRefs(curve.args[2] || '()').map(s => point(refId(s))).filter(Boolean);
+        if (cps.length > 2) for (let i = 1; i < cps.length - 1; i++) pts.push(cps[i]);
+      }
+      pts.push(p2);
+      if (!sense) pts.reverse();
+      return pts;
+    }
+
+    /* Boucles d'une face. */
+    function boundLoop(boundId, sagitta) {
+      const b = ents.get(boundId);
+      if (!b || !/FACE_(OUTER_)?BOUND/.test(b.type)) return null;
+      const loopE = ents.get(refId(b.args[1]));
+      const boundOrient = /\.T\./.test(b.args[2] || '.T.');
+      if (!loopE || loopE.type !== 'EDGE_LOOP') return null;
+      const oriented = listRefs(loopE.args[1]);
+      const pts = [];
+      for (const oe of oriented) {
+        const o = ents.get(refId(oe));
+        if (!o || o.type !== 'ORIENTED_EDGE') continue;
+        const sense = /\.T\./.test(o.args[4] || '.T.');
+        const ep = edgePoints(refId(o.args[3]), sense, sagitta);
+        if (!ep) continue;
+        for (const p of ep) {
+          if (!pts.length || Math.hypot(...sub(p, pts[pts.length - 1])) > 1e-7) pts.push(p);
+        }
+      }
+      if (pts.length > 2 && Math.hypot(...sub(pts[0], pts[pts.length - 1])) < 1e-7) pts.pop();
+      if (pts.length < 3) return null;
+      return boundOrient ? pts : pts.reverse();
+    }
+
+    /* Toutes les faces planes, la plus grande d'abord. */
+    const faces = [];
+    for (const [id, e] of ents) {
+      if (e.type !== 'ADVANCED_FACE' && e.type !== 'FACE_SURFACE') continue;
+      const surf = ents.get(refId(e.args[2]));
+      if (!surf || surf.type !== 'PLANE') continue;
+      const pl = placement(refId(surf.args[1]));
+      if (!pl) continue;
+      const bounds = listRefs(e.args[1]);
+      const rings3d = [];
+      for (const bId of bounds) {
+        const lp = boundLoop(refId(bId), opts.sagitta);
+        if (lp) rings3d.push({ pts: lp, outer: /OUTER/.test((ents.get(refId(bId)) || {}).type || '') });
+      }
+      if (!rings3d.length) continue;
+      const basis = planeBasis(pl.axis);
+      const rings2d = rings3d.map(r => ({
+        outer: r.outer,
+        ring: r.pts.map(p => [dot(sub(p, pl.loc), basis.U), dot(sub(p, pl.loc), basis.V)])
+      }));
+      let area = 0;
+      for (const r of rings2d) area += (r.outer ? 1 : -1) * Math.abs(G.polygonArea(r.ring));
+      faces.push({ id, area: Math.abs(area), rings2d, basis, origin: pl.loc, normal: basis.N });
+    }
+    if (!faces.length) throw new Error(
+      "Aucune face plane exploitable trouvée dans ce STEP. Utilisez un export STL, ou saisissez la géométrie manuellement.");
+    faces.sort((a, b) => b.area - a.area);
+    const f = faces[0];
+
+    // Épaisseur = écart entre la face retenue et la face parallèle opposée la plus éloignée
+    let thickness = 0;
+    for (const g of faces) {
+      if (Math.abs(Math.abs(dot(g.normal, f.normal)) - 1) > 1e-3) continue;
+      const d = Math.abs(dot(sub(g.origin, f.origin), f.normal));
+      if (d > thickness && d < Math.sqrt(f.area)) thickness = d;
+    }
+
+    const rings = f.rings2d.map(r => r.ring);
+    const bb0 = G.bbox(rings[0]);
+    const tolSimplify = opts.simplifyTol !== undefined
+      ? opts.simplifyTol : Math.max(0.02, Math.max(bb0.w, bb0.h) * 1e-4);
+    const region = G.ringsToRegion(rings.map(r => G.simplifyRing(r, tolSimplify)));
+    if (!region) throw new Error('Contour STEP invalide.');
+    return {
+      region, thickness, normal: f.normal, source: 'STEP',
+      nFaces: faces.length, unitScale: scale
+    };
+  }
+
+  /* Géométries paramétriques de secours. */
+  function rectangle(a, b) {
+    return { region: { outer: [[0, 0], [a, 0], [a, b], [0, b]], holes: [] }, thickness: 0, source: 'manuel' };
+  }
+  function disc(R, n) {
+    const ring = [];
+    n = n || 96;
+    for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n; ring.push([R * Math.cos(t), R * Math.sin(t)]); }
+    return { region: { outer: ring, holes: [] }, thickness: 0, source: 'manuel' };
+  }
+
+  root.Importers = {
+    importSTL, importSTEP, parseSTL, parseSTEP, plateFromTriangles,
+    rectangle, disc, planeBasis, smallestPrincipalDirection
+  };
+})(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/render.js ===== */
+/* Rendu : vue 2D d'édition (plan) et déformée 3D (canvas 2D, tri en profondeur). */
+(function (root) {
+  'use strict';
+
+  /* Palette séquentielle perceptuellement uniforme (viridis), sûre en daltonisme. */
+  const VIRIDIS = [
+    [68, 1, 84], [72, 33, 115], [67, 62, 133], [56, 88, 140], [45, 112, 142],
+    [37, 133, 142], [30, 155, 138], [42, 176, 127], [82, 197, 105], [134, 213, 73],
+    [194, 223, 35], [253, 231, 37]
+  ];
+  function colormap(t) {
+    t = t <= 0 ? 0 : t >= 1 ? 1 : t;
+    const x = t * (VIRIDIS.length - 1);
+    const i = Math.min(VIRIDIS.length - 2, Math.floor(x));
+    const f = x - i;
+    const a = VIRIDIS[i], b = VIRIDIS[i + 1];
+    return [Math.round(a[0] + (b[0] - a[0]) * f),
+            Math.round(a[1] + (b[1] - a[1]) * f),
+            Math.round(a[2] + (b[2] - a[2]) * f)];
+  }
+  const css = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+  /* ---------------- Vue 2D ---------------- */
+  function makeView(canvas, region, pad) {
+    const G = root.Geom;
+    const bb = G.bbox(region.outer);
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    pad = pad === undefined ? 40 : pad;
+    const s = Math.min((W - 2 * pad) / (bb.w || 1), (H - 2 * pad) / (bb.h || 1));
+    const cx = (bb.xmin + bb.xmax) / 2, cy = (bb.ymin + bb.ymax) / 2;
+    return {
+      scale: s, W, H,
+      toScreen: (x, y) => [W / 2 + (x - cx) * s, H / 2 - (y - cy) * s],
+      toWorld: (px, py) => [cx + (px - W / 2) / s, cy - (py - H / 2) / s],
+      bbox: bb
+    };
+  }
+
+  function drawPlan(canvas, state, view) {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.clientWidth * dpr;
+    canvas.height = canvas.clientHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const s = getComputedStyle(document.documentElement);
+    const colLine = s.getPropertyValue('--line').trim() || '#8a8f98';
+    const colText = s.getPropertyValue('--fg').trim() || '#111';
+    ctx.clearRect(0, 0, view.W, view.H);
+    if (!state.region) return;
+
+    const P = (x, y) => view.toScreen(x, y);
+
+    // Bande d'appui
+    if (state.support.width > 0) {
+      ctx.save();
+      ctx.beginPath();
+      pathRegion(ctx, state.region, P);
+      ctx.clip('evenodd');
+      ctx.lineWidth = state.support.width * 2 * view.scale;
+      ctx.strokeStyle = 'rgba(45,112,142,0.35)';
+      ctx.beginPath();
+      ringPath(ctx, state.region.outer, P);
+      if (state.support.holesSupported) for (const h of state.region.holes) ringPath(ctx, h, P);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Contour plaque
+    ctx.beginPath();
+    pathRegion(ctx, state.region, P);
+    ctx.fillStyle = 'rgba(125,135,150,0.10)';
+    ctx.fill('evenodd');
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = colLine;
+    ctx.stroke();
+
+    // Hachures d'appui sur le contour
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = 'rgba(37,133,142,0.9)';
+    ctx.beginPath();
+    ringPath(ctx, state.region.outer, P);
+    ctx.stroke();
+
+    // Zones de charge
+    for (const l of state.loads) {
+      const sel = l === state.selected;
+      ctx.save();
+      ctx.lineWidth = sel ? 2.5 : 1.5;
+      if (l.type === 'point') {
+        const [px, py] = P(l.x, l.y);
+        ctx.fillStyle = sel ? '#d9480f' : '#e8590c';
+        ctx.beginPath(); ctx.arc(px, py, sel ? 8 : 6, 0, 2 * Math.PI); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = colText;
+        ctx.font = '11px system-ui, sans-serif';
+        ctx.fillText(`${fmt(l.force)} N`, px + 10, py - 8);
+      } else {
+        ctx.fillStyle = sel ? 'rgba(232,89,12,0.30)' : 'rgba(232,89,12,0.18)';
+        ctx.strokeStyle = sel ? '#d9480f' : 'rgba(232,89,12,0.85)';
+        ctx.beginPath();
+        if (l.shape === 'circle') {
+          const [px, py] = P(l.x, l.y);
+          ctx.arc(px, py, l.r * view.scale, 0, 2 * Math.PI);
+        } else {
+          const a = (l.angle || 0) * Math.PI / 180;
+          const c = Math.cos(a), sn = Math.sin(a);
+          const corners = [[-l.w / 2, -l.h / 2], [l.w / 2, -l.h / 2], [l.w / 2, l.h / 2], [-l.w / 2, l.h / 2]]
+            .map(([dx, dy]) => P(l.x + dx * c - dy * sn, l.y + dx * sn + dy * c));
+          ctx.moveTo(corners[0][0], corners[0][1]);
+          for (let i = 1; i < 4; i++) ctx.lineTo(corners[i][0], corners[i][1]);
+          ctx.closePath();
+        }
+        ctx.fill(); ctx.stroke();
+        const [px, py] = P(l.x, l.y);
+        ctx.fillStyle = colText;
+        ctx.font = '11px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        const area = root.Model.zoneArea(l);
+        ctx.fillText(`${fmt(l.force)} N`, px, py - 2);
+        ctx.fillText(`${(l.force / area * 1000).toFixed(1)} kPa`, px, py + 12);
+      }
+      ctx.restore();
+    }
+
+    // Échelle
+    drawScaleBar(ctx, view, colText);
+  }
+
+  function fmt(v) {
+    if (Math.abs(v) >= 10000) return (v / 1000).toFixed(1) + 'k';
+    return Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1);
+  }
+
+  function ringPath(ctx, ring, P) {
+    const p0 = P(ring[0][0], ring[0][1]);
+    ctx.moveTo(p0[0], p0[1]);
+    for (let i = 1; i < ring.length; i++) { const p = P(ring[i][0], ring[i][1]); ctx.lineTo(p[0], p[1]); }
+    ctx.closePath();
+  }
+  function pathRegion(ctx, region, P) {
+    ringPath(ctx, region.outer, P);
+    for (const h of region.holes) ringPath(ctx, h, P);
+  }
+
+  function drawScaleBar(ctx, view, col) {
+    const targetPx = 120;
+    const raw = targetPx / view.scale;
+    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    const nice = [1, 2, 5, 10].map(k => k * pow).find(v => v >= raw / 2) || pow;
+    const px = nice * view.scale;
+    const x0 = 16, y0 = view.H - 20;
+    ctx.save();
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0); ctx.lineTo(x0 + px, y0);
+    ctx.moveTo(x0, y0 - 4); ctx.lineTo(x0, y0 + 4);
+    ctx.moveTo(x0 + px, y0 - 4); ctx.lineTo(x0 + px, y0 + 4);
+    ctx.stroke();
+    ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(`${nice >= 1000 ? (nice / 1000) + ' m' : nice + ' mm'}`, x0 + px + 8, y0 + 4);
+    ctx.restore();
+  }
+
+  /* ---------------- Vue 3D ---------------- */
+  function drawDeformed(canvas, res, view3d, opts) {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (!res) return;
+
+    const mesh = res.mesh, u = res.u;
+    const field = opts.field === 'sigma' ? res.vonMises : null;
+    const nN = mesh.nodes.length;
+
+    // Valeurs nodales du champ affiché
+    const val = new Float64Array(nN);
+    let vmin = Infinity, vmax = -Infinity;
+    for (let n = 0; n < nN; n++) {
+      val[n] = field ? field[n] : Math.abs(u[3 * n]);
+      if (val[n] < vmin) vmin = val[n];
+      if (val[n] > vmax) vmax = val[n];
+    }
+    if (!(vmax > vmin)) { vmax = vmin + 1e-9; }
+
+    // Centrage / échelle
+    const G = root.Geom;
+    const bb = G.bbox(mesh.nodes);
+    const cx = (bb.xmin + bb.xmax) / 2, cy = (bb.ymin + bb.ymax) / 2;
+    const diag = Math.hypot(bb.w, bb.h) || 1;
+    const amp = opts.amp;
+    const yaw = view3d.yaw, pitch = view3d.pitch;
+    const cy1 = Math.cos(yaw), sy1 = Math.sin(yaw);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const scale = Math.min(W, H) / diag * 0.76 * view3d.zoom;
+
+    function proj(x, y, z) {
+      const X = x - cx, Y = y - cy;
+      const x1 = X * cy1 - Y * sy1;
+      const y1 = X * sy1 + Y * cy1;
+      const y2 = y1 * cp - z * sp;
+      const z2 = y1 * sp + z * cp;
+      return [W / 2 + x1 * scale + view3d.panX, H / 2 - y2 * scale + view3d.panY, z2];
+    }
+
+    // Sommets projetés (z déformé vers le bas = -w)
+    const sx = new Float64Array(nN), sy = new Float64Array(nN), sz = new Float64Array(nN);
+    for (let n = 0; n < nN; n++) {
+      const p = proj(mesh.nodes[n][0], mesh.nodes[n][1], -u[3 * n] * amp);
+      sx[n] = p[0]; sy[n] = p[1]; sz[n] = p[2];
+    }
+
+    // Contour non déformé (référence)
+    if (opts.showUndeformed) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(140,145,155,0.55)';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      for (const ring of [opts.region.outer].concat(opts.region.holes)) {
+        ctx.beginPath();
+        const p0 = proj(ring[0][0], ring[0][1], 0);
+        ctx.moveTo(p0[0], p0[1]);
+        for (let i = 1; i < ring.length; i++) { const p = proj(ring[i][0], ring[i][1], 0); ctx.lineTo(p[0], p[1]); }
+        ctx.closePath(); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Tri en profondeur (algorithme du peintre)
+    const nE = mesh.elems.length;
+    const order = new Int32Array(nE);
+    const depth = new Float64Array(nE);
+    for (let e = 0; e < nE; e++) {
+      const t = mesh.elems[e];
+      order[e] = e;
+      depth[e] = (sz[t[0]] + sz[t[1]] + sz[t[2]]) / 3;
+    }
+    const idx = Array.from(order).sort((a, b) => depth[a] - depth[b]);
+
+    // Éclairage diffus simple
+    const lightDir = [0.35, 0.45, 0.82];
+    ctx.lineJoin = 'round';
+    for (const e of idx) {
+      const t = mesh.elems[e];
+      const a = t[0], b = t[1], c = t[2];
+      // normale en repère déformé (pour l'ombrage)
+      const p1 = [mesh.nodes[a][0], mesh.nodes[a][1], -u[3 * a] * amp];
+      const p2 = [mesh.nodes[b][0], mesh.nodes[b][1], -u[3 * b] * amp];
+      const p3 = [mesh.nodes[c][0], mesh.nodes[c][1], -u[3 * c] * amp];
+      const ux = p2[0] - p1[0], uy = p2[1] - p1[1], uz = p2[2] - p1[2];
+      const vx = p3[0] - p1[0], vy = p3[1] - p1[1], vz = p3[2] - p1[2];
+      let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      nx /= nl; ny /= nl; nz /= nl;
+      const lam = Math.abs(nx * lightDir[0] + ny * lightDir[1] + nz * lightDir[2]);
+      const shade = 0.72 + 0.28 * lam;
+
+      const vm = (val[a] + val[b] + val[c]) / 3;
+      const col = colormap((vm - vmin) / (vmax - vmin));
+      ctx.fillStyle = `rgb(${Math.round(col[0] * shade)},${Math.round(col[1] * shade)},${Math.round(col[2] * shade)})`;
+      ctx.beginPath();
+      ctx.moveTo(sx[a], sy[a]); ctx.lineTo(sx[b], sy[b]); ctx.lineTo(sx[c], sy[c]);
+      ctx.closePath();
+      ctx.fill();
+      if (opts.wireframe) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      } else {
+        ctx.lineWidth = 0.6;
+        ctx.strokeStyle = ctx.fillStyle;
+        ctx.stroke();
+      }
+    }
+
+    // Appuis
+    if (opts.showSupports) {
+      ctx.fillStyle = 'rgba(20,110,140,0.85)';
+      for (let n = 0; n < nN; n++) {
+        if (!res.supported[n]) continue;
+        ctx.beginPath(); ctx.arc(sx[n], sy[n], 1.8, 0, 2 * Math.PI); ctx.fill();
+      }
+    }
+
+    // Point le plus déformé
+    const wn = res.wmaxNode;
+    ctx.save();
+    ctx.strokeStyle = '#e8590c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sx[wn], sy[wn], 6, 0, 2 * Math.PI); ctx.stroke();
+    ctx.restore();
+
+    drawColorbar(ctx, W, H, vmin, vmax, opts.field === 'sigma' ? 'MPa (von Mises, peau)' : 'mm (flèche)');
+    return { vmin, vmax };
+  }
+
+  function drawColorbar(ctx, W, H, vmin, vmax, unit) {
+    const s = getComputedStyle(document.documentElement);
+    const col = s.getPropertyValue('--fg').trim() || '#111';
+    const x = W - 74, y = 24, w = 14, h = Math.min(220, H - 90);
+    for (let i = 0; i < h; i++) {
+      const t = 1 - i / h;
+      ctx.fillStyle = css(colormap(t));
+      ctx.fillRect(x, y + i, w, 1);
+    }
+    ctx.strokeStyle = 'rgba(128,128,128,0.6)'; ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+    ctx.fillStyle = col;
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    const nTicks = 5;
+    for (let i = 0; i <= nTicks; i++) {
+      const t = i / nTicks;
+      const v = vmin + (vmax - vmin) * (1 - t);
+      ctx.fillText(v.toFixed(Math.abs(vmax) < 10 ? 2 : 1), x + w + 5, y + t * h + 4);
+    }
+    ctx.save();
+    ctx.translate(x - 6, y + h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillText(unit, 0, 0);
+    ctx.restore();
+  }
+
+  root.Render = { drawPlan, drawDeformed, makeView, colormap, cssColor: css };
+})(typeof window !== 'undefined' ? (window.PP = window.PP || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/app.js ===== */
+/* Interface : édition du modèle, lancement du calcul, affichage des résultats. */
+(function (PP) {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const G = PP.Geom, Mat = PP.Material, Imp = PP.Importers, R = PP.Render;
+
+  const state = {
+    region: null, detectedThickness: 0, source: null, fileName: null,
+    thickness: 20, duree: '1j', temp: '23', selfWeight: true,
+    support: { width: 30, type: 'simple', holesSupported: false },
+    loads: [], selected: null, tool: 'select',
+    criteria: { deflectionRatio: 200, safetyFactor: 2 },
+    meshSize: null, meshAuto: true,
+    result: null, view: 'plan',
+    view3d: { yaw: -0.55, pitch: 1.0, zoom: 1, panX: 0, panY: 0 },
+    ampSlider: 50, field: 'w', wire: false, undef: true, showSup: true
+  };
+  let planView = null;
+
+  /* ==================== Géométrie ==================== */
+  function setGeometry(res, name) {
+    state.region = res.region;
+    state.detectedThickness = res.thickness || 0;
+    state.source = res.source;
+    state.fileName = name || null;
+    state.result = null;
+    state.loads = [];
+    state.selected = null;
+    // Recentre le repère sur la plaque
+    const bb = G.bbox(state.region.outer);
+    const dx = -bb.xmin, dy = -bb.ymin;
+    const shift = (ring) => ring.map(p => [p[0] + dx, p[1] + dy]);
+    state.region = { outer: shift(state.region.outer), holes: state.region.holes.map(shift) };
+    if (res.thickness > 0.5 && res.thickness < 200) {
+      state.thickness = Math.round(res.thickness * 10) / 10;
+      $('thickness').value = state.thickness;
+    }
+    autoMesh();
+    setView('plan');
+    updateGeoInfo();
+    renderLoads();
+    draw();
+  }
+
+  function updateGeoInfo() {
+    const el = $('geo-info');
+    if (!state.region) { el.innerHTML = ''; return; }
+    const bb = G.bbox(state.region.outer);
+    const A = G.regionArea(state.region);
+    const mass = A * state.thickness * Mat.PEHD500.rho * 1000; // kg
+    const rows = [
+      ['Source', state.fileName ? state.fileName : state.source],
+      ['Encombrement', `${bb.w.toFixed(1)} × ${bb.h.toFixed(1)} mm`],
+      ['Surface', `${(A / 1e6).toFixed(3)} m²`],
+      ['Trous détectés', String(state.region.holes.length)],
+      ['Épaisseur détectée', state.detectedThickness ? state.detectedThickness.toFixed(1) + ' mm' : '—'],
+      ['Masse plaque', mass.toFixed(1) + ' kg']
+    ];
+    el.innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  }
+
+  async function loadFile(file) {
+    $('geo-error').textContent = '';
+    const name = file.name, lower = name.toLowerCase();
+    try {
+      if (lower.endsWith('.stl')) {
+        setGeometry(Imp.importSTL(await file.arrayBuffer()), name);
+      } else if (lower.endsWith('.step') || lower.endsWith('.stp')) {
+        setGeometry(Imp.importSTEP(await file.text()), name);
+      } else if (lower.endsWith('.json')) {
+        loadProject(JSON.parse(await file.text()));
+      } else {
+        throw new Error('Format non reconnu : utilisez .stl, .step ou .stp.');
+      }
+    } catch (e) {
+      $('geo-error').textContent = e.message || String(e);
+      console.error(e);
+    }
+  }
+
+  /* ==================== Maillage automatique ==================== */
+  function autoMesh() {
+    if (!state.region) return;
+    const A = G.regionArea(state.region);
+    const bb = G.bbox(state.region.outer);
+    const diag = Math.hypot(bb.w, bb.h);
+    let h = Math.sqrt(A / (1400 * 0.43));           // ~1400 nœuds visés
+    h = Math.max(diag / 160, Math.min(diag / 14, h));
+    // Assez fin pour décrire les zones de charge et la bande d'appui
+    for (const l of state.loads) {
+      if (l.type !== 'zone') continue;
+      const d = l.shape === 'circle' ? 2 * l.r : Math.min(l.w, l.h);
+      h = Math.min(h, d / 2.5);
+    }
+    if (state.support.width > 0) h = Math.min(h, Math.max(state.support.width, diag / 160));
+    h = Math.max(h, diag / 220);
+    if (state.meshAuto) {
+      state.meshSize = Math.round(h * 10) / 10;
+      $('mesh-size').value = state.meshSize;
+    }
+    updateMeshInfo();
+  }
+
+  function updateMeshInfo() {
+    if (!state.region || !state.meshSize) { $('mesh-info').textContent = ''; return; }
+    const n = Math.round(G.regionArea(state.region) / (state.meshSize * state.meshSize) * 0.43);
+    $('mesh-info').textContent =
+      `Environ ${n} nœuds. Maille plus fine = résultat plus précis mais calcul plus long ` +
+      `(au-delà de ~4000 nœuds, comptez plusieurs secondes).`;
+  }
+
+  /* ==================== Charges ==================== */
+  function defaultZone(shape, x, y) {
+    const bb = G.bbox(state.region.outer);
+    const d = Math.min(bb.w, bb.h);
+    return shape === 'circle'
+      ? { type: 'zone', shape: 'circle', x, y, r: d * 0.12, force: 1000 }
+      : { type: 'zone', shape: 'rect', x, y, w: d * 0.25, h: d * 0.25, angle: 0, force: 1000 };
+  }
+
+  function renderLoads() {
+    const ul = $('load-list');
+    ul.innerHTML = '';
+    let total = 0;
+    state.loads.forEach((l, i) => {
+      total += l.force;
+      const li = document.createElement('li');
+      if (l === state.selected) li.className = 'sel';
+      const title = l.type === 'point' ? 'Force ponctuelle'
+        : (l.shape === 'circle' ? 'Zone ronde' : 'Zone rectangulaire');
+      const unit = l.unit || 'N';
+      const units = l.type === 'point' ? ['N', 'kg'] : ['N', 'kg', 'kPa'];
+      const fields = [['x', 'X', l.x], ['y', 'Y', l.y]];
+      if (l.type === 'zone' && l.shape === 'circle') fields.push(['r', 'R', l.r]);
+      if (l.type === 'zone' && l.shape === 'rect') {
+        fields.push(['w', 'L', l.w], ['h', 'l', l.h], ['angle', '° ', l.angle || 0]);
+      }
+      li.innerHTML =
+        `<div class="hd"><span class="sw"></span>${i + 1}. ${title}
+           <span style="flex:1"></span>
+           <button class="ghost" data-del="${i}" title="Supprimer">✕</button></div>
+         <div class="grid" style="grid-template-columns:1fr 1fr">
+           <label style="grid-template-columns:20px 1fr"><span>F</span>
+             <input type="number" step="any" data-i="${i}" data-k="__force" value="${round(toUnit(l, unit))}"></label>
+           <label style="grid-template-columns:20px 1fr"><span></span>
+             <select data-i="${i}" data-unit="1">` +
+        units.map(u => `<option value="${u}" ${u === unit ? 'selected' : ''}>${u}</option>`).join('') +
+        `   </select></label>
+         </div>
+         <div class="grid">` +
+        fields.map(([k, lab, v]) =>
+          `<label><span>${lab}</span><input type="number" step="any" data-i="${i}" data-k="${k}" value="${round(v)}"></label>`).join('') +
+        `</div>
+         <div class="det" style="color:var(--muted);font-size:11px;margin-top:4px">${loadSummary(l)}</div>`;
+      li.addEventListener('mousedown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+        state.selected = l; renderLoads(); draw();
+      });
+      ul.appendChild(li);
+    });
+    ul.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const l = state.loads[+inp.dataset.i];
+        const v = parseFloat(inp.value);
+        if (!isFinite(v)) return;
+        if (inp.dataset.k === '__force') l.force = fromUnit(l, l.unit || 'N', v);
+        else l[inp.dataset.k] = v;
+        invalidate(); draw(); updateTotals();
+        li_refreshSummary(inp, l);
+      });
+    });
+    ul.querySelectorAll('select[data-unit]').forEach(sel => {
+      sel.addEventListener('change', () => {
+        state.loads[+sel.dataset.i].unit = sel.value;
+        renderLoads();
+      });
+    });
+    ul.querySelectorAll('[data-del]').forEach(b => {
+      b.addEventListener('click', () => {
+        const l = state.loads[+b.dataset.del];
+        state.loads.splice(+b.dataset.del, 1);
+        if (state.selected === l) state.selected = null;
+        invalidate(); renderLoads(); draw();
+      });
+    });
+    updateTotals();
+  }
+
+  function updateTotals() {
+    const total = state.loads.reduce((s, l) => s + (l.force || 0), 0);
+    $('load-total').textContent = state.loads.length
+      ? `Total : ${total.toFixed(0)} N (${(total / 9.81).toFixed(0)} kg)` : '';
+  }
+
+  const round = (v) => Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 100) / 100;
+
+  /* Conversion force <-> unité de saisie. kPa = kN/m² sur l'aire de la zone. */
+  function unitFactor(l, unit) {
+    if (unit === 'kg') return 9.81;
+    if (unit === 'kPa') return PP.Model.zoneArea(l) * 1e-3;
+    return 1;
+  }
+  const toUnit = (l, u) => l.force / unitFactor(l, u);
+  const fromUnit = (l, u, v) => v * unitFactor(l, u);
+
+  function loadSummary(l) {
+    const kg = (l.force / 9.81).toFixed(0);
+    if (l.type === 'point') return `${l.force.toFixed(0)} N — soit ${kg} kg posés en un point`;
+    const A = PP.Model.zoneArea(l);
+    return `${l.force.toFixed(0)} N (${kg} kg) sur ${(A / 1e6).toFixed(3)} m² — ` +
+      `pression ${(l.force / A * 1000).toFixed(1)} kPa`;
+  }
+
+  function li_refreshSummary(inp, l) {
+    const li = inp.closest('li');
+    const d = li && li.querySelector('.det');
+    if (d) d.textContent = loadSummary(l);
+  }
+
+  /* ==================== Interaction vue plan ==================== */
+  function hitLoad(x, y) {
+    for (let i = state.loads.length - 1; i >= 0; i--) {
+      const l = state.loads[i];
+      if (l.type === 'point') {
+        if (Math.hypot(x - l.x, y - l.y) < 10 / planView.scale) return l;
+      } else if (PP.Model.inZone(x, y, l)) return l;
+    }
+    return null;
+  }
+
+  function setupPlanEvents(cv) {
+    let drag = null;
+    cv.addEventListener('pointerdown', (e) => {
+      if (!state.region || !planView) return;
+      cv.setPointerCapture(e.pointerId);
+      const r = cv.getBoundingClientRect();
+      const [x, y] = planView.toWorld(e.clientX - r.left, e.clientY - r.top);
+      if (state.tool === 'select') {
+        const l = hitLoad(x, y);
+        state.selected = l;
+        if (l) drag = { kind: 'move', l, dx: l.x - x, dy: l.y - y };
+        renderLoads(); draw();
+        return;
+      }
+      if (state.tool === 'point') {
+        const l = { type: 'point', x: round(x), y: round(y), force: 1000 };
+        state.loads.push(l); state.selected = l;
+        setTool('select'); invalidate(); renderLoads(); draw();
+        return;
+      }
+      const l = defaultZone(state.tool === 'circle' ? 'circle' : 'rect', x, y);
+      state.loads.push(l); state.selected = l;
+      drag = { kind: 'create', l, x0: x, y0: y };
+      renderLoads(); draw();
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (!drag || !planView) return;
+      const r = cv.getBoundingClientRect();
+      const [x, y] = planView.toWorld(e.clientX - r.left, e.clientY - r.top);
+      if (drag.kind === 'move') {
+        drag.l.x = round(x + drag.dx); drag.l.y = round(y + drag.dy);
+      } else {
+        const l = drag.l;
+        if (l.shape === 'circle') {
+          l.r = Math.max(1, round(Math.hypot(x - drag.x0, y - drag.y0)));
+        } else {
+          l.w = Math.max(1, round(Math.abs(x - drag.x0)));
+          l.h = Math.max(1, round(Math.abs(y - drag.y0)));
+          l.x = round((x + drag.x0) / 2); l.y = round((y + drag.y0) / 2);
+        }
+      }
+      invalidate(); draw();
+    });
+    cv.addEventListener('pointerup', () => {
+      if (drag) { setTool('select'); renderLoads(); autoMesh(); }
+      drag = null;
+    });
+  }
+
+  function setTool(t) {
+    state.tool = t;
+    document.querySelectorAll('#tools .chip').forEach(c => c.classList.toggle('on', c.dataset.tool === t));
+    $('tool-hint').textContent = t === 'select'
+      ? 'Cliquez une charge pour la sélectionner, glissez-la pour la déplacer.'
+      : (t === 'point' ? 'Cliquez sur la plaque pour poser la force ponctuelle.'
+        : 'Cliquez-glissez sur la plaque pour tracer la zone chargée.');
+  }
+
+  /* ==================== Interaction 3D ==================== */
+  function setup3DEvents(cv) {
+    let last = null, btn = 0;
+    cv.addEventListener('contextmenu', e => e.preventDefault());
+    cv.addEventListener('pointerdown', (e) => {
+      cv.setPointerCapture(e.pointerId);
+      last = [e.clientX, e.clientY]; btn = e.button;
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (!last) return;
+      const dx = e.clientX - last[0], dy = e.clientY - last[1];
+      last = [e.clientX, e.clientY];
+      if (btn === 2 || e.shiftKey) {
+        state.view3d.panX += dx; state.view3d.panY += dy;
+      } else {
+        state.view3d.yaw += dx * 0.008;
+        state.view3d.pitch = Math.max(0.02, Math.min(Math.PI / 2, state.view3d.pitch - dy * 0.008));
+      }
+      draw();
+    });
+    cv.addEventListener('pointerup', () => { last = null; });
+    cv.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      state.view3d.zoom *= Math.exp(-e.deltaY * 0.0012);
+      state.view3d.zoom = Math.max(0.2, Math.min(12, state.view3d.zoom));
+      draw();
+    }, { passive: false });
+  }
+
+  /* ==================== Dessin ==================== */
+  function draw() {
+    if (state.view === 'plan') {
+      if (!state.region) { const c = $('cv-plan').getContext('2d'); c.clearRect(0, 0, 9999, 9999); return; }
+      planView = R.makeView($('cv-plan'), state.region);
+      R.drawPlan($('cv-plan'), state, planView);
+    } else if (state.result) {
+      const amp = autoAmp() * (state.ampSlider / 50);
+      $('amp-val').textContent = '× ' + (amp < 10 ? amp.toFixed(1) : Math.round(amp));
+      R.drawDeformed($('cv-def'), state.result, state.view3d, {
+        amp, field: state.field, wireframe: state.wire,
+        showUndeformed: state.undef, showSupports: state.showSup, region: state.region
+      });
+    }
+  }
+
+  function autoAmp() {
+    if (!state.result) return 1;
+    const bb = G.bbox(state.region.outer);
+    const target = Math.max(bb.w, bb.h) * 0.12;
+    const w = Math.abs(state.result.wmax) || 1e-6;
+    return Math.max(0.2, Math.min(5000, target / w));
+  }
+
+  function setView(v) {
+    state.view = v;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.view === v));
+    $('cv-plan').hidden = v !== 'plan';
+    $('cv-def').hidden = v !== 'def';
+    $('viewbar-plan').hidden = v !== 'plan';
+    $('viewbar-def').hidden = v !== 'def';
+    draw();
+  }
+
+  function invalidate() { state.result = null; }
+
+  /* ==================== Calcul ==================== */
+  function run() {
+    if (!state.region) { $('geo-error').textContent = "Importez d'abord une géométrie."; return; }
+    $('busy').hidden = false;
+    setTimeout(() => {
+      try {
+        const mat = Mat.properties(state.duree, state.temp);
+        const res = PP.Model.run({
+          region: state.region,
+          thickness: state.thickness,
+          meshSize: state.meshSize,
+          support: state.support,
+          loads: state.loads,
+          material: { E: mat.E, nu: mat.nu, rho: mat.rho, sigmaY: mat.sigmaY },
+          selfWeight: state.selfWeight,
+          criteria: state.criteria
+        });
+        res.mat = mat;
+        state.result = res;
+        showResults(res, mat);
+        setView('def');
+      } catch (e) {
+        $('geo-error').textContent = 'Erreur de calcul : ' + (e.message || e);
+        console.error(e);
+      } finally {
+        $('busy').hidden = true;
+      }
+    }, 30);
+  }
+
+  function showResults(res, mat) {
+    const v = $('verdict');
+    const cls = res.verdict === 'OK' ? 'ok' : (res.verdict === 'LIMITE' ? 'limite' : 'bad');
+    v.className = 'verdict ' + cls;
+    const msg = res.verdict === 'OK' ? 'Plaque conforme aux deux critères'
+      : res.verdict === 'LIMITE' ? 'Juste acceptable — peu de marge'
+      : 'Critère dépassé — épaissir, réduire la portée ou la charge';
+    v.innerHTML =
+      `<div class="badge">${res.verdict}</div>
+       <div class="coef">Coefficient de sécurité global <b>${res.safety.toFixed(2)}</b></div>
+       <div class="coef">${msg}</div>`;
+
+    const bar = (label, val, adm, unit, ratio, det) => {
+      const p = Math.min(100, ratio * 100);
+      const col = ratio <= 0.87 ? 'var(--ok)' : (ratio <= 1 ? 'var(--warn)' : 'var(--bad)');
+      return `<div class="crit">
+        <div class="top"><span>${label}</span><b>${val} / ${adm} ${unit}</b></div>
+        <div class="bar"><i style="width:${p}%;background:${col}"></i></div>
+        <div class="det">${det}</div></div>`;
+    };
+    const wAbs = Math.abs(res.wmax);
+    $('criteria').innerHTML =
+      bar('Flèche', wAbs.toFixed(2), res.fAdm.toFixed(2), 'mm', wAbs / res.fAdm,
+        `taux ${(wAbs / res.fAdm * 100).toFixed(0)} % · critère L/${state.criteria.deflectionRatio} · portée L = ${res.Lref.toFixed(0)} mm`) +
+      bar('Contrainte', res.sigmaMax.toFixed(2), res.sigmaAdm.toFixed(2), 'MPa', res.sigmaMax / res.sigmaAdm,
+        `taux ${(res.sigmaMax / res.sigmaAdm * 100).toFixed(0)} % · seuil d'écoulement ${mat.sigmaY.toFixed(1)} MPa / ${state.criteria.safetyFactor}`);
+
+    const A = G.regionArea(state.region);
+    const mass = A * state.thickness * Mat.PEHD500.rho * 1000;
+    const kv = [
+      ['Flèche maximale', wAbs.toFixed(2) + ' mm'],
+      ['Flèche admissible', res.fAdm.toFixed(2) + ' mm'],
+      ['Coef. sécurité flèche', fmtCoef(res.safetyDefl)],
+      ['Contrainte max (peau)', res.sigmaMax.toFixed(2) + ' MPa'],
+      ['Contrainte admissible', res.sigmaAdm.toFixed(2) + ' MPa'],
+      ['Coef. sécurité contrainte', fmtCoef(res.safetyStress)],
+      ['Portée de référence L', res.Lref.toFixed(0) + ' mm'],
+      ['Rapport flèche / portée', 'L/' + Math.round(res.Lref / Math.max(wAbs, 1e-9))],
+      ['Charge totale appliquée', res.appliedTotal.toFixed(0) + ' N (' + (res.appliedTotal / 9.81).toFixed(0) + ' kg)'],
+      ['Réaction totale d\'appui', res.reactionTotal.toFixed(0) + ' N'],
+      ['Nœuds / éléments', `${res.mesh.nodes.length} / ${res.mesh.elems.length}`],
+      ['Temps de résolution', res.solveMs + ' ms']
+    ];
+    $('res-kv').innerHTML = kv.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('');
+
+    const hyp = [
+      ['Matériau', Mat.PEHD500.nom],
+      ['Épaisseur', state.thickness + ' mm'],
+      ['Module E retenu', mat.E.toFixed(0) + ' MPa'],
+      ['Coef. de Poisson', mat.nu.toFixed(2)],
+      ['Durée de charge', mat.dureeLabel + ' (k=' + mat.kFluage.toFixed(2) + ')'],
+      ['Température', mat.tempLabel],
+      ['Seuil d\'écoulement', mat.sigmaY.toFixed(1) + ' MPa'],
+      ['Appui', (state.support.type === 'simple' ? 'Appui simple' : 'Encastrement') + ' sur ' + state.support.width + ' mm'],
+      ['Poids propre', state.selfWeight ? 'inclus (' + mass.toFixed(1) + ' kg)' : 'non inclus'],
+      ['Théorie', 'Plaque mince de Kirchhoff, petits déplacements, élasticité linéaire']
+    ];
+    $('hyp-kv').innerHTML = hyp.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('');
+
+    $('warnings').innerHTML = res.warnings.length
+      ? '<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 6px">Points de vigilance</h3><ul class="warn-list">'
+        + res.warnings.map(w => `<li>${w}</li>`).join('') + '</ul>'
+      : '';
+  }
+
+  const fmtCoef = (c) => isFinite(c) ? c.toFixed(2) : '∞';
+
+  /* ==================== Projet : sauvegarde / ouverture ==================== */
+  function saveProject() {
+    const data = {
+      format: 'plaque-pehd-v1',
+      region: state.region, detectedThickness: state.detectedThickness,
+      source: state.source, fileName: state.fileName,
+      thickness: state.thickness, duree: state.duree, temp: state.temp,
+      selfWeight: state.selfWeight, support: state.support, loads: state.loads,
+      criteria: state.criteria, meshSize: state.meshSize, meshAuto: state.meshAuto
+    };
+    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (state.fileName || 'plaque-pehd').replace(/\.[^.]+$/, '') + '.plaque.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function loadProject(d) {
+    if (!d || d.format !== 'plaque-pehd-v1') throw new Error('Fichier projet non reconnu.');
+    Object.assign(state, {
+      region: d.region, detectedThickness: d.detectedThickness || 0, source: d.source,
+      fileName: d.fileName, thickness: d.thickness, duree: d.duree, temp: d.temp,
+      selfWeight: d.selfWeight, support: d.support, loads: d.loads || [],
+      criteria: d.criteria, meshSize: d.meshSize, meshAuto: d.meshAuto, result: null, selected: null
+    });
+    syncInputs();
+    updateGeoInfo(); renderLoads(); updateMeshInfo(); setView('plan');
+  }
+
+  function syncInputs() {
+    $('thickness').value = state.thickness;
+    $('duree').value = state.duree;
+    $('temp').value = state.temp;
+    $('selfweight').checked = state.selfWeight;
+    $('sup-width').value = state.support.width;
+    $('sup-type').value = state.support.type;
+    $('sup-holes').checked = state.support.holesSupported;
+    $('crit-defl').value = state.criteria.deflectionRatio;
+    $('crit-sf').value = state.criteria.safetyFactor;
+    $('mesh-size').value = state.meshSize || '';
+    $('mesh-auto').checked = state.meshAuto;
+    updateMatInfo();
+  }
+
+  function updateMatInfo() {
+    const m = Mat.properties(state.duree, state.temp);
+    $('mat-info').innerHTML =
+      `PEHD 500 : E<sub>0</sub> = ${Mat.PEHD500.E0} MPa à 23 °C sous charge courte. ` +
+      `Compte tenu du fluage (×${m.kFluage.toFixed(2)}) et de la température (×${m.kTemp.toFixed(2)}), ` +
+      `le calcul utilise <b>E = ${m.E.toFixed(0)} MPa</b> et σ<sub>seuil</sub> = ${m.sigmaY.toFixed(1)} MPa. ` +
+      `Le PEHD flue fortement : une charge permanente peut tripler la flèche par rapport à une charge brève.`;
+    $('crit-info').textContent =
+      `Contrainte admissible = ${(m.sigmaY / state.criteria.safetyFactor).toFixed(1)} MPa. ` +
+      `La portée L est estimée automatiquement (2 × distance maximale à un appui).`;
+  }
+
+  /* ==================== Initialisation ==================== */
+  function init() {
+    // Matériau : listes déroulantes
+    $('duree').innerHTML = Mat.DUREES.map(d => `<option value="${d.id}">${d.label}</option>`).join('');
+    $('temp').innerHTML = Mat.TEMPERATURES.map(t => `<option value="${t.id}">${t.label}</option>`).join('');
+    $('thick-chips').innerHTML = [5, 8, 10, 12, 15, 20, 25, 30, 40, 50]
+      .map(t => `<button class="chip" data-t="${t}">${t}</button>`).join('');
+    syncInputs();
+
+    // Fichiers
+    const drop = $('drop'), file = $('file');
+    drop.addEventListener('click', () => file.click());
+    file.addEventListener('change', () => { if (file.files[0]) loadFile(file.files[0]); file.value = ''; });
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
+      e.preventDefault(); drop.classList.add('over');
+    }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => {
+      e.preventDefault(); drop.classList.remove('over');
+    }));
+    drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop', e => e.preventDefault());
+
+    // Géométries simples
+    $('geo-rect').addEventListener('click', () => geoParams('rect'));
+    $('geo-disc').addEventListener('click', () => geoParams('disc'));
+
+    // Épaisseur / matériau
+    $('thickness').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      if (isFinite(v) && v > 0) { state.thickness = v; invalidate(); updateGeoInfo(); }
+    });
+    $('thick-chips').addEventListener('click', e => {
+      if (!e.target.dataset.t) return;
+      state.thickness = +e.target.dataset.t;
+      $('thickness').value = state.thickness;
+      invalidate(); updateGeoInfo();
+    });
+    $('duree').addEventListener('change', e => { state.duree = e.target.value; invalidate(); updateMatInfo(); });
+    $('temp').addEventListener('change', e => { state.temp = e.target.value; invalidate(); updateMatInfo(); });
+    $('selfweight').addEventListener('change', e => { state.selfWeight = e.target.checked; invalidate(); });
+
+    // Appuis
+    $('sup-width').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      if (isFinite(v) && v >= 0) { state.support.width = v; invalidate(); autoMesh(); draw(); }
+    });
+    $('sup-type').addEventListener('change', e => { state.support.type = e.target.value; invalidate(); });
+    $('sup-holes').addEventListener('change', e => { state.support.holesSupported = e.target.checked; invalidate(); draw(); });
+
+    // Outils de charge
+    $('tools').addEventListener('click', e => { if (e.target.dataset.tool) setTool(e.target.dataset.tool); });
+    $('load-clear').addEventListener('click', () => {
+      state.loads = []; state.selected = null; invalidate(); renderLoads(); draw();
+    });
+
+    // Critères
+    $('crit-defl').addEventListener('change', e => {
+      state.criteria.deflectionRatio = +e.target.value; invalidate(); updateMatInfo();
+    });
+    $('crit-sf').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      if (isFinite(v) && v >= 1) { state.criteria.safetyFactor = v; invalidate(); updateMatInfo(); }
+    });
+
+    // Maillage
+    $('mesh-auto').addEventListener('change', e => {
+      state.meshAuto = e.target.checked; $('mesh-size').disabled = state.meshAuto; autoMesh();
+    });
+    $('mesh-size').disabled = true;
+    $('mesh-size').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      if (isFinite(v) && v > 0) { state.meshSize = v; invalidate(); updateMeshInfo(); }
+    });
+
+    // Calcul, vues
+    $('btn-run').addEventListener('click', run);
+    document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => setView(t.dataset.view)));
+    $('field').addEventListener('change', e => { state.field = e.target.value; draw(); });
+    $('amp').addEventListener('input', e => { state.ampSlider = Math.max(1, +e.target.value); draw(); });
+    $('wire').addEventListener('change', e => { state.wire = e.target.checked; draw(); });
+    $('undef').addEventListener('change', e => { state.undef = e.target.checked; draw(); });
+    $('sup-show').addEventListener('change', e => { state.showSup = e.target.checked; draw(); });
+    $('view-reset').addEventListener('click', () => {
+      state.view3d = { yaw: -0.55, pitch: 1.0, zoom: 1, panX: 0, panY: 0 }; draw();
+    });
+    $('view-png').addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = $('cv-def').toDataURL('image/png');
+      a.download = 'deformee-plaque-pehd.png';
+      a.click();
+    });
+
+    // Projet
+    $('btn-save').addEventListener('click', saveProject);
+    $('btn-load').addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.json';
+      inp.onchange = () => { if (inp.files[0]) loadFile(inp.files[0]); };
+      inp.click();
+    });
+    $('btn-print').addEventListener('click', () => window.print());
+
+    setupPlanEvents($('cv-plan'));
+    setup3DEvents($('cv-def'));
+    window.addEventListener('resize', draw);
+    setTool('select');
+
+    // Démarrage sur un exemple : plaque 1000 × 700 posée sur un cadre
+    setGeometry(Imp.rectangle(1000, 700), null);
+    state.source = 'exemple (rectangle 1000 × 700)';
+    updateGeoInfo();
+  }
+
+  function geoParams(kind) {
+    const el = $('geo-params');
+    el.hidden = false;
+    if (kind === 'rect') {
+      el.innerHTML = `<label class="field" style="flex:1"><span>Longueur</span><input type="number" id="gp-a" value="1000"></label>
+                      <label class="field" style="flex:1"><span>Largeur</span><input type="number" id="gp-b" value="700"></label>
+                      <button class="ghost" id="gp-ok">Créer</button>`;
+      $('gp-ok').onclick = () => {
+        const a = parseFloat($('gp-a').value), b = parseFloat($('gp-b').value);
+        if (a > 0 && b > 0) { setGeometry(Imp.rectangle(a, b), null); state.source = `rectangle ${a} × ${b}`; updateGeoInfo(); el.hidden = true; }
+      };
+    } else {
+      el.innerHTML = `<label class="field" style="flex:1"><span>Diamètre</span><input type="number" id="gp-d" value="800"></label>
+                      <button class="ghost" id="gp-ok">Créer</button>`;
+      $('gp-ok').onclick = () => {
+        const d = parseFloat($('gp-d').value);
+        if (d > 0) { setGeometry(Imp.disc(d / 2), null); state.source = `disque Ø${d}`; updateGeoInfo(); el.hidden = true; }
+      };
+    }
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})(window.PP);
+
+</script>
+</body>
+</html>
