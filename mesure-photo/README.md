@@ -1,8 +1,13 @@
 # Mesure d'objet sur photo
 
-Application web qui relève les **dimensions d'un objet posé à plat sur un fond blanc**,
-à partir d'une photo prise de dessus. Tout tourne dans le navigateur : aucune image
-n'est envoyée sur un serveur.
+Application web qui relève les **dimensions d'un objet posé sur un fond blanc** à partir
+de photos, et en reconstruit un **modèle 3D exportable en STL ou en STEP**. Tout tourne
+dans le navigateur : aucune image n'est envoyée sur un serveur.
+
+Deux onglets :
+
+- **Mesure — 1 photo** : cotes 2D d'un objet vu de dessus.
+- **Modèle 3D — plusieurs photos** : reconstruction du volume et export CAO.
 
 ## Utilisation
 
@@ -77,21 +82,82 @@ Sur une prise de vue soignée avec une bonne référence, l'écart typique est d
 du pourcent ; l'incertitude est dominée par la calibration, pas par le détourage
 (qui est précis au pixel près).
 
+## Modèle 3D
+
+Deux méthodes, choisies selon la pièce.
+
+### Prisme — 1 vue de dessus + épaisseur
+
+Pour toute pièce d'**épaisseur constante** : plaque, tôle, joint, découpe. Le contour
+détouré est extrudé de l'épaisseur que tu mesures au pied à coulisse.
+
+C'est de loin le mode le plus précis, et le seul qui produise un **STEP exact** : le
+fichier contient des plans et des droites, avec les perçages en contours intérieurs —
+une vraie pièce reprenable en CAO, pas un maillage. La finesse du contour se règle avec
+le curseur de simplification : plus il est bas, plus le contour colle à la photo, plus
+le STEP contient de faces.
+
+### Sculptage par silhouettes — plusieurs vues
+
+Pour un objet réellement volumique. Le principe : partir d'un bloc de voxels et retirer
+tout ce qui tombe hors de la silhouette dans au moins une vue. Le maillage est extrait
+par *surface nets*, lissé, puis mis à l'échelle.
+
+Protocole de prise de vue :
+
+1. Objet au centre du fond blanc, **appareil fixe** (trépied ou posé).
+2. Faire tourner **l'objet**, pas l'appareil, d'un angle constant : 8 photos tous les
+   45°, ou 12 tous les 30°.
+3. Ajouter une **vue de dessus** : elle borne la section horizontale et améliore
+   nettement le résultat.
+4. Ne changer ni le zoom, ni la distance, ni la hauteur entre les photos.
+5. S'éloigner et zoomer : la projection est supposée orthographique, ce qui est d'autant
+   plus vrai qu'on est loin.
+
+L'axe de rotation et la ligne de pose sont déduits des silhouettes et affichés en orange
+sur les vignettes ; ils restent ajustables si le modèle sort de travers.
+
+**Limite de méthode, pas de réglage** : le sculptage reconstruit l'*enveloppe visible*.
+Un creux qui n'apparaît sur aucune silhouette — poche intérieure, gorge, contre-dépouille
+— sera comblé. Un bol ressort plein. Aucun réglage ne corrige cela ; seule une vue qui
+laisse voir le creux peut le révéler.
+
+L'export STEP n'est pas proposé dans ce mode : convertir un maillage en STEP ne donnerait
+qu'un amas de facettes, sans valeur en CAO. Le STL, lui, est directement imprimable.
+
 ## Développement
 
 ```
-node tests/run.mjs   # 38 vérifications sur des images de synthèse
-node build.mjs       # régénère mesure-photo-autonome.html
+node tests/run.mjs     # 38 vérifications — détourage et mesures 2D
+node tests/run3d.mjs   # 61 vérifications — triangulation, prisme, sculptage, STL, STEP
+node build.mjs         # régénère mesure-photo-autonome.html
 ```
 
-Les tests couvrent le détourage, le rectangle d'aire minimale sur objet incliné, les
-trous, les formes concaves, les objets multiples, la conversion en unités réelles et
-les cas difficiles (objet clair coloré, fond gris).
+Les tests 2D couvrent le détourage, le rectangle d'aire minimale sur objet incliné, les
+trous, les formes concaves, les objets multiples, la conversion en unités réelles et les
+cas difficiles (objet clair coloré, fond gris).
+
+Les tests 3D vérifient la triangulation avec trous et formes concaves, le volume et
+l'étanchéité des prismes, la reconstruction d'une sphère sous 16 angles et d'un pavé sous
+deux vues (volumes comparés à la théorie), l'orientation des faces après changement de
+repère, et la structure du STEP produit — références résolues, boucles d'arêtes fermées,
+nombre de faces.
+
+Les fichiers exportés ont aussi été relus par des outils tiers : `trimesh` confirme des
+STL étanches aux volumes attendus, et le noyau **OCCT** ouvre les STEP en solides fermés
+dont le volume coïncide au dixième de mm³ avec le STL correspondant.
 
 | Fichier | Rôle |
 | --- | --- |
 | `js/geometry.js` | enveloppe convexe, rectangle d'aire minimale, Feret, simplification de contour |
-| `js/vision.js` | seuillage, morphologie, composantes connexes, remplissage des trous, suivi de contour, mesures |
-| `js/app.js` | interface, calibration, rendu canvas, export |
+| `js/vision.js` | seuillage, morphologie, composantes connexes, trous, suivi de contour, mesures |
+| `js/triangulate.js` | triangulation de polygones avec trous (pont + découpe en oreilles) |
+| `js/carve.js` | sculptage par silhouettes, extraction de surface, lissage |
+| `js/mesh3d.js` | prisme extrudé, contrôles de maillage, export STL |
+| `js/step.js` | export STEP AP214 (B-rep exact) |
+| `js/scene3d.js` | aperçu WebGL |
+| `js/app.js`, `js/app3d.js` | interface des deux onglets |
 
-`js/vision.js` et `js/geometry.js` ne dépendent pas du DOM et tournent aussi sous Node.
+Tous les modules sauf `app*.js` et `scene3d.js` sont indépendants du DOM et tournent
+sous Node. `build.mjs` enferme chaque module dans sa propre portée : une concaténation à
+plat ferait entrer en collision les noms internes identiques d'un module à l'autre.

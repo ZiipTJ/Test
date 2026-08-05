@@ -72,15 +72,17 @@
   #dropzone .hint { color: var(--muted); padding: 46px 10px; }
   #dropzone.has-image .hint { display: none; }
   #dropzone .strong { color: var(--text); font-weight: 600; display: block; margin-bottom: 6px; }
-  canvas {
+  /* Ne cible que le canvas de mesure : une règle sur `canvas` masquerait aussi
+     les vignettes et l'aperçu 3D. */
+  #canvas {
     max-width: 100%;
     display: none;
     border-radius: 10px;
     background: #fff;
     touch-action: none;
   }
-  #dropzone.has-image canvas { display: block; margin: 0 auto; }
-  canvas.crosshair { cursor: crosshair; }
+  #dropzone.has-image #canvas { display: block; margin: 0 auto; }
+  #canvas.crosshair { cursor: crosshair; }
 
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
   button, select, input[type="number"], input[type="text"] {
@@ -147,6 +149,8 @@
   .row-label em { display: block; font-style: normal; font-size: 11px; color: var(--muted); }
   .row-value { font-weight: 600; font-variant-numeric: tabular-nums; }
   .row-px { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  #model3dStats .row { grid-template-columns: 1fr auto; }
+  #model3dStats .row .row-px { grid-column: 2; font-size: 11px; }
 
   .note { font-size: 13px; border-radius: 8px; padding: 8px 11px; margin: 8px 0 0; border: 1px solid var(--line); }
   .note.warn { border-color: #7c5b12; background: #2b2007; color: #fcd77a; }
@@ -164,6 +168,65 @@
   .measure-row button { padding: 2px 7px; background: transparent; border-color: transparent; color: var(--muted); }
   .measure-row button:hover { color: #fda4af; border-color: var(--line); }
 
+  .tabs { display: flex; gap: 8px; margin-top: 14px; }
+  .tabs button {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 9px 9px 0 0;
+    border-bottom-color: transparent;
+    padding: 9px 16px;
+    color: var(--muted);
+  }
+  .tabs button.active { background: var(--panel); color: var(--text); border-color: var(--line); border-bottom-color: var(--panel); }
+
+  #dropzone3d {
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  #dropzone3d.dragging { border-color: var(--accent); background: var(--panel-2); }
+  #dropzone3d .hint { color: var(--muted); text-align: center; padding: 12px 10px 18px; }
+  #dropzone3d .hint .strong { color: var(--text); font-weight: 600; display: block; margin-bottom: 6px; }
+
+  #photoList { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .photo-card {
+    display: flex;
+    gap: 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px;
+  }
+  .photo-card.off { opacity: .45; }
+  .photo-card .thumb { width: 120px; height: 90px; border-radius: 6px; background: #0b1220; flex: none; }
+  .photo-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .photo-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .photo-meta { font-size: 12px; color: var(--muted); }
+  .photo-meta.warn { color: var(--warn); }
+  .photo-controls { display: flex; align-items: center; gap: 5px; margin-top: auto; }
+  .photo-controls select { padding: 4px 6px; font-size: 13px; }
+  .photo-controls input { width: 62px; padding: 4px 6px; font-size: 13px; }
+  .photo-controls .deg { color: var(--muted); font-size: 12px; margin-right: auto; }
+  .photo-controls button { padding: 3px 8px; background: transparent; border-color: transparent; color: var(--muted); }
+  .photo-controls button:hover { color: #fda4af; border-color: var(--line); }
+
+  .viewer {
+    display: block;
+    width: 100%;
+    height: 460px;
+    border-radius: 10px;
+    background: #0b1220;
+    border: 1px solid var(--line);
+    touch-action: none;
+    cursor: grab;
+  }
+  .viewer:active { cursor: grabbing; }
+
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button:disabled:hover { border-color: var(--line); }
+
   .muted { color: var(--muted); font-size: 13px; }
   details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   details[open] summary { margin-bottom: 10px; }
@@ -176,10 +239,14 @@
 
 <header>
   <h1>Mesure d'objet sur photo</h1>
-  <p>Photographie l'objet <strong>posé à plat sur un fond blanc, appareil bien au-dessus et parallèle au plan</strong>. Le logiciel détourne l'objet, en sort les cotes en pixels, puis les convertit en millimètres dès que tu lui donnes une distance connue — une cote de l'objet, une règle dans le champ ou un objet de référence.</p>
+  <p>Photographie l'objet <strong>posé à plat sur un fond blanc, appareil bien au-dessus et parallèle au plan</strong>. Le logiciel détourne l'objet, en sort les cotes en pixels, puis les convertit en millimètres dès que tu lui donnes une distance connue — une cote de l'objet, une règle dans le champ ou un objet de référence. Avec plusieurs vues, il en reconstruit un modèle 3D exportable en STL ou en STEP.</p>
+  <nav class="tabs">
+    <button data-tab="mesure" class="active">Mesure — 1 photo</button>
+    <button data-tab="3d">Modèle 3D — plusieurs photos</button>
+  </nav>
 </header>
 
-<main>
+<main data-panel="mesure">
   <section>
     <div class="toolbar">
       <input type="file" id="fileInput" accept="image/*" hidden>
@@ -371,6 +438,134 @@
           <li><strong>Aire matière</strong> : silhouette moins les trous et découpes intérieures.</li>
           <li><strong>Circularité</strong> : 1 pour un cercle parfait, plus bas pour une forme allongée ou découpée.</li>
         </ul>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<main data-panel="3d" hidden>
+  <section>
+    <div class="toolbar">
+      <input type="file" id="fileInput3d" accept="image/*" multiple hidden>
+      <button class="primary" id="pickFiles3d">Ajouter des photos</button>
+      <button id="autoAngles">Répartir les angles</button>
+      <button id="autoAxis">Recaler l'axe</button>
+      <span class="spacer"></span>
+      <button id="build3d" class="primary">Générer le modèle 3D</button>
+    </div>
+    <p class="status" id="status3d">Ajoute les vues de ton objet, puis lance la reconstruction.</p>
+
+    <div id="dropzone3d">
+      <div class="hint">
+        <span class="strong">Dépose ici toutes les vues de l'objet</span>
+        Fond blanc, même appareil, même distance, même cadrage pour toutes les photos.
+      </div>
+      <div id="photoList"><p class="muted">Aucune photo.</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Aperçu du modèle</h2>
+      <canvas id="viewer3d" class="viewer"></canvas>
+      <p class="muted" id="viewerFallback" hidden>WebGL n'est pas disponible sur ce navigateur : l'aperçu est désactivé, mais l'export fonctionne.</p>
+      <div class="checks" style="margin-top:10px">
+        <label><input type="checkbox" id="wireframe"> Fil de fer</label>
+        <span class="muted">Glisse pour tourner, molette pour zoomer.</span>
+      </div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>Méthode de reconstruction</h2>
+      <label class="field">
+        <span class="lab">Comment reconstruire le volume</span>
+        <select id="mode3d">
+          <option value="prism">Prisme — 1 vue de dessus + épaisseur mesurée</option>
+          <option value="carve">Sculptage — plusieurs vues autour de l'objet</option>
+        </select>
+      </label>
+
+      <div id="prismFields">
+        <p class="muted">Pour toute pièce d'épaisseur constante : plaque, tôle, joint, découpe. C'est le mode le plus précis, et le seul qui produise un STEP exact.</p>
+        <label class="field">
+          <span class="lab">Épaisseur mesurée au pied à coulisse (mm)</span>
+          <input type="number" id="thickness" value="10" min="0.1" step="0.1">
+        </label>
+        <div class="slider">
+          <div class="top"><span>Simplification du contour (px)</span><span id="simplifyOut">1.5</span></div>
+          <input type="range" id="simplify" min="0.5" max="8" step="0.5" value="1.5">
+        </div>
+        <p class="muted">Plus la valeur est basse, plus le contour colle à la photo — mais plus le STEP contient de faces.</p>
+      </div>
+
+      <div id="carveFields" hidden>
+        <p class="muted">Pour un objet réellement volumique. Pose-le sur un fond blanc, garde l'appareil fixe et fais tourner l'objet d'un angle constant entre chaque photo.</p>
+        <div class="slider">
+          <div class="top"><span>Résolution du sculptage (voxels)</span><span id="resolutionOut">128</span></div>
+          <input type="range" id="resolution" min="32" max="256" step="8" value="128">
+        </div>
+        <div class="slider">
+          <div class="top"><span>Lissage du maillage</span><span id="smoothOut">2</span></div>
+          <input type="range" id="smooth" min="0" max="8" step="1" value="2">
+        </div>
+        <div class="grid-2">
+          <label class="field">
+            <span class="lab">Axe de rotation (px)</span>
+            <input type="number" id="axisX" step="0.5">
+          </label>
+          <label class="field">
+            <span class="lab">Ligne de pose (px)</span>
+            <input type="number" id="baseY" step="0.5">
+          </label>
+        </div>
+        <p class="muted">Ces deux repères sont déduits des silhouettes ; ajuste-les si le modèle sort de travers. Ils s'affichent en orange sur les vignettes.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Échelle</h2>
+      <label class="field">
+        <span class="lab">Millimètres par pixel</span>
+        <input type="number" id="scale3d" step="0.0001" min="0" placeholder="ex. 0.2500">
+      </label>
+      <button id="useMeasureScale">Reprendre l'échelle de l'onglet Mesure</button>
+      <p class="muted" style="margin-top:10px">Sans échelle, le modèle n'a pas de taille réelle. Mesure une cote connue dans l'onglet Mesure, puis reprends-la ici.</p>
+    </div>
+
+    <div class="card">
+      <h2>Modèle obtenu</h2>
+      <div id="model3dStats"><p class="muted">Pas encore de modèle.</p></div>
+      <div id="model3dNotes"></div>
+    </div>
+
+    <div class="card">
+      <h2>Export</h2>
+      <div class="toolbar" style="margin-bottom:0">
+        <button id="exportStl" disabled>STL binaire</button>
+        <button id="exportStlAscii" disabled>STL ASCII</button>
+        <button id="exportStep" disabled>STEP (AP214)</button>
+      </div>
+      <p class="muted" style="margin-top:10px">STL pour l'impression 3D et la visualisation. STEP pour reprendre la pièce en CAO — géométrie exacte, disponible en mode Prisme.</p>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>Protocole de prise de vue pour le sculptage</summary>
+        <ol>
+          <li>Objet au centre d'un fond blanc, <strong>appareil sur trépied</strong> ou posé : il ne doit pas bouger d'une photo à l'autre.</li>
+          <li>Fais tourner <strong>l'objet</strong>, pas l'appareil, d'un angle constant : 8 photos tous les 45°, ou 12 tous les 30°.</li>
+          <li>Ajoute une <strong>vue de dessus</strong> : elle borne la section horizontale et améliore beaucoup le résultat.</li>
+          <li>Ne change ni le zoom, ni la distance, ni la hauteur entre les photos.</li>
+          <li>Éloigne-toi et zoome : la projection est supposée orthographique, ce qui est d'autant plus vrai que tu es loin.</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>Ce que cette méthode ne peut pas voir</summary>
+        <p class="muted">Le sculptage par silhouettes reconstruit l'<strong>enveloppe visible</strong> de l'objet. Un creux qui n'apparaît sur aucune silhouette — une poche intérieure, une gorge, une contre-dépouille — sera comblé. Un bol ressortira plein. C'est une limite de méthode, pas un réglage : seule une vue qui laisse passer la lumière à travers le creux peut le révéler.</p>
+        <p class="muted">Pour une pièce d'épaisseur constante, le mode Prisme est franchement plus précis : le contour vient d'une seule photo bien cadrée et l'épaisseur de ton pied à coulisse.</p>
       </details>
     </div>
   </aside>

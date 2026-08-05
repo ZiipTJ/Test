@@ -269,6 +269,26 @@ export function traceContour(mask, width, height, startIndex) {
   return contour;
 }
 
+/**
+ * Contours des trous d'une composante (perçages, découpes intérieures),
+ * du plus grand au plus petit. Chaque contour est tracé sur le trou dilaté
+ * d'un pixel pour longer la matière et non le vide.
+ */
+export function traceHoles(compMask, filled, width, height, opts = {}) {
+  const holeMask = new Uint8Array(compMask.length);
+  for (let i = 0; i < compMask.length; i++) holeMask[i] = filled[i] && !compMask[i] ? 1 : 0;
+
+  const minArea = Math.max(6, Math.round(width * height * (opts.minHoleRatio || 0.0002)));
+  const { labels, blobs } = connectedComponents(holeMask, width, height, minArea);
+
+  return blobs.map((b) => {
+    const single = new Uint8Array(holeMask.length);
+    for (let i = 0; i < labels.length; i++) single[i] = labels[i] === b.id ? 1 : 0;
+    const contour = traceContour(single, width, height, b.seed);
+    return { area: b.area, contour, outline: simplifyClosed(contour, 1.0) };
+  });
+}
+
 /** Mesures en pixels d'une composante. */
 function describeBlob(blob, labels, width, height, opts) {
   const compMask = new Uint8Array(labels.length);
@@ -276,6 +296,7 @@ function describeBlob(blob, labels, width, height, opts) {
 
   const { filled, holeArea } = fillHoles(compMask, width, height);
   const contour = traceContour(filled, width, height, blob.seed);
+  const holes = traceHoles(compMask, filled, width, height, opts);
   const outline = simplifyClosed(contour, 1.0);
   const hull = convexHull(contour);
   const rect = minAreaRect(contour.length ? contour : [{ x: blob.minX, y: blob.minY }]);
@@ -290,6 +311,7 @@ function describeBlob(blob, labels, width, height, opts) {
     id: blob.id,
     contour,
     outline,
+    holes,
     hull,
     rect,
     feret,

@@ -72,15 +72,17 @@
   #dropzone .hint { color: var(--muted); padding: 46px 10px; }
   #dropzone.has-image .hint { display: none; }
   #dropzone .strong { color: var(--text); font-weight: 600; display: block; margin-bottom: 6px; }
-  canvas {
+  /* Ne cible que le canvas de mesure : une règle sur `canvas` masquerait aussi
+     les vignettes et l'aperçu 3D. */
+  #canvas {
     max-width: 100%;
     display: none;
     border-radius: 10px;
     background: #fff;
     touch-action: none;
   }
-  #dropzone.has-image canvas { display: block; margin: 0 auto; }
-  canvas.crosshair { cursor: crosshair; }
+  #dropzone.has-image #canvas { display: block; margin: 0 auto; }
+  #canvas.crosshair { cursor: crosshair; }
 
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
   button, select, input[type="number"], input[type="text"] {
@@ -147,6 +149,8 @@
   .row-label em { display: block; font-style: normal; font-size: 11px; color: var(--muted); }
   .row-value { font-weight: 600; font-variant-numeric: tabular-nums; }
   .row-px { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  #model3dStats .row { grid-template-columns: 1fr auto; }
+  #model3dStats .row .row-px { grid-column: 2; font-size: 11px; }
 
   .note { font-size: 13px; border-radius: 8px; padding: 8px 11px; margin: 8px 0 0; border: 1px solid var(--line); }
   .note.warn { border-color: #7c5b12; background: #2b2007; color: #fcd77a; }
@@ -164,6 +168,65 @@
   .measure-row button { padding: 2px 7px; background: transparent; border-color: transparent; color: var(--muted); }
   .measure-row button:hover { color: #fda4af; border-color: var(--line); }
 
+  .tabs { display: flex; gap: 8px; margin-top: 14px; }
+  .tabs button {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 9px 9px 0 0;
+    border-bottom-color: transparent;
+    padding: 9px 16px;
+    color: var(--muted);
+  }
+  .tabs button.active { background: var(--panel); color: var(--text); border-color: var(--line); border-bottom-color: var(--panel); }
+
+  #dropzone3d {
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  #dropzone3d.dragging { border-color: var(--accent); background: var(--panel-2); }
+  #dropzone3d .hint { color: var(--muted); text-align: center; padding: 12px 10px 18px; }
+  #dropzone3d .hint .strong { color: var(--text); font-weight: 600; display: block; margin-bottom: 6px; }
+
+  #photoList { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .photo-card {
+    display: flex;
+    gap: 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 8px;
+  }
+  .photo-card.off { opacity: .45; }
+  .photo-card .thumb { width: 120px; height: 90px; border-radius: 6px; background: #0b1220; flex: none; }
+  .photo-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .photo-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .photo-meta { font-size: 12px; color: var(--muted); }
+  .photo-meta.warn { color: var(--warn); }
+  .photo-controls { display: flex; align-items: center; gap: 5px; margin-top: auto; }
+  .photo-controls select { padding: 4px 6px; font-size: 13px; }
+  .photo-controls input { width: 62px; padding: 4px 6px; font-size: 13px; }
+  .photo-controls .deg { color: var(--muted); font-size: 12px; margin-right: auto; }
+  .photo-controls button { padding: 3px 8px; background: transparent; border-color: transparent; color: var(--muted); }
+  .photo-controls button:hover { color: #fda4af; border-color: var(--line); }
+
+  .viewer {
+    display: block;
+    width: 100%;
+    height: 460px;
+    border-radius: 10px;
+    background: #0b1220;
+    border: 1px solid var(--line);
+    touch-action: none;
+    cursor: grab;
+  }
+  .viewer:active { cursor: grabbing; }
+
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button:disabled:hover { border-color: var(--line); }
+
   .muted { color: var(--muted); font-size: 13px; }
   details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   details[open] summary { margin-bottom: 10px; }
@@ -176,10 +239,14 @@
 
 <header>
   <h1>Mesure d'objet sur photo</h1>
-  <p>Photographie l'objet <strong>posé à plat sur un fond blanc, appareil bien au-dessus et parallèle au plan</strong>. Le logiciel détourne l'objet, en sort les cotes en pixels, puis les convertit en millimètres dès que tu lui donnes une distance connue — une cote de l'objet, une règle dans le champ ou un objet de référence.</p>
+  <p>Photographie l'objet <strong>posé à plat sur un fond blanc, appareil bien au-dessus et parallèle au plan</strong>. Le logiciel détourne l'objet, en sort les cotes en pixels, puis les convertit en millimètres dès que tu lui donnes une distance connue — une cote de l'objet, une règle dans le champ ou un objet de référence. Avec plusieurs vues, il en reconstruit un modèle 3D exportable en STL ou en STEP.</p>
+  <nav class="tabs">
+    <button data-tab="mesure" class="active">Mesure — 1 photo</button>
+    <button data-tab="3d">Modèle 3D — plusieurs photos</button>
+  </nav>
 </header>
 
-<main>
+<main data-panel="mesure">
   <section>
     <div class="toolbar">
       <input type="file" id="fileInput" accept="image/*" hidden>
@@ -376,10 +443,154 @@
   </aside>
 </main>
 
+<main data-panel="3d" hidden>
+  <section>
+    <div class="toolbar">
+      <input type="file" id="fileInput3d" accept="image/*" multiple hidden>
+      <button class="primary" id="pickFiles3d">Ajouter des photos</button>
+      <button id="autoAngles">Répartir les angles</button>
+      <button id="autoAxis">Recaler l'axe</button>
+      <span class="spacer"></span>
+      <button id="build3d" class="primary">Générer le modèle 3D</button>
+    </div>
+    <p class="status" id="status3d">Ajoute les vues de ton objet, puis lance la reconstruction.</p>
+
+    <div id="dropzone3d">
+      <div class="hint">
+        <span class="strong">Dépose ici toutes les vues de l'objet</span>
+        Fond blanc, même appareil, même distance, même cadrage pour toutes les photos.
+      </div>
+      <div id="photoList"><p class="muted">Aucune photo.</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Aperçu du modèle</h2>
+      <canvas id="viewer3d" class="viewer"></canvas>
+      <p class="muted" id="viewerFallback" hidden>WebGL n'est pas disponible sur ce navigateur : l'aperçu est désactivé, mais l'export fonctionne.</p>
+      <div class="checks" style="margin-top:10px">
+        <label><input type="checkbox" id="wireframe"> Fil de fer</label>
+        <span class="muted">Glisse pour tourner, molette pour zoomer.</span>
+      </div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>Méthode de reconstruction</h2>
+      <label class="field">
+        <span class="lab">Comment reconstruire le volume</span>
+        <select id="mode3d">
+          <option value="prism">Prisme — 1 vue de dessus + épaisseur mesurée</option>
+          <option value="carve">Sculptage — plusieurs vues autour de l'objet</option>
+        </select>
+      </label>
+
+      <div id="prismFields">
+        <p class="muted">Pour toute pièce d'épaisseur constante : plaque, tôle, joint, découpe. C'est le mode le plus précis, et le seul qui produise un STEP exact.</p>
+        <label class="field">
+          <span class="lab">Épaisseur mesurée au pied à coulisse (mm)</span>
+          <input type="number" id="thickness" value="10" min="0.1" step="0.1">
+        </label>
+        <div class="slider">
+          <div class="top"><span>Simplification du contour (px)</span><span id="simplifyOut">1.5</span></div>
+          <input type="range" id="simplify" min="0.5" max="8" step="0.5" value="1.5">
+        </div>
+        <p class="muted">Plus la valeur est basse, plus le contour colle à la photo — mais plus le STEP contient de faces.</p>
+      </div>
+
+      <div id="carveFields" hidden>
+        <p class="muted">Pour un objet réellement volumique. Pose-le sur un fond blanc, garde l'appareil fixe et fais tourner l'objet d'un angle constant entre chaque photo.</p>
+        <div class="slider">
+          <div class="top"><span>Résolution du sculptage (voxels)</span><span id="resolutionOut">128</span></div>
+          <input type="range" id="resolution" min="32" max="256" step="8" value="128">
+        </div>
+        <div class="slider">
+          <div class="top"><span>Lissage du maillage</span><span id="smoothOut">2</span></div>
+          <input type="range" id="smooth" min="0" max="8" step="1" value="2">
+        </div>
+        <div class="grid-2">
+          <label class="field">
+            <span class="lab">Axe de rotation (px)</span>
+            <input type="number" id="axisX" step="0.5">
+          </label>
+          <label class="field">
+            <span class="lab">Ligne de pose (px)</span>
+            <input type="number" id="baseY" step="0.5">
+          </label>
+        </div>
+        <p class="muted">Ces deux repères sont déduits des silhouettes ; ajuste-les si le modèle sort de travers. Ils s'affichent en orange sur les vignettes.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Échelle</h2>
+      <label class="field">
+        <span class="lab">Millimètres par pixel</span>
+        <input type="number" id="scale3d" step="0.0001" min="0" placeholder="ex. 0.2500">
+      </label>
+      <button id="useMeasureScale">Reprendre l'échelle de l'onglet Mesure</button>
+      <p class="muted" style="margin-top:10px">Sans échelle, le modèle n'a pas de taille réelle. Mesure une cote connue dans l'onglet Mesure, puis reprends-la ici.</p>
+    </div>
+
+    <div class="card">
+      <h2>Modèle obtenu</h2>
+      <div id="model3dStats"><p class="muted">Pas encore de modèle.</p></div>
+      <div id="model3dNotes"></div>
+    </div>
+
+    <div class="card">
+      <h2>Export</h2>
+      <div class="toolbar" style="margin-bottom:0">
+        <button id="exportStl" disabled>STL binaire</button>
+        <button id="exportStlAscii" disabled>STL ASCII</button>
+        <button id="exportStep" disabled>STEP (AP214)</button>
+      </div>
+      <p class="muted" style="margin-top:10px">STL pour l'impression 3D et la visualisation. STEP pour reprendre la pièce en CAO — géométrie exacte, disponible en mode Prisme.</p>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>Protocole de prise de vue pour le sculptage</summary>
+        <ol>
+          <li>Objet au centre d'un fond blanc, <strong>appareil sur trépied</strong> ou posé : il ne doit pas bouger d'une photo à l'autre.</li>
+          <li>Fais tourner <strong>l'objet</strong>, pas l'appareil, d'un angle constant : 8 photos tous les 45°, ou 12 tous les 30°.</li>
+          <li>Ajoute une <strong>vue de dessus</strong> : elle borne la section horizontale et améliore beaucoup le résultat.</li>
+          <li>Ne change ni le zoom, ni la distance, ni la hauteur entre les photos.</li>
+          <li>Éloigne-toi et zoome : la projection est supposée orthographique, ce qui est d'autant plus vrai que tu es loin.</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>Ce que cette méthode ne peut pas voir</summary>
+        <p class="muted">Le sculptage par silhouettes reconstruit l'<strong>enveloppe visible</strong> de l'objet. Un creux qui n'apparaît sur aucune silhouette — une poche intérieure, une gorge, une contre-dépouille — sera comblé. Un bol ressortira plein. C'est une limite de méthode, pas un réglage : seule une vue qui laisse passer la lumière à travers le creux peut le révéler.</p>
+        <p class="muted">Pour une pièce d'épaisseur constante, le mode Prisme est franchement plus précis : le contour vient d'une seule photo bien cadrée et l'épaisseur de ton pied à coulisse.</p>
+      </details>
+    </div>
+  </aside>
+</main>
+
 <script>
 (function () {
 'use strict';
+const __modules = {};
+/* ===== js/shared.js ===== */
+__modules['js/shared.js'] = (function () {
+// Petit état partagé entre l'onglet Mesure et l'onglet Modèle 3D
+// (évite un import circulaire entre app.js et app3d.js).
+
+const shared = {
+  mmPerPx: null,       // échelle établie dans l'onglet Mesure (mm par pixel de travail)
+  workFactor: 1,       // réduction appliquée à la photo par l'onglet Mesure
+  calibration: null,   // libellé de la méthode utilisée
+  fileName: '',
+};
+
+return { shared };
+})();
 /* ===== js/geometry.js ===== */
+__modules['js/geometry.js'] = (function () {
 // Primitives géométriques 2D utilisées par la mesure d'objet sur photo.
 // Toutes les fonctions travaillent sur des points {x, y} en pixels.
 
@@ -538,11 +749,157 @@ function simplifyClosed(points, tolerance) {
   return open.filter((_, i) => keep[i]);
 }
 
+return { convexHull, minAreaRect, feretMax, polygonPerimeter, polygonArea, simplifyClosed };
+})();
+/* ===== js/triangulate.js ===== */
+__modules['js/triangulate.js'] = (function () {
+// Triangulation de polygones avec trous (élimination des trous par pont, puis
+// découpe en oreilles). Utilisé pour fermer le dessus et le dessous des prismes.
+
+const area2 = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+
+/** Aire signée : positive si le contour tourne dans le sens trigonométrique. */
+function signedArea(ring) {
+  let sum = 0;
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i];
+    const b = ring[(i + 1) % ring.length];
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return sum / 2;
+}
+
+function segmentsProperlyIntersect(p1, p2, p3, p4) {
+  const d1 = area2(p3, p4, p1);
+  const d2 = area2(p3, p4, p2);
+  const d3 = area2(p1, p2, p3);
+  const d4 = area2(p1, p2, p4);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+/** Le segment a-b traverse-t-il une arête du contour (hors arêtes partageant un sommet) ? */
+function crossesRing(a, b, ring, skipA = -1, skipB = -1) {
+  for (let i = 0; i < ring.length; i++) {
+    const j = (i + 1) % ring.length;
+    if (i === skipA || j === skipA || i === skipB || j === skipB) continue;
+    if (segmentsProperlyIntersect(a, b, ring[i], ring[j])) return true;
+  }
+  return false;
+}
+
+/**
+ * Relie chaque trou au contour extérieur par un pont, produisant un polygone
+ * simple unique. Le pont retenu est le plus court segment qui ne coupe rien.
+ */
+function eliminateHoles(outer, holes) {
+  let ring = outer.slice();
+
+  const sorted = holes
+    .map((h) => ({ pts: h, maxX: Math.max(...h.map((p) => p.x)) }))
+    .sort((a, b) => b.maxX - a.maxX);
+
+  for (const { pts } of sorted) {
+    let best = null;
+    for (let hi = 0; hi < pts.length; hi++) {
+      for (let oi = 0; oi < ring.length; oi++) {
+        const a = pts[hi];
+        const b = ring[oi];
+        const d = (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+        if (best && d >= best.d) continue;
+        if (crossesRing(a, b, ring, oi, oi === 0 ? ring.length - 1 : oi - 1)) continue;
+        if (crossesRing(a, b, pts, hi, hi === 0 ? pts.length - 1 : hi - 1)) continue;
+        best = { d, hi, oi };
+      }
+    }
+    if (!best) continue; // trou impossible à relier : on l'ignore plutôt que de casser le maillage
+
+    // Insertion : ...outer[oi], hole[hi..], hole[..hi], outer[oi], outer[oi+1]...
+    const loop = [];
+    for (let k = 0; k <= pts.length; k++) loop.push(pts[(best.hi + k) % pts.length]);
+    loop.push(ring[best.oi]);
+    ring = ring.slice(0, best.oi + 1).concat(loop, ring.slice(best.oi + 1));
+  }
+  return ring;
+}
+
+const samePoint = (p, q, eps = 1e-9) => Math.abs(p.x - q.x) < eps && Math.abs(p.y - q.y) < eps;
+
+function pointInTriangle(p, a, b, c) {
+  const d1 = area2(p, a, b);
+  const d2 = area2(p, b, c);
+  const d3 = area2(p, c, a);
+  const neg = d1 < 0 || d2 < 0 || d3 < 0;
+  const pos = d1 > 0 || d2 > 0 || d3 > 0;
+  return !(neg && pos);
+}
+
+/** Découpe en oreilles d'un polygone simple orienté dans le sens trigonométrique. */
+function earClip(ring) {
+  const n = ring.length;
+  const indices = ring.map((_, i) => i);
+  const triangles = [];
+  let guard = n * n + 100;
+
+  while (indices.length > 3 && guard-- > 0) {
+    let clipped = false;
+    for (let i = 0; i < indices.length; i++) {
+      const i0 = indices[(i - 1 + indices.length) % indices.length];
+      const i1 = indices[i];
+      const i2 = indices[(i + 1) % indices.length];
+      const a = ring[i0];
+      const b = ring[i1];
+      const c = ring[i2];
+      if (area2(a, b, c) <= 0) continue; // sommet réflexe ou plat
+
+      let contains = false;
+      for (const k of indices) {
+        if (k === i0 || k === i1 || k === i2) continue;
+        const p = ring[k];
+        // Les ponts vers les trous dupliquent des sommets : un point confondu
+        // avec un coin de l'oreille n'est pas un obstacle, sinon plus aucune
+        // oreille n'est jamais découpable.
+        if (samePoint(p, a) || samePoint(p, b) || samePoint(p, c)) continue;
+        if (pointInTriangle(p, a, b, c)) { contains = true; break; }
+      }
+      if (contains) continue;
+
+      triangles.push([i0, i1, i2]);
+      indices.splice(i, 1);
+      clipped = true;
+      break;
+    }
+    if (!clipped) break; // polygone dégénéré : on s'arrête avec ce qui est fait
+  }
+  if (indices.length === 3) triangles.push([indices[0], indices[1], indices[2]]);
+  return triangles;
+}
+
+/**
+ * Triangule un contour extérieur et ses trous.
+ * Retourne { vertices, triangles } — triangles orientés dans le sens trigonométrique.
+ */
+function triangulate(outer, holes = []) {
+  if (!outer || outer.length < 3) return { vertices: [], triangles: [] };
+
+  let ext = outer.slice();
+  if (signedArea(ext) < 0) ext.reverse();          // extérieur en sens trigonométrique
+  const inner = holes
+    .filter((h) => h && h.length >= 3)
+    .map((h) => (signedArea(h) > 0 ? h.slice().reverse() : h.slice())); // trous en sens horaire
+
+  const ring = inner.length ? eliminateHoles(ext, inner) : ext;
+  return { vertices: ring, triangles: earClip(ring) };
+}
+
+return { signedArea, triangulate };
+})();
 /* ===== js/vision.js ===== */
+__modules['js/vision.js'] = (function () {
 // Détection de l'objet sur fond blanc et extraction de ses dimensions en pixels.
 // Entrée : un objet de type ImageData ({ data: RGBA, width, height }).
 // Aucune dépendance au DOM : ce module tourne aussi bien dans le navigateur que sous Node.
 
+const { convexHull, minAreaRect, feretMax, polygonPerimeter, simplifyClosed } = __modules['js/geometry.js'];
 
 const DEFAULT_OPTIONS = {
   tolerance: 32,        // écart de luminance sous le fond à partir duquel un pixel est "objet"
@@ -809,6 +1166,26 @@ function traceContour(mask, width, height, startIndex) {
   return contour;
 }
 
+/**
+ * Contours des trous d'une composante (perçages, découpes intérieures),
+ * du plus grand au plus petit. Chaque contour est tracé sur le trou dilaté
+ * d'un pixel pour longer la matière et non le vide.
+ */
+function traceHoles(compMask, filled, width, height, opts = {}) {
+  const holeMask = new Uint8Array(compMask.length);
+  for (let i = 0; i < compMask.length; i++) holeMask[i] = filled[i] && !compMask[i] ? 1 : 0;
+
+  const minArea = Math.max(6, Math.round(width * height * (opts.minHoleRatio || 0.0002)));
+  const { labels, blobs } = connectedComponents(holeMask, width, height, minArea);
+
+  return blobs.map((b) => {
+    const single = new Uint8Array(holeMask.length);
+    for (let i = 0; i < labels.length; i++) single[i] = labels[i] === b.id ? 1 : 0;
+    const contour = traceContour(single, width, height, b.seed);
+    return { area: b.area, contour, outline: simplifyClosed(contour, 1.0) };
+  });
+}
+
 /** Mesures en pixels d'une composante. */
 function describeBlob(blob, labels, width, height, opts) {
   const compMask = new Uint8Array(labels.length);
@@ -816,6 +1193,7 @@ function describeBlob(blob, labels, width, height, opts) {
 
   const { filled, holeArea } = fillHoles(compMask, width, height);
   const contour = traceContour(filled, width, height, blob.seed);
+  const holes = traceHoles(compMask, filled, width, height, opts);
   const outline = simplifyClosed(contour, 1.0);
   const hull = convexHull(contour);
   const rect = minAreaRect(contour.length ? contour : [{ x: blob.minX, y: blob.minY }]);
@@ -830,6 +1208,7 @@ function describeBlob(blob, labels, width, height, opts) {
     id: blob.id,
     contour,
     outline,
+    holes,
     hull,
     rect,
     feret,
@@ -894,9 +1273,1396 @@ function toRealUnits(px, mmPerPx) {
   };
 }
 
+return { DEFAULT_OPTIONS, buildMask, connectedComponents, fillHoles, traceContour, traceHoles, analyzeImage, toRealUnits };
+})();
+/* ===== js/carve.js ===== */
+__modules['js/carve.js'] = (function () {
+// Reconstruction 3D par intersection de silhouettes (visual hull) :
+// on part d'un pavé plein de voxels et on retire tout voxel qui tombe hors de
+// la silhouette dans au moins une vue. Le maillage est ensuite extrait par
+// « surface nets », qui ne demande aucune table de correspondance.
+//
+// Caméra orthographique : chaque vue porte sa propre projection affine
+//   u = ux·X + uy·Y + uz·Z + u0
+//   v = vx·X + vy·Y + vz·Z + v0
+// exprimée en pixels. Le monde est en pixels de la vue de référence ; la mise
+// à l'échelle en millimètres se fait au moment de l'export.
+
+/** Vue de côté : objet tourné de `angle` autour de l'axe vertical Y. */
+function sideView(mask, width, height, angle, axisX, baseY) {
+  return {
+    mask, width, height, kind: 'side', angle,
+    ux: Math.cos(angle), uy: 0, uz: Math.sin(angle), u0: axisX,
+    vx: 0, vy: -1, vz: 0, v0: baseY,
+  };
+}
+
+/** Vue de dessus : caméra dans l'axe Y, rotation `angle` dans le plan. */
+function topView(mask, width, height, angle, cx, cy) {
+  return {
+    mask, width, height, kind: 'top', angle,
+    ux: Math.cos(angle), uy: 0, uz: Math.sin(angle), u0: cx,
+    vx: -Math.sin(angle), vy: 0, vz: Math.cos(angle), v0: cy,
+  };
+}
+
+const inMask = (view, u, v) => {
+  const x = Math.round(u);
+  const y = Math.round(v);
+  if (x < 0 || y < 0 || x >= view.width || y >= view.height) return false;
+  return view.mask[y * view.width + x] === 1;
+};
+
+/**
+ * Boîte englobante du monde déduite des silhouettes.
+ * Les vues de côté bornent Y et le rayon horizontal ; les vues de dessus
+ * bornent directement X et Z.
+ */
+function worldBounds(views, margin = 0.04) {
+  let radius = 0, yMin = Infinity, yMax = -Infinity;
+  let xMin = Infinity, xMax = -Infinity, zMin = Infinity, zMax = -Infinity;
+  let hasSide = false, hasTop = false;
+
+  for (const view of views) {
+    let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+    for (let y = 0; y < view.height; y++) {
+      for (let x = 0; x < view.width; x++) {
+        if (!view.mask[y * view.width + x]) continue;
+        if (x < minU) minU = x;
+        if (x > maxU) maxU = x;
+        if (y < minV) minV = y;
+        if (y > maxV) maxV = y;
+      }
+    }
+    if (maxU < minU) continue; // silhouette vide
+
+    if (view.kind === 'side') {
+      hasSide = true;
+      // Un pixel couvre [n, n+1[ : on prend le bord extérieur de chaque côté.
+      radius = Math.max(radius, Math.abs(maxU + 1 - view.u0), Math.abs(minU - view.u0));
+      yMin = Math.min(yMin, view.v0 - (maxV + 1));
+      yMax = Math.max(yMax, view.v0 - minV);
+    } else {
+      hasTop = true;
+      // La vue de dessus est tournée de `angle` : on reste conservateur en
+      // prenant le rayon de la boîte projetée.
+      const r = Math.max(
+        Math.abs(maxU - view.u0), Math.abs(minU - view.u0),
+        Math.abs(maxV - view.v0), Math.abs(minV - view.v0),
+      );
+      xMin = Math.min(xMin, -r); xMax = Math.max(xMax, r);
+      zMin = Math.min(zMin, -r); zMax = Math.max(zMax, r);
+    }
+  }
+
+  if (!hasSide) { yMin = -1; yMax = 1; }          // épaisseur imposée par ailleurs
+  if (hasSide && !hasTop) { xMin = -radius; xMax = radius; zMin = -radius; zMax = radius; }
+  if (hasSide && hasTop) {
+    xMin = Math.max(xMin, -radius); xMax = Math.min(xMax, radius);
+    zMin = Math.max(zMin, -radius); zMax = Math.min(zMax, radius);
+  }
+
+  const pad = (a, b) => {
+    const m = (b - a) * margin + 1e-6;
+    return [a - m, b + m];
+  };
+  const [x0, x1] = pad(xMin, xMax);
+  const [y0, y1] = pad(yMin, yMax);
+  const [z0, z1] = pad(zMin, zMax);
+  return { min: { x: x0, y: y0, z: z0 }, max: { x: x1, y: y1, z: z1 } };
+}
+
+/**
+ * Sculpte la grille de voxels. `resolution` est le nombre de voxels sur la
+ * plus grande dimension. Retourne l'occupation et la géométrie de la grille.
+ */
+function carve(views, options = {}) {
+  const resolution = Math.max(16, Math.min(320, options.resolution || 128));
+  const bounds = options.bounds || worldBounds(views);
+  const size = {
+    x: bounds.max.x - bounds.min.x,
+    y: bounds.max.y - bounds.min.y,
+    z: bounds.max.z - bounds.min.z,
+  };
+  const longest = Math.max(size.x, size.y, size.z);
+  const step = longest / resolution;
+
+  const dims = {
+    x: Math.max(2, Math.ceil(size.x / step) + 1),
+    y: Math.max(2, Math.ceil(size.y / step) + 1),
+    z: Math.max(2, Math.ceil(size.z / step) + 1),
+  };
+  const occ = new Uint8Array(dims.x * dims.y * dims.z).fill(1);
+
+  for (let k = 0; k < dims.z; k++) {
+    const Z = bounds.min.z + k * step;
+    for (let j = 0; j < dims.y; j++) {
+      const Y = bounds.min.y + j * step;
+      const rowBase = dims.x * (j + dims.y * k);
+      for (let i = 0; i < dims.x; i++) {
+        const X = bounds.min.x + i * step;
+        let keep = 1;
+        for (let v = 0; v < views.length; v++) {
+          const view = views[v];
+          const u = view.ux * X + view.uy * Y + view.uz * Z + view.u0;
+          const vv = view.vx * X + view.vy * Y + view.vz * Z + view.v0;
+          if (!inMask(view, u, vv)) { keep = 0; break; }
+        }
+        occ[rowBase + i] = keep;
+      }
+    }
+  }
+
+  let filled = 0;
+  for (let i = 0; i < occ.length; i++) filled += occ[i];
+
+  return { occ, dims, step, origin: bounds.min, bounds, filled };
+}
+
+/**
+ * Extraction de surface par « naive surface nets » : un sommet par cellule
+ * traversée, placé au barycentre des intersections d'arêtes, puis un quad par
+ * arête de grille qui change d'état. Le maillage produit est fermé.
+ */
+function surfaceNets(grid) {
+  const { occ, dims, step, origin } = grid;
+  const at = (x, y, z) => occ[x + dims.x * (y + dims.y * z)];
+
+  const cells = { x: dims.x - 1, y: dims.y - 1, z: dims.z - 1 };
+  const vertexIndex = new Int32Array(cells.x * cells.y * cells.z).fill(-1);
+  const positions = [];
+
+  // Les 12 arêtes du cube, comme paires d'indices de coins (bit 0 = x, 1 = y, 2 = z).
+  const EDGES = [
+    [0, 1], [2, 3], [4, 5], [6, 7],
+    [0, 2], [1, 3], [4, 6], [5, 7],
+    [0, 4], [1, 5], [2, 6], [3, 7],
+  ];
+  const cornerOffset = (c) => [c & 1, (c >> 1) & 1, (c >> 2) & 1];
+
+  for (let z = 0; z < cells.z; z++) {
+    for (let y = 0; y < cells.y; y++) {
+      for (let x = 0; x < cells.x; x++) {
+        let mask = 0;
+        for (let c = 0; c < 8; c++) {
+          const [dx, dy, dz] = cornerOffset(c);
+          if (at(x + dx, y + dy, z + dz)) mask |= 1 << c;
+        }
+        if (mask === 0 || mask === 255) continue;
+
+        let sx = 0, sy = 0, sz = 0, n = 0;
+        for (const [a, b] of EDGES) {
+          const ia = (mask >> a) & 1;
+          const ib = (mask >> b) & 1;
+          if (ia === ib) continue;
+          const oa = cornerOffset(a);
+          const ob = cornerOffset(b);
+          sx += (oa[0] + ob[0]) / 2;
+          sy += (oa[1] + ob[1]) / 2;
+          sz += (oa[2] + ob[2]) / 2;
+          n++;
+        }
+        vertexIndex[x + cells.x * (y + cells.y * z)] = positions.length;
+        positions.push({
+          x: origin.x + (x + sx / n) * step,
+          y: origin.y + (y + sy / n) * step,
+          z: origin.z + (z + sz / n) * step,
+        });
+      }
+    }
+  }
+
+  const triangles = [];
+  const cellVertex = (x, y, z) => vertexIndex[x + cells.x * (y + cells.y * z)];
+  const quad = (a, b, c, d, flip) => {
+    if (a < 0 || b < 0 || c < 0 || d < 0) return;
+    if (flip) {
+      triangles.push([a, d, c], [a, c, b]);
+    } else {
+      triangles.push([a, b, c], [a, c, d]);
+    }
+  };
+
+  for (let z = 0; z < cells.z; z++) {
+    for (let y = 0; y < cells.y; y++) {
+      for (let x = 0; x < cells.x; x++) {
+        const here = at(x, y, z);
+        // Arête +X : quad dans le plan YZ
+        if (y > 0 && z > 0 && here !== at(x + 1, y, z)) {
+          quad(
+            cellVertex(x, y, z), cellVertex(x, y - 1, z),
+            cellVertex(x, y - 1, z - 1), cellVertex(x, y, z - 1),
+            here !== 1,
+          );
+        }
+        // Arête +Y : quad dans le plan XZ
+        if (x > 0 && z > 0 && here !== at(x, y + 1, z)) {
+          quad(
+            cellVertex(x, y, z), cellVertex(x, y, z - 1),
+            cellVertex(x - 1, y, z - 1), cellVertex(x - 1, y, z),
+            here !== 1,
+          );
+        }
+        // Arête +Z : quad dans le plan XY
+        if (x > 0 && y > 0 && here !== at(x, y, z + 1)) {
+          quad(
+            cellVertex(x, y, z), cellVertex(x - 1, y, z),
+            cellVertex(x - 1, y - 1, z), cellVertex(x, y - 1, z),
+            here !== 1,
+          );
+        }
+      }
+    }
+  }
+
+  return { vertices: positions, triangles };
+}
+
+/** Lissage laplacien contraint : adoucit l'escalier des voxels sans fondre les arêtes. */
+function smoothMesh(mesh, iterations = 2, factor = 0.5) {
+  if (iterations <= 0) return mesh;
+  const { vertices, triangles } = mesh;
+  const neighbors = vertices.map(() => new Set());
+  for (const [a, b, c] of triangles) {
+    neighbors[a].add(b); neighbors[a].add(c);
+    neighbors[b].add(a); neighbors[b].add(c);
+    neighbors[c].add(a); neighbors[c].add(b);
+  }
+
+  let pts = vertices.map((p) => ({ ...p }));
+  for (let it = 0; it < iterations; it++) {
+    const next = pts.map((p, i) => {
+      const nb = neighbors[i];
+      if (!nb.size) return { ...p };
+      let sx = 0, sy = 0, sz = 0;
+      for (const j of nb) { sx += pts[j].x; sy += pts[j].y; sz += pts[j].z; }
+      const n = nb.size;
+      return {
+        x: p.x + factor * (sx / n - p.x),
+        y: p.y + factor * (sy / n - p.y),
+        z: p.z + factor * (sz / n - p.z),
+      };
+    });
+    pts = next;
+  }
+  return { vertices: pts, triangles };
+}
+
+return { sideView, topView, worldBounds, carve, surfaceNets, smoothMesh };
+})();
+/* ===== js/mesh3d.js ===== */
+__modules['js/mesh3d.js'] = (function () {
+// Construction, contrôle et export de maillages triangulaires.
+// Convention de sortie : Z vers le haut, millimètres.
+
+const { triangulate, signedArea } = __modules['js/triangulate.js'];
+
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const cross = (a, b) => ({
+  x: a.y * b.z - a.z * b.y,
+  y: a.z * b.x - a.x * b.z,
+  z: a.x * b.y - a.y * b.x,
+});
+const dot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+const norm = (a) => Math.hypot(a.x, a.y, a.z);
+
+/** Normale unitaire d'un triangle. */
+function triangleNormal(a, b, c) {
+  const n = cross(sub(b, a), sub(c, a));
+  const len = norm(n) || 1;
+  return { x: n.x / len, y: n.y / len, z: n.z / len };
+}
+
+/** Volume signé (théorème de la divergence) — positif si les normales sortent. */
+function meshVolume(mesh) {
+  let v = 0;
+  for (const [i, j, k] of mesh.triangles) {
+    const a = mesh.vertices[i];
+    const b = mesh.vertices[j];
+    const c = mesh.vertices[k];
+    v += dot(a, cross(b, c)) / 6;
+  }
+  return v;
+}
+
+function meshArea(mesh) {
+  let s = 0;
+  for (const [i, j, k] of mesh.triangles) {
+    const a = mesh.vertices[i];
+    s += norm(cross(sub(mesh.vertices[j], a), sub(mesh.vertices[k], a))) / 2;
+  }
+  return s;
+}
+
+function meshBounds(mesh) {
+  const min = { x: Infinity, y: Infinity, z: Infinity };
+  const max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const p of mesh.vertices) {
+    min.x = Math.min(min.x, p.x); max.x = Math.max(max.x, p.x);
+    min.y = Math.min(min.y, p.y); max.y = Math.max(max.y, p.y);
+    min.z = Math.min(min.z, p.z); max.z = Math.max(max.z, p.z);
+  }
+  return { min, max, size: { x: max.x - min.x, y: max.y - min.y, z: max.z - min.z } };
+}
+
+/**
+ * Vérifie que le maillage est fermé : chaque arête doit être parcourue
+ * exactement une fois dans chaque sens.
+ */
+function checkWatertight(mesh) {
+  const edges = new Map();
+  for (const [a, b, c] of mesh.triangles) {
+    for (const [p, q] of [[a, b], [b, c], [c, a]]) {
+      const key = p < q ? `${p}_${q}` : `${q}_${p}`;
+      const dir = p < q ? 1 : -1;
+      const cur = edges.get(key) || { count: 0, balance: 0 };
+      cur.count++;
+      cur.balance += dir;
+      edges.set(key, cur);
+    }
+  }
+  let boundary = 0, nonManifold = 0, inconsistent = 0;
+  for (const e of edges.values()) {
+    if (e.count === 1) boundary++;
+    else if (e.count > 2) nonManifold++;
+    else if (e.balance !== 0) inconsistent++;
+  }
+  return { watertight: boundary === 0 && nonManifold === 0 && inconsistent === 0, boundary, nonManifold, inconsistent };
+}
+
+/** Applique une échelle uniforme et une conversion de repère. */
+function transformMesh(mesh, fn) {
+  return { vertices: mesh.vertices.map(fn), triangles: mesh.triangles };
+}
+
+/**
+ * Repère du sculptage (Y vertical, pixels) -> repère CAO (Z vertical, mm).
+ * Rotation de +90° autour de X : (x, y, z) -> (x, -z, y). Échanger simplement
+ * deux axes serait une symétrie et retournerait toutes les faces vers l'intérieur.
+ */
+function carveToCad(mesh, mmPerPx) {
+  return transformMesh(mesh, (p) => ({ x: p.x * mmPerPx, y: -p.z * mmPerPx, z: p.y * mmPerPx }));
+}
+
+/** Ramène le modèle sur Z = 0 et centre X/Y. */
+function centerOnBase(mesh) {
+  const b = meshBounds(mesh);
+  const cx = (b.min.x + b.max.x) / 2;
+  const cy = (b.min.y + b.max.y) / 2;
+  return transformMesh(mesh, (p) => ({ x: p.x - cx, y: p.y - cy, z: p.z - b.min.z }));
+}
+
+/**
+ * Prisme droit à partir d'un contour image (y vers le bas) et de ses trous.
+ * `scale` convertit les pixels en millimètres, `thickness` est en millimètres.
+ */
+function buildPrism(outerPx, holesPx, thickness, scale = 1) {
+  // Repère image (y vers le bas) -> repère CAO (y vers le haut)
+  const conv = (ring) => ring.map((p) => ({ x: p.x * scale, y: -p.y * scale }));
+  const outer = conv(outerPx);
+  const holes = (holesPx || []).map(conv);
+
+  const { vertices: ring2d, triangles: capTris } = triangulate(outer, holes);
+  if (!ring2d.length || !capTris.length) return { vertices: [], triangles: [] };
+
+  const vertices = [];
+  const bottomOf = new Map();
+  const topOf = new Map();
+  const keyOf = (p) => `${p.x.toFixed(6)}_${p.y.toFixed(6)}`;
+
+  const addPair = (p) => {
+    const key = keyOf(p);
+    if (bottomOf.has(key)) return;
+    bottomOf.set(key, vertices.length);
+    vertices.push({ x: p.x, y: p.y, z: 0 });
+    topOf.set(key, vertices.length);
+    vertices.push({ x: p.x, y: p.y, z: thickness });
+  };
+  for (const p of ring2d) addPair(p);
+
+  const triangles = [];
+  for (const [a, b, c] of capTris) {
+    const ka = keyOf(ring2d[a]);
+    const kb = keyOf(ring2d[b]);
+    const kc = keyOf(ring2d[c]);
+    triangles.push([topOf.get(ka), topOf.get(kb), topOf.get(kc)]);      // dessus, normale +Z
+    triangles.push([bottomOf.get(ka), bottomOf.get(kc), bottomOf.get(kb)]); // dessous, normale -Z
+  }
+
+  // Parois : chaque anneau est parcouru dans son propre sens (extérieur
+  // trigonométrique, trous horaires), ce qui oriente les normales vers l'extérieur.
+  const wall = (ring) => {
+    for (let i = 0; i < ring.length; i++) {
+      const p = ring[i];
+      const q = ring[(i + 1) % ring.length];
+      const pb = bottomOf.get(keyOf(p));
+      const pt = topOf.get(keyOf(p));
+      const qb = bottomOf.get(keyOf(q));
+      const qt = topOf.get(keyOf(q));
+      if (pb == null || qb == null) continue;
+      triangles.push([pb, qb, qt], [pb, qt, pt]);
+    }
+  };
+  const ext = signedArea(outer) < 0 ? outer.slice().reverse() : outer.slice();
+  wall(ext);
+  for (const h of holes) wall(signedArea(h) > 0 ? h.slice().reverse() : h.slice());
+
+  return { vertices, triangles };
+}
+
+/** STL binaire. Retourne un Uint8Array. */
+function toBinarySTL(mesh, header = 'mesure-photo') {
+  const count = mesh.triangles.length;
+  const buffer = new ArrayBuffer(84 + count * 50);
+  const view = new DataView(buffer);
+  const bytes = new Uint8Array(buffer);
+
+  const text = header.slice(0, 79);
+  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i) & 0x7f;
+  view.setUint32(80, count, true);
+
+  let off = 84;
+  for (const [i, j, k] of mesh.triangles) {
+    const a = mesh.vertices[i];
+    const b = mesh.vertices[j];
+    const c = mesh.vertices[k];
+    const n = triangleNormal(a, b, c);
+    view.setFloat32(off, n.x, true); view.setFloat32(off + 4, n.y, true); view.setFloat32(off + 8, n.z, true);
+    view.setFloat32(off + 12, a.x, true); view.setFloat32(off + 16, a.y, true); view.setFloat32(off + 20, a.z, true);
+    view.setFloat32(off + 24, b.x, true); view.setFloat32(off + 28, b.y, true); view.setFloat32(off + 32, b.z, true);
+    view.setFloat32(off + 36, c.x, true); view.setFloat32(off + 40, c.y, true); view.setFloat32(off + 44, c.z, true);
+    view.setUint16(off + 48, 0, true);
+    off += 50;
+  }
+  return bytes;
+}
+
+/** STL ASCII, pratique pour relire le fichier à la main. */
+function toAsciiSTL(mesh, name = 'mesure_photo') {
+  const out = [`solid ${name}`];
+  const f = (v) => v.toExponential(6);
+  for (const [i, j, k] of mesh.triangles) {
+    const a = mesh.vertices[i];
+    const b = mesh.vertices[j];
+    const c = mesh.vertices[k];
+    const n = triangleNormal(a, b, c);
+    out.push(`  facet normal ${f(n.x)} ${f(n.y)} ${f(n.z)}`);
+    out.push('    outer loop');
+    for (const p of [a, b, c]) out.push(`      vertex ${f(p.x)} ${f(p.y)} ${f(p.z)}`);
+    out.push('    endloop');
+    out.push('  endfacet');
+  }
+  out.push(`endsolid ${name}`);
+  return out.join('\n');
+}
+
+return { triangleNormal, meshVolume, meshArea, meshBounds, checkWatertight, transformMesh, carveToCad, centerOnBase, buildPrism, toBinarySTL, toAsciiSTL };
+})();
+/* ===== js/step.js ===== */
+__modules['js/step.js'] = (function () {
+// Export STEP AP214 d'un prisme droit (contour + trous, extrudé sur l'épaisseur).
+// Géométrie exacte : plans et droites, pas de facettes — c'est ce qui rend le
+// fichier réellement exploitable en CAO, contrairement à un STL.
+
+const { signedArea } = __modules['js/triangulate.js'];
+
+class StepFile {
+  constructor() {
+    this.lines = [];
+    this.next = 1;
+  }
+
+  add(body) {
+    const id = this.next++;
+    this.lines.push(`#${id}=${body};`);
+    return id;
+  }
+
+  toString(name) {
+    const stamp = new Date().toISOString().replace(/\.\d+Z$/, '');
+    return [
+      'ISO-10303-21;',
+      'HEADER;',
+      `FILE_DESCRIPTION(('Modele reconstruit depuis photo'),'2;1');`,
+      `FILE_NAME('${name}','${stamp}',('mesure-photo'),(''),'mesure-photo','','');`,
+      `FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 3 1 1 }'));`,
+      'ENDSEC;',
+      'DATA;',
+      ...this.lines,
+      'ENDSEC;',
+      'END-ISO-10303-21;',
+    ].join('\n');
+  }
+}
+
+const num = (v) => {
+  if (!isFinite(v)) return '0.';
+  const s = Number(v.toFixed(9)).toString();
+  return s.includes('.') || s.includes('E') || s.includes('e') ? s : `${s}.`;
+};
+
+/**
+ * Écrit un prisme droit en STEP.
+ * @param outer contour extérieur [{x, y}] en mm, sens trigonométrique
+ * @param holes contours des trous, sens horaire
+ * @param thickness épaisseur en mm (extrusion selon +Z)
+ */
+function prismToStep(outer, holes = [], thickness = 1, name = 'piece') {
+  const f = new StepFile();
+
+  const dir = (x, y, z, label = '') => f.add(`DIRECTION('${label}',(${num(x)},${num(y)},${num(z)}))`);
+  const pt = (x, y, z) => f.add(`CARTESIAN_POINT('',(${num(x)},${num(y)},${num(z)}))`);
+  const placement = (origin, axis, ref) => f.add(`AXIS2_PLACEMENT_3D('',#${origin},#${axis},#${ref})`);
+
+  // --- Contexte et unités ---------------------------------------------------
+  const lengthUnit = f.add('( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )');
+  const angleUnit = f.add('( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )');
+  const solidUnit = f.add('( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )');
+  const uncertainty = f.add(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#${lengthUnit},'distance_accuracy_value','confusion accuracy')`);
+  const context = f.add(
+    `( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#${uncertainty}))`
+    + ` GLOBAL_UNIT_ASSIGNED_CONTEXT((#${lengthUnit},#${angleUnit},#${solidUnit})) REPRESENTATION_CONTEXT('','3D') )`,
+  );
+
+  // --- Anneaux : orientation imposée ---------------------------------------
+  const rings = [];
+  const ext = signedArea(outer) < 0 ? outer.slice().reverse() : outer.slice();
+  rings.push({ pts: dedupe(ext), outer: true });
+  for (const h of holes || []) {
+    if (!h || h.length < 3) continue;
+    const ring = signedArea(h) > 0 ? h.slice().reverse() : h.slice();
+    rings.push({ pts: dedupe(ring), outer: false });
+  }
+
+  // --- Sommets et arêtes ----------------------------------------------------
+  const zDir = dir(0, 0, 1, 'z');
+  const zNeg = dir(0, 0, -1, 'z-');
+  const xDir = dir(1, 0, 0, 'x');
+
+  const built = rings.map(({ pts, outer: isOuter }) => {
+    const n = pts.length;
+    const vBottom = pts.map((p) => f.add(`VERTEX_POINT('',#${pt(p.x, p.y, 0)})`));
+    const vTop = pts.map((p) => f.add(`VERTEX_POINT('',#${pt(p.x, p.y, thickness)})`));
+
+    const lineEdge = (v0, v1, p0, p1) => {
+      const d = { x: p1.x - p0.x, y: p1.y - p0.y, z: (p1.z || 0) - (p0.z || 0) };
+      const len = Math.hypot(d.x, d.y, d.z) || 1;
+      const dirId = dir(d.x / len, d.y / len, d.z / len);
+      const originId = pt(p0.x, p0.y, p0.z || 0);
+      const vec = f.add(`VECTOR('',#${dirId},${num(len)})`);
+      const line = f.add(`LINE('',#${originId},#${vec})`);
+      return f.add(`EDGE_CURVE('',#${v0},#${v1},#${line},.T.)`);
+    };
+
+    const eBottom = [];
+    const eTop = [];
+    const eSide = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      eBottom.push(lineEdge(vBottom[i], vBottom[j], { ...pts[i], z: 0 }, { ...pts[j], z: 0 }));
+      eTop.push(lineEdge(vTop[i], vTop[j], { ...pts[i], z: thickness }, { ...pts[j], z: thickness }));
+      eSide.push(lineEdge(vBottom[i], vTop[i], { ...pts[i], z: 0 }, { ...pts[i], z: thickness }));
+    }
+    return { pts, n, isOuter, eBottom, eTop, eSide };
+  });
+
+  const oriented = (edge, sense) => f.add(`ORIENTED_EDGE('',*,*,#${edge},${sense ? '.T.' : '.F.'})`);
+  const loopForward = (edges) => f.add(`EDGE_LOOP('',(${edges.map((e) => `#${oriented(e, true)}`).join(',')}))`);
+  const loopBackward = (edges) => {
+    const ids = [];
+    for (let i = edges.length - 1; i >= 0; i--) ids.push(`#${oriented(edges[i], false)}`);
+    return f.add(`EDGE_LOOP('',(${ids.join(',')}))`);
+  };
+
+  const faces = [];
+
+  // --- Parois latérales -----------------------------------------------------
+  for (const ring of built) {
+    for (let i = 0; i < ring.n; i++) {
+      const j = (i + 1) % ring.n;
+      const a = ring.pts[i];
+      const b = ring.pts[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-9) continue;
+      // Anneau extérieur en sens trigonométrique : la normale sortante est la
+      // direction de parcours tournée de -90°. Les trous, en sens horaire,
+      // donnent naturellement une normale tournée vers le vide.
+      const nx = dy / len;
+      const ny = -dx / len;
+
+      const loop = f.add(`EDGE_LOOP('',(${[
+        `#${oriented(ring.eBottom[i], true)}`,
+        `#${oriented(ring.eSide[j], true)}`,
+        `#${oriented(ring.eTop[i], false)}`,
+        `#${oriented(ring.eSide[i], false)}`,
+      ].join(',')}))`);
+      const bound = f.add(`FACE_OUTER_BOUND('',#${loop},.T.)`);
+      const plane = f.add(`PLANE('',#${placement(pt(a.x, a.y, 0), dir(nx, ny, 0), dir(dx / len, dy / len, 0))})`);
+      faces.push(f.add(`ADVANCED_FACE('',(#${bound}),#${plane},.T.)`));
+    }
+  }
+
+  // --- Dessus (normale +Z) et dessous (normale -Z) --------------------------
+  const outerRing = built.find((r) => r.isOuter);
+  const holeRings = built.filter((r) => !r.isOuter);
+
+  const topPlane = f.add(`PLANE('',#${placement(pt(0, 0, thickness), zDir, xDir)})`);
+  const topBounds = [`#${f.add(`FACE_OUTER_BOUND('',#${loopForward(outerRing.eTop)},.T.)`)}`];
+  for (const h of holeRings) topBounds.push(`#${f.add(`FACE_BOUND('',#${loopForward(h.eTop)},.T.)`)}`);
+  faces.push(f.add(`ADVANCED_FACE('',(${topBounds.join(',')}),#${topPlane},.T.)`));
+
+  const bottomPlane = f.add(`PLANE('',#${placement(pt(0, 0, 0), zNeg, xDir)})`);
+  const bottomBounds = [`#${f.add(`FACE_OUTER_BOUND('',#${loopBackward(outerRing.eBottom)},.T.)`)}`];
+  for (const h of holeRings) bottomBounds.push(`#${f.add(`FACE_BOUND('',#${loopBackward(h.eBottom)},.T.)`)}`);
+  faces.push(f.add(`ADVANCED_FACE('',(${bottomBounds.join(',')}),#${bottomPlane},.T.)`));
+
+  // --- Solide et rattachement produit --------------------------------------
+  const shell = f.add(`CLOSED_SHELL('',(${faces.map((x) => `#${x}`).join(',')}))`);
+  const origin = placement(pt(0, 0, 0), zDir, xDir);
+  const brep = f.add(`MANIFOLD_SOLID_BREP('${name}',#${shell})`);
+  const shapeRep = f.add(`ADVANCED_BREP_SHAPE_REPRESENTATION('',(#${origin},#${brep}),#${context})`);
+
+  const appContext = f.add(`APPLICATION_CONTEXT('automotive design')`);
+  f.add(`APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#${appContext})`);
+  const prodContext = f.add(`PRODUCT_CONTEXT('',#${appContext},'mechanical')`);
+  const defContext = f.add(`PRODUCT_DEFINITION_CONTEXT('part definition',#${appContext},'design')`);
+  const product = f.add(`PRODUCT('${name}','${name}','',(#${prodContext}))`);
+  f.add(`PRODUCT_RELATED_PRODUCT_CATEGORY('part','',(#${product}))`);
+  const formation = f.add(`PRODUCT_DEFINITION_FORMATION('','',#${product})`);
+  const definition = f.add(`PRODUCT_DEFINITION('design','',#${formation},#${defContext})`);
+  const defShape = f.add(`PRODUCT_DEFINITION_SHAPE('','',#${definition})`);
+  f.add(`SHAPE_DEFINITION_REPRESENTATION(#${defShape},#${shapeRep})`);
+
+  return f.toString(`${name}.step`);
+}
+
+/** Supprime les points confondus consécutifs (et le doublon de fermeture). */
+function dedupe(ring, epsilon = 1e-7) {
+  const out = [];
+  for (const p of ring) {
+    const last = out[out.length - 1];
+    if (last && Math.abs(last.x - p.x) < epsilon && Math.abs(last.y - p.y) < epsilon) continue;
+    out.push(p);
+  }
+  while (out.length > 1) {
+    const a = out[0];
+    const b = out[out.length - 1];
+    if (Math.abs(a.x - b.x) < epsilon && Math.abs(a.y - b.y) < epsilon) out.pop();
+    else break;
+  }
+  return out;
+}
+
+return { prismToStep };
+})();
+/* ===== js/scene3d.js ===== */
+__modules['js/scene3d.js'] = (function () {
+// Aperçu 3D minimal en WebGL : éclairage directionnel, rotation à la souris,
+// molette pour zoomer. Pas de dépendance externe.
+
+const VERT = `
+attribute vec3 aPos;
+attribute vec3 aNormal;
+uniform mat4 uProj;
+uniform mat4 uView;
+varying vec3 vNormal;
+varying vec3 vPos;
+void main() {
+  vNormal = aNormal;
+  vPos = aPos;
+  gl_Position = uProj * uView * vec4(aPos, 1.0);
+}`;
+
+const FRAG = `
+precision mediump float;
+varying vec3 vNormal;
+varying vec3 vPos;
+uniform vec3 uColor;
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 l1 = normalize(vec3(0.5, 0.8, 0.9));
+  vec3 l2 = normalize(vec3(-0.6, -0.3, 0.4));
+  float d = max(dot(n, l1), 0.0) * 0.75 + max(dot(n, l2), 0.0) * 0.25 + 0.22;
+  gl_FragColor = vec4(uColor * d, 1.0);
+}`;
+
+function compile(gl, type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+
+function perspective(fovy, aspect, near, far) {
+  const f = 1 / Math.tan(fovy / 2);
+  return new Float32Array([
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) / (near - far), -1,
+    0, 0, (2 * far * near) / (near - far), 0,
+  ]);
+}
+
+/** Matrice vue : orbite (yaw, pitch) à distance `dist` autour de `center`. */
+function orbitView(yaw, pitch, dist, center) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  // Base de la caméra
+  const fx = cp * sy, fy = sp, fz = cp * cy;       // direction caméra -> cible inversée
+  const rx = cy, ry = 0, rz = -sy;                 // droite
+  const ux = -sp * sy, uy = cp, uz = -sp * cy;     // haut
+  const ex = center.x + fx * dist;
+  const ey = center.y + fy * dist;
+  const ez = center.z + fz * dist;
+  return new Float32Array([
+    rx, ux, fx, 0,
+    ry, uy, fy, 0,
+    rz, uz, fz, 0,
+    -(rx * ex + ry * ey + rz * ez),
+    -(ux * ex + uy * ey + uz * ez),
+    -(fx * ex + fy * ey + fz * ez),
+    1,
+  ]);
+}
+
+function createViewer(canvas) {
+  const gl = canvas.getContext('webgl', { antialias: true, preserveDrawingBuffer: true });
+  if (!gl) return null;
+
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERT));
+  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAG));
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+  gl.useProgram(program);
+
+  const posBuf = gl.createBuffer();
+  const normBuf = gl.createBuffer();
+  const aPos = gl.getAttribLocation(program, 'aPos');
+  const aNormal = gl.getAttribLocation(program, 'aNormal');
+  const uProj = gl.getUniformLocation(program, 'uProj');
+  const uView = gl.getUniformLocation(program, 'uView');
+  const uColor = gl.getUniformLocation(program, 'uColor');
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK);
+
+  const view = {
+    yaw: 0.7, pitch: 0.5, dist: 4, center: { x: 0, y: 0, z: 0 },
+    count: 0, radius: 1, wireframe: false,
+  };
+
+  function setMesh(mesh) {
+    const tris = mesh.triangles;
+    const pos = new Float32Array(tris.length * 9);
+    const nrm = new Float32Array(tris.length * 9);
+    let o = 0;
+    let min = { x: Infinity, y: Infinity, z: Infinity };
+    let max = { x: -Infinity, y: -Infinity, z: -Infinity };
+
+    for (const [i, j, k] of tris) {
+      const a = mesh.vertices[i];
+      const b = mesh.vertices[j];
+      const c = mesh.vertices[k];
+      const ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+      const vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+      let nx = uy * vz - uz * vy;
+      let ny = uz * vx - ux * vz;
+      let nz = ux * vy - uy * vx;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+
+      for (const p of [a, b, c]) {
+        pos[o] = p.x; pos[o + 1] = p.y; pos[o + 2] = p.z;
+        nrm[o] = nx; nrm[o + 1] = ny; nrm[o + 2] = nz;
+        o += 3;
+        min.x = Math.min(min.x, p.x); max.x = Math.max(max.x, p.x);
+        min.y = Math.min(min.y, p.y); max.y = Math.max(max.y, p.y);
+        min.z = Math.min(min.z, p.z); max.z = Math.max(max.z, p.z);
+      }
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, normBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, nrm, gl.STATIC_DRAW);
+
+    view.count = tris.length * 3;
+    view.center = { x: (min.x + max.x) / 2, y: (min.y + max.y) / 2, z: (min.z + max.z) / 2 };
+    view.radius = Math.max(1e-3, Math.hypot(max.x - min.x, max.y - min.y, max.z - min.z) / 2);
+    view.dist = view.radius * 2.8;
+    render();
+  }
+
+  function render() {
+    const w = canvas.clientWidth || canvas.width;
+    const h = canvas.clientHeight || canvas.height;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0.043, 0.071, 0.125, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (!view.count) return;
+
+    gl.uniformMatrix4fv(uProj, false, perspective(0.9, canvas.width / canvas.height, view.radius * 0.02, view.radius * 40));
+    gl.uniformMatrix4fv(uView, false, orbitView(view.yaw, view.pitch, view.dist, view.center));
+    gl.uniform3f(uColor, 0.42, 0.72, 0.92);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, normBuf);
+    gl.enableVertexAttribArray(aNormal);
+    gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+    gl.drawArrays(view.wireframe ? gl.LINES : gl.TRIANGLES, 0, view.count);
+  }
+
+  // --- Contrôles ------------------------------------------------------------
+  let drag = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    drag = { x: e.clientX, y: e.clientY };
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    view.yaw -= (e.clientX - drag.x) * 0.01;
+    view.pitch = Math.max(-1.5, Math.min(1.5, view.pitch + (e.clientY - drag.y) * 0.01));
+    drag = { x: e.clientX, y: e.clientY };
+    render();
+  });
+  const stop = () => { drag = null; };
+  canvas.addEventListener('pointerup', stop);
+  canvas.addEventListener('pointercancel', stop);
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    view.dist = Math.max(view.radius * 0.4, Math.min(view.radius * 20, view.dist * (1 + Math.sign(e.deltaY) * 0.12)));
+    render();
+  }, { passive: false });
+
+  window.addEventListener('resize', render);
+
+  return {
+    setMesh,
+    render,
+    setWireframe(on) { view.wireframe = on; render(); },
+    setAngles(yaw, pitch) { view.yaw = yaw; view.pitch = pitch; render(); },
+    canvas,
+  };
+}
+
+return { createViewer };
+})();
+/* ===== js/app3d.js ===== */
+__modules['js/app3d.js'] = (function () {
+// Onglet « Modèle 3D » : jeu de photos, reconstruction, aperçu et export.
+
+const { analyzeImage, DEFAULT_OPTIONS } = __modules['js/vision.js'];
+const { simplifyClosed } = __modules['js/geometry.js'];
+const { carve, surfaceNets, smoothMesh, sideView, topView } = __modules['js/carve.js'];
+const { buildPrism, meshVolume, meshArea, meshBounds, checkWatertight, toBinarySTL, toAsciiSTL, carveToCad, centerOnBase } = __modules['js/mesh3d.js'];
+const { prismToStep } = __modules['js/step.js'];
+const { createViewer } = __modules['js/scene3d.js'];
+const { shared } = __modules['js/shared.js'];
+
+const WORK_MAX_SIDE_3D = 900; // le sculptage n'a pas besoin de la pleine résolution
+
+const state = {
+  photos: [],
+  mode: 'prism',
+  thickness: 10,
+  resolution: 128,
+  smooth: 2,
+  simplify: 1.5,
+  mmPerPx: null,
+  axisX: null,
+  baseY: null,
+  mesh: null,
+  stats: null,
+  viewer: null,
+  workFactor: null,
+  sourceSize: null,
+  options: { ...DEFAULT_OPTIONS },
+};
+
+const $ = (id) => document.getElementById(id);
+let nextId = 1;
+
+// ---------------------------------------------------------------------------
+// Chargement des photos
+// ---------------------------------------------------------------------------
+
+async function addPhotos(files) {
+  const list = [...files].filter((f) => f.type.startsWith('image/'));
+  if (!list.length) return;
+  setStatus(`Analyse de ${list.length} photo(s)…`);
+
+  for (const file of list) {
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    } catch {
+      bitmap = await createImageBitmap(file);
+    }
+
+    // Toutes les vues doivent partager la même échelle pixel : le facteur de
+    // réduction est fixé par la première photo et appliqué aux suivantes.
+    if (state.workFactor == null) {
+      state.workFactor = Math.min(1, WORK_MAX_SIDE_3D / Math.max(bitmap.width, bitmap.height));
+      state.sourceSize = { w: bitmap.width, h: bitmap.height };
+    }
+    const w = Math.max(1, Math.round(bitmap.width * state.workFactor));
+    const h = Math.max(1, Math.round(bitmap.height * state.workFactor));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, 0, 0, w, h);
+
+    const photo = {
+      id: nextId++,
+      name: file.name || `photo ${nextId}`,
+      canvas,
+      imageData: ctx.getImageData(0, 0, w, h),
+      sourceSize: { w: bitmap.width, h: bitmap.height },
+      role: state.photos.length === 0 ? 'top' : 'side',
+      angle: 0,
+      enabled: true,
+    };
+    analyzePhoto(photo);
+    state.photos.push(photo);
+  }
+
+  autoAngles();
+  autoAxis();
+  renderPhotos();
+  setStatus(`${state.photos.length} vue(s) chargée(s). Vérifie les rôles et les angles, puis lance la reconstruction.`);
+}
+
+function analyzePhoto(photo) {
+  const res = analyzeImage(photo.imageData, state.options);
+  photo.result = res;
+  const main = res.main;
+  if (!main) {
+    photo.mask = null;
+    photo.bbox = null;
+    return;
+  }
+  const { width, height, labels } = res;
+  const mask = new Uint8Array(width * height);
+  let minX = width, maxX = -1, minY = height, maxY = -1;
+  for (let i = 0; i < labels.length; i++) {
+    if (labels[i] !== main.id) continue;
+    mask[i] = 1;
+    const x = i % width;
+    const y = (i - x) / width;
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  photo.mask = mask;
+  photo.bbox = { minX, maxX, minY, maxY };
+}
+
+/** Répartit les angles régulièrement sur les vues de côté (protocole tourne-disque). */
+function autoAngles() {
+  const sides = state.photos.filter((p) => p.role === 'side');
+  sides.forEach((p, i) => { p.angle = (360 * i) / sides.length; });
+}
+
+/** Axe de rotation et ligne de pose déduits des silhouettes. */
+function autoAxis() {
+  const sides = state.photos.filter((p) => p.role === 'side' && p.bbox);
+  if (sides.length) {
+    state.axisX = sides.reduce((s, p) => s + (p.bbox.minX + p.bbox.maxX + 1) / 2, 0) / sides.length;
+    state.baseY = Math.max(...sides.map((p) => p.bbox.maxY + 1));
+  }
+  $('axisX').value = state.axisX != null ? state.axisX.toFixed(1) : '';
+  $('baseY').value = state.baseY != null ? state.baseY.toFixed(1) : '';
+}
+
+// ---------------------------------------------------------------------------
+// Reconstruction
+// ---------------------------------------------------------------------------
+
+/**
+ * Échelle en mm par pixel de travail. L'onglet Mesure travaille sur ses propres
+ * images réduites : on repasse par les pixels de la photo d'origine pour que les
+ * deux onglets parlent de la même chose.
+ */
+function resolveScale() {
+  const manual = parseFloat($('scale3d').value);
+  if (isFinite(manual) && manual > 0) return manual;
+  return null;
+}
+
+function buildModel() {
+  const scale = resolveScale();
+  if (!scale) {
+    setStatus('Renseigne d\'abord l\'échelle (mm par pixel) — sans elle le modèle n\'a pas de taille.', 'warn');
+    return;
+  }
+  const usable = state.photos.filter((p) => p.enabled && p.mask);
+  if (!usable.length) {
+    setStatus('Aucune silhouette exploitable. Vérifie que l\'objet se détache du fond.', 'warn');
+    return;
+  }
+
+  state.mmPerPx = scale;
+  setStatus('Reconstruction en cours…');
+
+  // Laisse le navigateur peindre le message avant le calcul bloquant.
+  setTimeout(() => {
+    const t0 = performance.now();
+    try {
+      state.mesh = state.mode === 'prism' ? buildPrismModel(usable, scale) : buildCarvedModel(usable, scale);
+    } catch (err) {
+      setStatus(`Échec de la reconstruction : ${err.message}`, 'warn');
+      return;
+    }
+    const ms = Math.round(performance.now() - t0);
+
+    if (!state.mesh || !state.mesh.triangles.length) {
+      setStatus('Le modèle est vide : les silhouettes ne se recoupent pas. Vérifie les rôles, les angles et la position de l\'axe.', 'warn');
+      state.stats = null;
+      renderStats();
+      return;
+    }
+
+    computeStats();
+    if (state.viewer) state.viewer.setMesh(state.mesh);
+    renderStats();
+    setStatus(`Modèle généré en ${ms} ms — ${state.mesh.triangles.length.toLocaleString('fr-FR')} triangles.`, 'ok');
+  }, 30);
+}
+
+function buildPrismModel(usable, scale) {
+  const photo = usable.find((p) => p.role === 'top') || usable[0];
+  const obj = photo.result.main;
+  if (!obj) throw new Error('aucun objet détecté sur la vue de dessus');
+
+  const tol = state.simplify;
+  const outer = simplifyClosed(obj.contour, tol);
+  const holes = (obj.holes || []).map((h) => simplifyClosed(h.contour, tol)).filter((h) => h.length >= 3);
+
+  state.prismRings = { outer, holes, photo };
+  return buildPrism(outer, holes, state.thickness, scale);
+}
+
+function buildCarvedModel(usable, scale) {
+  const views = usable.map((p) => {
+    const { width, height } = p.result;
+    if (p.role === 'top') {
+      const cx = p.bbox ? (p.bbox.minX + p.bbox.maxX + 1) / 2 : width / 2;
+      const cy = p.bbox ? (p.bbox.minY + p.bbox.maxY + 1) / 2 : height / 2;
+      return topView(p.mask, width, height, (p.angle * Math.PI) / 180, cx, cy);
+    }
+    return sideView(
+      p.mask, width, height, (p.angle * Math.PI) / 180,
+      state.axisX != null ? state.axisX : width / 2,
+      state.baseY != null ? state.baseY : height,
+    );
+  });
+
+  const grid = carve(views, { resolution: state.resolution });
+  let mesh = surfaceNets(grid);
+  if (!mesh.triangles.length) return mesh;
+  mesh = smoothMesh(mesh, state.smooth, 0.5);
+  state.prismRings = null;
+  return centerOnBase(carveToCad(mesh, scale));
+}
+
+function computeStats() {
+  const mesh = state.mesh;
+  const b = meshBounds(mesh);
+  const wt = checkWatertight(mesh);
+  state.stats = {
+    size: b.size,
+    volume: meshVolume(mesh),
+    area: meshArea(mesh),
+    triangles: mesh.triangles.length,
+    vertices: mesh.vertices.length,
+    watertight: wt.watertight,
+    boundary: wt.boundary,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Rendu de l'interface
+// ---------------------------------------------------------------------------
+
+function renderPhotos() {
+  const box = $('photoList');
+  if (!state.photos.length) {
+    box.innerHTML = '<p class="muted">Aucune photo. Dépose ici les vues de ton objet.</p>';
+    return;
+  }
+
+  box.innerHTML = state.photos.map((p) => {
+    const ok = !!p.mask;
+    const dims = p.bbox ? `${p.bbox.maxX - p.bbox.minX + 1} × ${p.bbox.maxY - p.bbox.minY + 1} px` : 'aucune silhouette';
+    return `<div class="photo-card${p.enabled ? '' : ' off'}" data-id="${p.id}">
+      <canvas class="thumb" data-thumb="${p.id}" width="120" height="90"></canvas>
+      <div class="photo-body">
+        <div class="photo-name" title="${p.name}">${p.name}</div>
+        <div class="photo-meta ${ok ? '' : 'warn'}">${dims}</div>
+        <div class="photo-controls">
+          <select data-role="${p.id}">
+            <option value="top"${p.role === 'top' ? ' selected' : ''}>Dessus</option>
+            <option value="side"${p.role === 'side' ? ' selected' : ''}>Côté</option>
+          </select>
+          <input type="number" data-angle="${p.id}" value="${p.angle}" step="1" title="Angle de rotation de l'objet (°)">
+          <span class="deg">°</span>
+          <button data-remove="${p.id}" title="Retirer cette vue">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  for (const p of state.photos) {
+    const c = box.querySelector(`[data-thumb="${p.id}"]`);
+    if (c) drawThumb(c, p);
+  }
+  box.querySelectorAll('[data-role]').forEach((el) => el.addEventListener('change', () => {
+    const p = state.photos.find((x) => x.id === +el.dataset.role);
+    p.role = el.value;
+    autoAxis();
+    renderPhotos();
+  }));
+  box.querySelectorAll('[data-angle]').forEach((el) => el.addEventListener('change', () => {
+    const p = state.photos.find((x) => x.id === +el.dataset.angle);
+    p.angle = parseFloat(el.value) || 0;
+  }));
+  box.querySelectorAll('[data-remove]').forEach((el) => el.addEventListener('click', () => {
+    state.photos = state.photos.filter((x) => x.id !== +el.dataset.remove);
+    if (!state.photos.length) { state.workFactor = null; state.sourceSize = null; }
+    autoAxis();
+    renderPhotos();
+  }));
+}
+
+function drawThumb(canvas, photo) {
+  const ctx = canvas.getContext('2d');
+  const { width: w, height: h } = photo.canvas;
+  const k = Math.min(canvas.width / w, canvas.height / h);
+  const dw = w * k;
+  const dh = h * k;
+  const ox = (canvas.width - dw) / 2;
+  const oy = (canvas.height - dh) / 2;
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(photo.canvas, ox, oy, dw, dh);
+
+  if (!photo.mask) return;
+  // Silhouette en surimpression, sous-échantillonnée pour rester rapide
+  ctx.fillStyle = 'rgba(56,189,248,.45)';
+  const step = Math.max(1, Math.round(1 / k));
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      if (photo.mask[y * w + x]) ctx.fillRect(ox + x * k, oy + y * k, Math.max(1, k * step), Math.max(1, k * step));
+    }
+  }
+  if (photo.role === 'side' && state.axisX != null) {
+    ctx.strokeStyle = '#f97316';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(ox + state.axisX * k, oy);
+    ctx.lineTo(ox + state.axisX * k, oy + dh);
+    ctx.stroke();
+    if (state.baseY != null) {
+      ctx.beginPath();
+      ctx.moveTo(ox, oy + state.baseY * k);
+      ctx.lineTo(ox + dw, oy + state.baseY * k);
+      ctx.stroke();
+    }
+  }
+}
+
+function renderStats() {
+  const box = $('model3dStats');
+  const s = state.stats;
+  if (!s) {
+    box.innerHTML = '<p class="muted">Pas encore de modèle.</p>';
+    $('exportStl').disabled = true;
+    $('exportStlAscii').disabled = true;
+    $('exportStep').disabled = true;
+    return;
+  }
+  const mm = (v) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} mm`;
+  const cm3 = s.volume / 1000;
+
+  box.innerHTML = `
+    <div class="row"><span class="row-label">Encombrement</span><span class="row-value">${mm(s.size.x)} × ${mm(s.size.y)} × ${mm(s.size.z)}</span><span class="row-px"></span></div>
+    <div class="row"><span class="row-label">Volume</span><span class="row-value">${cm3.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} cm³</span><span class="row-px">${Math.round(s.volume).toLocaleString('fr-FR')} mm³</span></div>
+    <div class="row"><span class="row-label">Surface</span><span class="row-value">${(s.area / 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} cm²</span><span class="row-px"></span></div>
+    <div class="row"><span class="row-label">Maillage</span><span class="row-value">${s.triangles.toLocaleString('fr-FR')} triangles</span><span class="row-px">${s.vertices.toLocaleString('fr-FR')} sommets</span></div>
+    <div class="row"><span class="row-label">Solide fermé</span><span class="row-value">${s.watertight ? 'oui' : `non (${s.boundary} arêtes libres)`}</span><span class="row-px"></span></div>
+  `;
+
+  $('exportStl').disabled = false;
+  $('exportStlAscii').disabled = false;
+  $('exportStep').disabled = state.mode !== 'prism' || !state.prismRings;
+
+  const note = [];
+  if (!s.watertight) note.push(['warn', 'Le maillage n\'est pas parfaitement fermé : l\'impression 3D peut le refuser. Baisse la résolution ou lisse davantage.']);
+  if (state.mode === 'carve') {
+    note.push(['info', 'Le sculptage par silhouettes reconstruit l\'enveloppe visible : les creux qui ne se voient sur aucune silhouette (poche intérieure, contre-dépouille) ne peuvent pas apparaître.']);
+    note.push(['info', 'L\'export STEP est réservé au mode Prisme : convertir ce maillage en STEP ne donnerait qu\'un amas de facettes, inexploitable en CAO.']);
+  }
+  if (state.mode === 'prism') {
+    note.push(['ok', 'Mode prisme : le STEP produit est une géométrie exacte (plans et droites), directement reprenable en CAO.']);
+  }
+  $('model3dNotes').innerHTML = note.map(([k, t]) => `<p class="note ${k}">${t}</p>`).join('');
+}
+
+function setStatus(text, kind = 'info') {
+  const el = $('status3d');
+  el.textContent = text;
+  el.className = `status ${kind}`;
+}
+
+// ---------------------------------------------------------------------------
+// Export
+// ---------------------------------------------------------------------------
+
+function download(name, data, type) {
+  const blob = new Blob([data], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function baseName() {
+  const first = state.photos[0];
+  return (first ? first.name.replace(/\.[^.]+$/, '') : 'modele').replace(/[^\w-]+/g, '_');
+}
+
+// ---------------------------------------------------------------------------
+// Câblage
+// ---------------------------------------------------------------------------
+
+function init3d() {
+  const dz = $('dropzone3d');
+  $('fileInput3d').addEventListener('change', (e) => addPhotos(e.target.files));
+  $('pickFiles3d').addEventListener('click', () => $('fileInput3d').click());
+  ['dragenter', 'dragover'].forEach((ev) => dz.addEventListener(ev, (e) => {
+    e.preventDefault();
+    dz.classList.add('dragging');
+  }));
+  ['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => {
+    e.preventDefault();
+    dz.classList.remove('dragging');
+  }));
+  dz.addEventListener('drop', (e) => addPhotos(e.dataTransfer.files));
+
+  $('mode3d').addEventListener('change', (e) => {
+    state.mode = e.target.value;
+    $('prismFields').hidden = state.mode !== 'prism';
+    $('carveFields').hidden = state.mode !== 'carve';
+    renderStats();
+  });
+
+  const bindNumber = (id, key, transform = parseFloat) => {
+    $(id).addEventListener('input', () => {
+      const v = transform($(id).value);
+      if (isFinite(v)) state[key] = v;
+      const out = $(`${id}Out`);
+      if (out) out.textContent = $(id).value;
+    });
+  };
+  bindNumber('thickness', 'thickness');
+  bindNumber('resolution', 'resolution', (v) => parseInt(v, 10));
+  bindNumber('smooth', 'smooth', (v) => parseInt(v, 10));
+  bindNumber('simplify', 'simplify');
+  $('axisX').addEventListener('input', () => {
+    state.axisX = parseFloat($('axisX').value);
+    renderPhotos();
+  });
+  $('baseY').addEventListener('input', () => {
+    state.baseY = parseFloat($('baseY').value);
+    renderPhotos();
+  });
+
+  $('useMeasureScale').addEventListener('click', () => {
+    if (!shared.mmPerPx) {
+      setStatus('Aucune échelle définie dans l\'onglet Mesure pour l\'instant.', 'warn');
+      return;
+    }
+    // L'onglet Mesure travaille sur une réduction différente : on convertit via
+    // les pixels de la photo d'origine.
+    const measureFactor = shared.workFactor || 1;
+    const factor = state.workFactor || 1;
+    const value = (shared.mmPerPx * measureFactor) / factor;
+    $('scale3d').value = value.toFixed(5);
+    setStatus(`Échelle reprise de l'onglet Mesure : ${value.toFixed(4)} mm par pixel.`, 'ok');
+  });
+
+  $('autoAngles').addEventListener('click', () => {
+    autoAngles();
+    renderPhotos();
+    setStatus('Angles répartis régulièrement sur les vues de côté.');
+  });
+  $('autoAxis').addEventListener('click', () => {
+    autoAxis();
+    renderPhotos();
+    setStatus('Axe de rotation et ligne de pose redéduits des silhouettes.');
+  });
+
+  $('build3d').addEventListener('click', buildModel);
+  $('wireframe').addEventListener('change', (e) => {
+    if (state.viewer) state.viewer.setWireframe(e.target.checked);
+  });
+
+  $('exportStl').addEventListener('click', () => {
+    if (!state.mesh) return;
+    download(`${baseName()}.stl`, toBinarySTL(state.mesh, baseName()), 'model/stl');
+  });
+  $('exportStlAscii').addEventListener('click', () => {
+    if (!state.mesh) return;
+    download(`${baseName()}-ascii.stl`, toAsciiSTL(state.mesh, baseName()), 'model/stl');
+  });
+  $('exportStep').addEventListener('click', () => {
+    if (!state.prismRings) return;
+    const { outer, holes } = state.prismRings;
+    const k = state.mmPerPx;
+    const conv = (ring) => ring.map((p) => ({ x: p.x * k, y: -p.y * k }));
+    const step = prismToStep(conv(outer), holes.map(conv), state.thickness, baseName());
+    download(`${baseName()}.step`, step, 'application/step');
+  });
+
+  try {
+    state.viewer = createViewer($('viewer3d'));
+    if (!state.viewer) $('viewerFallback').hidden = false;
+  } catch (err) {
+    $('viewerFallback').hidden = false;
+  }
+
+  renderPhotos();
+  renderStats();
+}
+
+return { init3d };
+})();
 /* ===== js/app.js ===== */
+__modules['js/app.js'] = (function () {
 // Interface : chargement de la photo, réglages de détection, calibration, mesures.
 
+const { analyzeImage, toRealUnits, DEFAULT_OPTIONS } = __modules['js/vision.js'];
+const { init3d } = __modules['js/app3d.js'];
+const { shared } = __modules['js/shared.js'];
 
 const WORK_MAX_SIDE = 1400; // l'analyse tourne sur une image redimensionnée (rapidité)
 
@@ -975,6 +2741,7 @@ async function loadFile(file) {
 
   state.source = source;
   state.work = work;
+  state.workFactor = scale;
   state.imageData = wctx.getImageData(0, 0, work.width, work.height);
   state.fileName = file.name || 'photo';
   state.selected = 0;
@@ -1054,6 +2821,16 @@ function applyCalibration() {
     state.mmPerPx = refMm / px;
     state.calibration = { method: 'Objet de référence', detail: `${ref && ref.mm ? ref.label : `${fmtNum(refMm)} mm`} sur ${px.toFixed(1)} px` };
   }
+
+  publishScale();
+}
+
+/** Publie l'échelle pour l'onglet Modèle 3D. */
+function publishScale() {
+  shared.mmPerPx = state.mmPerPx;
+  shared.workFactor = state.workFactor || 1;
+  shared.calibration = state.calibration;
+  shared.fileName = state.fileName;
 }
 
 function labelOf(key) {
@@ -1599,13 +3376,28 @@ function bind() {
     });
   });
 
+  // Onglets
+  document.querySelectorAll('[data-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('[data-panel]').forEach((panel) => {
+        panel.hidden = panel.dataset.panel !== tab;
+      });
+      if (tab === '3d' && state.viewerNeedsRender) state.viewerNeedsRender = false;
+    });
+  });
+
   renderCalibrationPanel();
   renderResults();
   renderMeasures();
 }
 
 bind();
+init3d();
 
+return {  };
+})();
 })();
 </script>
 </body>

@@ -1,6 +1,8 @@
 // Interface : chargement de la photo, réglages de détection, calibration, mesures.
 
 import { analyzeImage, toRealUnits, DEFAULT_OPTIONS } from './vision.js';
+import { init3d } from './app3d.js';
+import { shared } from './shared.js';
 
 const WORK_MAX_SIDE = 1400; // l'analyse tourne sur une image redimensionnée (rapidité)
 
@@ -79,6 +81,7 @@ async function loadFile(file) {
 
   state.source = source;
   state.work = work;
+  state.workFactor = scale;
   state.imageData = wctx.getImageData(0, 0, work.width, work.height);
   state.fileName = file.name || 'photo';
   state.selected = 0;
@@ -158,6 +161,16 @@ function applyCalibration() {
     state.mmPerPx = refMm / px;
     state.calibration = { method: 'Objet de référence', detail: `${ref && ref.mm ? ref.label : `${fmtNum(refMm)} mm`} sur ${px.toFixed(1)} px` };
   }
+
+  publishScale();
+}
+
+/** Publie l'échelle pour l'onglet Modèle 3D. */
+function publishScale() {
+  shared.mmPerPx = state.mmPerPx;
+  shared.workFactor = state.workFactor || 1;
+  shared.calibration = state.calibration;
+  shared.fileName = state.fileName;
 }
 
 function labelOf(key) {
@@ -703,9 +716,22 @@ function bind() {
     });
   });
 
+  // Onglets
+  document.querySelectorAll('[data-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('[data-panel]').forEach((panel) => {
+        panel.hidden = panel.dataset.panel !== tab;
+      });
+      if (tab === '3d' && state.viewerNeedsRender) state.viewerNeedsRender = false;
+    });
+  });
+
   renderCalibrationPanel();
   renderResults();
   renderMeasures();
 }
 
 bind();
+init3d();
