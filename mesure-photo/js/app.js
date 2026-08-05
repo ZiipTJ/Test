@@ -575,6 +575,7 @@ function download(name, content, type = 'text/plain') {
 
 function bind() {
   $('fileInput').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  $('pickFile').addEventListener('click', () => $('fileInput').click());
 
   const dz = $('dropzone');
   ['dragenter', 'dragover'].forEach((ev) => dz.addEventListener(ev, (e) => {

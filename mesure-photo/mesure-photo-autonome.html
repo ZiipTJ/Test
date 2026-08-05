@@ -183,7 +183,7 @@
   <section>
     <div class="toolbar">
       <input type="file" id="fileInput" accept="image/*" hidden>
-      <button class="primary" onclick="document.getElementById('fileInput').click()">Choisir une photo</button>
+      <button class="primary" id="pickFile">Choisir une photo</button>
       <button data-tool="select" class="active">Sélectionner</button>
       <button data-tool="calibrate">Calibrer (tracer)</button>
       <button data-tool="measure">Mesurer</button>
@@ -1471,6 +1471,7 @@ function download(name, content, type = 'text/plain') {
 
 function bind() {
   $('fileInput').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  $('pickFile').addEventListener('click', () => $('fileInput').click());
 
   const dz = $('dropzone');
   ['dragenter', 'dragover'].forEach((ev) => dz.addEventListener(ev, (e) => {
