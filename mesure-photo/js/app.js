@@ -1,6 +1,7 @@
 // Interface : chargement de la photo, réglages de détection, calibration, mesures.
 
 import { analyzeImage, toRealUnits, DEFAULT_OPTIONS } from './vision.js';
+import { fitPrimitives, groupRadii } from './fitshapes.js';
 import { init3d } from './app3d.js';
 import { shared } from './shared.js';
 
@@ -42,8 +43,15 @@ const state = {
   measures: [],
   fileName: '',
   options: { ...DEFAULT_OPTIONS },
-  view: { mask: true, contour: true, rect: true, feret: false },
+  view: { mask: true, contour: true, rect: false, feret: false, radii: true },
+  fit: null,
+  fitOptions: { smooth: 2, minSweepDeg: 15 },
+  highlight: -1,
 };
+
+// En deçà de ce rayon en pixels, l'ajustement de cercle n'a plus assez de
+// matière : le rayon sort systématiquement sous-estimé et instable.
+const RADIUS_RELIABLE_PX = 20;
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('canvas');
@@ -114,8 +122,21 @@ function analyze() {
     state.selected = Math.min(state.selected, state.result.objects.length - 1);
     setStatus(`${state.result.objects.length} objet(s) détecté(s) en ${ms} ms — seuil de luminance ${Math.round(state.result.threshold)} / fond ${Math.round(state.result.backgroundLuminance)}.`);
   }
+  computeFit();
   applyCalibration();
   renderAll();
+}
+
+/** Décompose le contour de l'objet sélectionné en droites et arcs. */
+function computeFit() {
+  const obj = currentObject();
+  state.highlight = -1;
+  if (!obj || !obj.contour || obj.contour.length < 16) {
+    state.fit = null;
+    return;
+  }
+  state.fit = fitPrimitives(obj.contour, state.fitOptions);
+  state.fit.groups = groupRadii(state.fit.primitives);
 }
 
 function currentObject() {
@@ -185,6 +206,7 @@ function renderAll() {
   drawCanvas();
   renderObjectList();
   renderResults();
+  renderRadii();
   renderMeasures();
   renderCalibrationPanel();
 }
@@ -205,6 +227,8 @@ function drawCanvas() {
       if (state.view.feret && active) drawFeret(obj);
     });
   }
+
+  if (res && state.view.radii && state.fit) drawPrimitives();
 
   if (state.calibSegment) drawSegment(state.calibSegment, '#f59e0b', 'calibration');
   state.measures.forEach((m, i) => drawSegment(m, '#22d3ee', `M${i + 1} · ${formatLength(dist(m) * (state.mmPerPx || 0)) || `${dist(m).toFixed(0)} px`}`));
@@ -260,6 +284,50 @@ function drawRect(obj, active) {
   labelAt(lengthEdge ? mid(c[0], c[1]) : mid(c[1], c[2]), lText, '#f97316');
   labelAt(lengthEdge ? mid(c[1], c[2]) : mid(c[0], c[1]), wText, '#f97316');
   void longMid; void shortMid;
+}
+
+/** Trace les droites et les arcs ajustés, avec leur cote. */
+function drawPrimitives() {
+  const prims = state.fit.primitives;
+  const scale = Math.max(1, canvas.width / 900);
+
+  prims.forEach((p, i) => {
+    const active = i === state.highlight;
+    ctx.lineWidth = (active ? 4 : 2.5) * scale;
+
+    if (p.type === 'arc') {
+      ctx.strokeStyle = active ? '#f0abfc' : '#c084fc';
+      ctx.beginPath();
+      ctx.arc(p.center.x, p.center.y, p.radius, p.startAngle, p.startAngle + p.sweep, p.sweep < 0);
+      ctx.stroke();
+      // repère du centre
+      ctx.beginPath();
+      ctx.arc(p.center.x, p.center.y, 2.5 * scale, 0, Math.PI * 2);
+      ctx.fillStyle = active ? '#f0abfc' : 'rgba(192,132,252,.7)';
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = active ? '#6ee7b7' : '#34d399';
+      ctx.beginPath();
+      ctx.moveTo(p.a.x, p.a.y);
+      ctx.lineTo(p.b.x, p.b.y);
+      ctx.stroke();
+    }
+  });
+
+  // Étiquettes dans un second temps, pour qu'aucun tracé ne passe dessus.
+  prims.forEach((p, i) => {
+    const active = i === state.highlight;
+    if (p.type === 'arc') {
+      const mid = p.startAngle + p.sweep / 2;
+      const out = p.radius + 16 * scale;
+      const pos = { x: p.center.x + out * Math.cos(mid), y: p.center.y + out * Math.sin(mid) };
+      const text = state.mmPerPx ? `R${fmtNum(p.radius * state.mmPerPx, 1)}` : `R${p.radius.toFixed(0)} px`;
+      labelAt(pos, text, p.radius < RADIUS_RELIABLE_PX ? '#fbbf24' : (active ? '#f0abfc' : '#c084fc'));
+    } else if (p.length > 26) {
+      const text = state.mmPerPx ? formatLength(p.length * state.mmPerPx) : `${p.length.toFixed(0)} px`;
+      labelAt(mid(p.a, p.b), text, active ? '#6ee7b7' : '#34d399');
+    }
+  });
 }
 
 function drawFeret(obj) {
@@ -328,6 +396,7 @@ function renderObjectList() {
   box.querySelectorAll('.object-chip').forEach((el) => {
     el.addEventListener('click', () => {
       state.selected = parseInt(el.dataset.index, 10);
+      computeFit();
       applyCalibration();
       renderAll();
     });
@@ -400,6 +469,71 @@ function renderWarnings(obj) {
       + (Math.abs(err) > 3 ? ' Un écart de cet ordre vient presque toujours d\'une prise de vue penchée ou d\'un objet épais photographié de trop près.' : '')]);
   }
   $('warnings').innerHTML = list.map(([kind, text]) => `<p class="note ${kind}">${text}</p>`).join('');
+}
+
+/** Panneau de lecture des rayons et des méplats. */
+function renderRadii() {
+  const box = $('radiiPanel');
+  const summary = $('radiiSummary');
+  if (!state.fit || !state.fit.primitives.length) {
+    box.innerHTML = '<p class="muted">Charge une photo : le contour sera décomposé en droites et en arcs.</p>';
+    summary.innerHTML = '';
+    return;
+  }
+
+  const k = state.mmPerPx;
+  const prims = state.fit.primitives;
+  const groups = state.fit.groups;
+  const fmtR = (px) => (k ? `R${fmtNum(px * k, 2)} ${UNITS[state.unit].label === 'mm' ? 'mm' : UNITS[state.unit].label}` : `R${px.toFixed(1)} px`);
+
+  summary.innerHTML = groups.length
+    ? groups.map((g) => {
+      const doubtful = g.radius < RADIUS_RELIABLE_PX;
+      const spread = g.count > 1 ? ` <em>(${fmtNum(g.min * (k || 1), 1)} à ${fmtNum(g.max * (k || 1), 1)})</em>` : '';
+      return `<div class="radius-chip${doubtful ? ' doubtful' : ''}">
+          <span class="radius-count">${g.count} ×</span>
+          <strong>${k ? `R${fmtNum(g.radius * k, 2)}` : `R${g.radius.toFixed(1)} px`}</strong>
+          ${k ? `<span class="radius-unit">${UNITS[state.unit].label}</span>` : ''}
+          ${spread}
+        </div>`;
+    }).join('')
+    : '<p class="muted">Aucun arc détecté : le contour est entièrement rectiligne.</p>';
+
+  box.innerHTML = `<div class="row head"><span>Élément</span><span>Cote</span><span>Étendue</span></div>` + prims.map((p, i) => {
+    if (p.type === 'arc') {
+      const deg = Math.abs((p.sweep * 180) / Math.PI);
+      const doubtful = p.radius < RADIUS_RELIABLE_PX;
+      return `<div class="row prim${doubtful ? ' doubtful' : ''}" data-prim="${i}">
+        <span class="row-label">${p.full ? 'Cercle' : 'Arc'} ${p.concave ? '(rentrant)' : ''}${doubtful ? '<em>rayon trop petit dans l\'image</em>' : ''}</span>
+        <span class="row-value">${fmtR(p.radius)}</span>
+        <span class="row-px">${deg.toFixed(0)}°</span>
+      </div>`;
+    }
+    return `<div class="row prim" data-prim="${i}">
+      <span class="row-label">Méplat</span>
+      <span class="row-value">${k ? formatLength(p.length * k) : `${p.length.toFixed(1)} px`}</span>
+      <span class="row-px">${(((p.angle * 180) / Math.PI + 180) % 180).toFixed(0)}°</span>
+    </div>`;
+  }).join('');
+
+  box.querySelectorAll('[data-prim]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const i = parseInt(el.dataset.prim, 10);
+      state.highlight = state.highlight === i ? -1 : i;
+      box.querySelectorAll('[data-prim]').forEach((r) => r.classList.toggle('active', +r.dataset.prim === state.highlight));
+      drawCanvas();
+    });
+  });
+
+  const notes = [];
+  const small = prims.filter((p) => p.type === 'arc' && p.radius < RADIUS_RELIABLE_PX).length;
+  if (small) {
+    notes.push(`<p class="note warn">${small} arc(s) font moins de ${RADIUS_RELIABLE_PX} px de rayon sur la photo. En dessous de ce seuil l'ajustement manque de matière et sous-estime le rayon de 10 à 30 %. Reprends la photo de plus près, ou en plus haute définition.</p>`);
+  }
+  if (!k) {
+    notes.push('<p class="note info">Les rayons sont en pixels tant que l\'échelle n\'est pas donnée. Renseigne une cote connue dans le panneau Échelle.</p>');
+  }
+  $('radiiNotes').innerHTML = notes.join('');
 }
 
 function renderMeasures() {
@@ -495,6 +629,7 @@ canvas.addEventListener('pointerdown', (e) => {
     const idx = objectAt(p);
     if (idx >= 0) {
       state.selected = idx;
+      computeFit();
       applyCalibration();
       renderAll();
     }
@@ -562,6 +697,24 @@ function buildReport() {
     `Remplissage rectangle : ${(obj.ratios.fill * 100).toFixed(1)} %`,
     `Circularité           : ${obj.ratios.circularity.toFixed(3)}`,
   ];
+  if (state.fit && state.fit.primitives.length) {
+    lines.push('', 'Contour décomposé :');
+    state.fit.primitives.forEach((p, i) => {
+      const n = String(i + 1).padStart(2, ' ');
+      if (p.type === 'arc') {
+        const deg = Math.abs((p.sweep * 180) / Math.PI).toFixed(0);
+        lines.push(`  ${n}. ${p.full ? 'Cercle' : 'Arc  '} R${k ? fmtNum(p.radius * k, 2) + ' mm' : p.radius.toFixed(1) + ' px'} sur ${deg}°${p.radius < RADIUS_RELIABLE_PX ? '   (rayon trop petit dans l\'image : peu fiable)' : ''}`);
+      } else {
+        lines.push(`  ${n}. Méplat ${k ? fmtNum(p.length * k, 2) + ' mm' : p.length.toFixed(1) + ' px'}`);
+      }
+    });
+    if (state.fit.groups && state.fit.groups.length) {
+      lines.push('', 'Rayons regroupés :');
+      for (const g of state.fit.groups) {
+        lines.push(`  ${g.count} × R${k ? fmtNum(g.radius * k, 2) + ' mm' : g.radius.toFixed(1) + ' px'}`);
+      }
+    }
+  }
   if (state.measures.length) {
     lines.push('', 'Mesures libres :');
     state.measures.forEach((m, i) => {
@@ -638,7 +791,7 @@ function bind() {
   });
 
   // Vues
-  ['mask', 'contour', 'rect', 'feret'].forEach((key) => {
+  ['mask', 'contour', 'rect', 'feret', 'radii'].forEach((key) => {
     $(`view-${key}`).addEventListener('change', (e) => {
       state.view[key] = e.target.checked;
       drawCanvas();
@@ -679,6 +832,20 @@ function bind() {
     const obj = currentObject();
     if (obj) renderWarnings(obj);
   }));
+
+  // Réglages de la lecture des rayons
+  const fitSlider = (id, key, transform = parseFloat) => {
+    const el = $(id);
+    const out = $(`${id}Out`);
+    el.addEventListener('input', () => { if (out) out.textContent = el.value; });
+    el.addEventListener('change', () => {
+      state.fitOptions[key] = transform(el.value);
+      computeFit();
+      renderAll();
+    });
+  };
+  fitSlider('fitSmooth', 'smooth', (v) => parseInt(v, 10));
+  fitSlider('fitMinSweep', 'minSweepDeg', (v) => parseInt(v, 10));
 
   $('unit').addEventListener('change', (e) => {
     state.unit = e.target.value;

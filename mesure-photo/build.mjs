@@ -14,13 +14,30 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 
 // Ordre de dépendance : un module doit être évalué après ceux qu'il importe.
 const ORDER = [
-  'js/shared.js', 'js/geometry.js', 'js/triangulate.js', 'js/vision.js',
+  'js/shared.js', 'js/geometry.js', 'js/triangulate.js', 'js/vision.js', 'js/fitshapes.js',
   'js/carve.js', 'js/mesh3d.js', 'js/step.js', 'js/scene3d.js',
   'js/app3d.js', 'js/app.js',
 ];
 
 const IMPORT_RE = /^import\s*\{([\s\S]*?)\}\s*from\s*'([^']+)';?[ \t]*$/gm;
 const EXPORT_DECL_RE = /^export\s+(?:async\s+)?(const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm;
+
+/** Vérifie qu'aucun module importé ne manque à la liste, et qu'il vient avant. */
+function checkOrder() {
+  const position = new Map(ORDER.map((f, i) => [f, i]));
+  for (const file of ORDER) {
+    const raw = fs.readFileSync(path.join(dir, file), 'utf8');
+    for (const m of raw.matchAll(IMPORT_RE)) {
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), m[2]));
+      if (!position.has(target)) {
+        throw new Error(`${file} importe ${target}, absent de ORDER dans build.mjs`);
+      }
+      if (position.get(target) > position.get(file)) {
+        throw new Error(`${file} importe ${target}, qui est évalué après lui : corriger l'ordre dans build.mjs`);
+      }
+    }
+  }
+}
 
 function moduleSource(file) {
   const raw = fs.readFileSync(path.join(dir, file), 'utf8');
@@ -46,6 +63,8 @@ function moduleSource(file) {
   const unique = [...new Set(exported)];
   return `__modules['${file}'] = (function () {\n${body}\nreturn { ${unique.join(', ')} };\n})();`;
 }
+
+checkOrder();
 
 const bundle = [
   '(function () {',

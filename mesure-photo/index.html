@@ -227,6 +227,26 @@
   button:disabled { opacity: .4; cursor: not-allowed; }
   button:disabled:hover { border-color: var(--line); }
 
+  .radius-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .radius-chip {
+    background: #2a1e3f;
+    border: 1px solid #6d28d9;
+    border-radius: 9px;
+    padding: 7px 11px;
+    font-size: 15px;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+  }
+  .radius-chip.doubtful { background: #2b2007; border-color: #7c5b12; }
+  .radius-chip .radius-count { color: var(--muted); font-size: 13px; }
+  .radius-chip .radius-unit { color: var(--muted); font-size: 12px; }
+  .radius-chip em { color: var(--muted); font-size: 11px; font-style: normal; }
+  .row.prim { cursor: pointer; border-radius: 6px; padding-left: 6px; padding-right: 6px; }
+  .row.prim:hover { background: var(--panel-2); }
+  .row.prim.active { background: #2a1e3f; }
+  .row.prim.doubtful .row-value { color: var(--warn); }
+
   .muted { color: var(--muted); font-size: 13px; }
   details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   details[open] summary { margin-bottom: 10px; }
@@ -279,8 +299,9 @@
       <div class="checks">
         <label><input type="checkbox" id="view-mask" checked> Détourage</label>
         <label><input type="checkbox" id="view-contour" checked> Contour</label>
-        <label><input type="checkbox" id="view-rect" checked> Rectangle mini</label>
+        <label><input type="checkbox" id="view-rect"> Rectangle mini</label>
         <label><input type="checkbox" id="view-feret"> Diagonale max</label>
+        <label><input type="checkbox" id="view-radii" checked> Rayons et méplats</label>
       </div>
     </div>
 
@@ -375,6 +396,25 @@
       <h2>Cotes de l'objet sélectionné</h2>
       <div id="results"><p class="muted">Charge une photo pour obtenir les cotes.</p></div>
       <div id="warnings"></div>
+    </div>
+
+    <div class="card">
+      <h2>Rayons et méplats du contour</h2>
+      <div id="radiiSummary" class="radius-summary"></div>
+      <div id="radiiPanel"><p class="muted">Charge une photo : le contour sera décomposé en droites et en arcs.</p></div>
+      <div id="radiiNotes"></div>
+      <details style="margin-top:12px">
+        <summary>Réglages de la décomposition</summary>
+        <div class="slider">
+          <div class="top"><span>Lissage du contour</span><span id="fitSmoothOut">2</span></div>
+          <input type="range" id="fitSmooth" min="0" max="6" step="1" value="2">
+        </div>
+        <div class="slider">
+          <div class="top"><span>Angle minimal d'un arc (°)</span><span id="fitMinSweepOut">15</span></div>
+          <input type="range" id="fitMinSweep" min="5" max="45" step="1" value="15">
+        </div>
+        <p class="muted">Monte le lissage si le contour est bruité et découpe trop d'arcs. Monte l'angle minimal pour ignorer les petits raccords et ne garder que les vrais congés.</p>
+      </details>
     </div>
 
     <div class="card">

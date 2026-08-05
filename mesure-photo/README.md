@@ -50,6 +50,36 @@ au mesuré et affiche l'écart en %. Au-delà de ~3 %, la prise de vue est en ca
 
 Export : fiche texte (presse-papier ou `.txt`) et image annotée `.png`.
 
+## Lecture des rayons
+
+Le contour détouré est décomposé en **droites et arcs de cercle** : au lieu d'un nuage
+de points, on lit directement « 2 congés R5,3 et 2 congés R8,5 ». C'est ce qu'il faut
+pour redessiner une pièce en CAO.
+
+La chaîne : rééchantillonnage à pas constant, courbure locale par cercle circonscrit,
+classement droite/arc, découpe aux ruptures de rayon, puis ajustement de chaque tronçon
+aux moindres carrés. Trois passes de nettoyage suivent — fusion des tronçons qui
+décrivent le même cercle, réabsorption des éclats trop courts pour avoir un rayon
+exploitable, et recalage des frontières sur la tangence, qui rend au méplat les points
+happés par le congé voisin.
+
+Chaque arc donne son rayon, son angle balayé et son centre ; chaque méplat sa longueur
+et son orientation. Les rayons voisins sont regroupés (« 4 × R12,5 ») avec la dispersion
+constatée, ce qui donne une idée immédiate de la répétabilité de la mesure.
+
+**Précision constatée** sur des formes de synthèse à rayons connus :
+
+| Rayon dans l'image | Écart constaté |
+| --- | --- |
+| ≥ 40 px | −2 à −3 % |
+| 20 à 40 px | −3 à −5 % |
+| < 20 px | −7 à −30 %, instable |
+
+En dessous de 20 px de rayon, l'ajustement de cercle manque de matière et sous-estime
+systématiquement : l'application signale ces arcs en jaune plutôt que de présenter un
+chiffre trompeur. **La règle pratique : cadrer pour que le plus petit congé à mesurer
+fasse au moins 20 px de rayon sur la photo.**
+
 ## Réglages de détection
 
 Le détourage combine un seuil d'Otsu et la luminance du fond mesurée sur la bordure
