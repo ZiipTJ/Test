@@ -11,6 +11,9 @@ export const DEFAULT_OPTIONS = {
   minAreaRatio: 0.0008, // taches plus petites que ça (fraction de l'image) = bruit
   autoThreshold: true,  // combine le fond mesuré et le seuil d'Otsu
   maxBlobs: 6,
+  roi: null,            // zone de recherche tracée à la main (Uint8Array) ou null
+  include: null,        // pixels forcés en « objet » au pinceau
+  exclude: null,        // pixels forcés en « fond » au pinceau
 };
 
 /** Luminance perçue + saturation HSV, normalisées 0..255 et 0..1. */
@@ -29,28 +32,52 @@ function computeChannels(data, count) {
   return { lum, sat };
 }
 
-/** Luminance médiane de l'anneau de bordure : c'est le fond blanc de référence. */
-function backgroundLuminance(lum, width, height) {
-  const band = Math.max(2, Math.round(Math.min(width, height) * 0.04));
+/**
+ * Luminance médiane du fond de référence.
+ * Sans zone tracée, on échantillonne la bordure de l'image. Avec une zone, on
+ * prend l'anneau qui l'entoure : le fond pertinent est celui qui touche
+ * l'objet, pas celui du coin de la photo.
+ */
+function backgroundLuminance(lum, width, height, roi = null) {
   const samples = [];
-  for (let y = 0; y < height; y++) {
-    const edgeRow = y < band || y >= height - band;
-    for (let x = 0; x < width; x++) {
-      if (edgeRow || x < band || x >= width - band) samples.push(lum[y * width + x]);
+
+  if (roi) {
+    const ring = dilate(roi, width, height);
+    let grown = ring;
+    for (let i = 0; i < 3; i++) grown = dilate(grown, width, height);
+    for (let i = 0; i < roi.length; i++) {
+      if (grown[i] && !roi[i]) samples.push(lum[i]);
     }
   }
+
+  if (!samples.length) {
+    const band = Math.max(2, Math.round(Math.min(width, height) * 0.04));
+    for (let y = 0; y < height; y++) {
+      const edgeRow = y < band || y >= height - band;
+      for (let x = 0; x < width; x++) {
+        if (edgeRow || x < band || x >= width - band) samples.push(lum[y * width + x]);
+      }
+    }
+  }
+
   samples.sort((a, b) => a - b);
   return samples.length ? samples[Math.floor(samples.length / 2)] : 255;
 }
 
-/** Seuil d'Otsu sur l'histogramme de luminance. */
-function otsuThreshold(lum) {
+/** Seuil d'Otsu sur l'histogramme de luminance, éventuellement restreint à une zone. */
+function otsuThreshold(lum, roi = null) {
   const hist = new Float64Array(256);
-  for (let i = 0; i < lum.length; i++) hist[Math.min(255, Math.max(0, Math.round(lum[i])))]++;
+  let total = 0;
+  for (let i = 0; i < lum.length; i++) {
+    if (roi && !roi[i]) continue;
+    hist[Math.min(255, Math.max(0, Math.round(lum[i])))]++;
+    total++;
+  }
+  if (!total) return 0;
 
-  const total = lum.length;
   let sum = 0;
   for (let t = 0; t < 256; t++) sum += t * hist[t];
+
 
   let sumB = 0, wB = 0, firstBest = 0, lastBest = 0, bestVar = -1;
   for (let t = 0; t < 256; t++) {
@@ -121,23 +148,43 @@ export function buildMask(image, options = {}) {
   const count = width * height;
   const { lum, sat } = computeChannels(image.data, count);
 
-  const bgLum = backgroundLuminance(lum, width, height);
+  const roi = opts.roi && opts.roi.length === count ? opts.roi : null;
+  const bgLum = backgroundLuminance(lum, width, height, roi);
+
   let threshold = bgLum - opts.tolerance;
   if (opts.autoThreshold) {
-    const otsu = otsuThreshold(lum);
-    // Otsu sépare bien quand l'objet est franc ; on garde le seuil le plus prudent
-    // des deux pour ne pas avaler l'ombre portée.
-    if (otsu > 0 && otsu < bgLum) threshold = Math.min(threshold, otsu);
+    // Restreint à la zone tracée, l'histogramme ne contient plus que l'objet et
+    // son fond immédiat : la séparation devient bien plus franche.
+    const otsu = otsuThreshold(lum, roi);
+    if (otsu > 0 && otsu < bgLum) {
+      // Sans zone, on garde le plus prudent des deux seuils pour ne pas avaler
+      // l'ombre portée. Avec une zone, l'utilisateur a désigné l'objet : le
+      // seuil local fait autorité, sinon la règle de tolérance — calibrée pour
+      // une pièce franchement contrastée — écarterait une pièce claire.
+      threshold = roi ? otsu : Math.min(threshold, otsu);
+    }
   }
   threshold = Math.max(0, Math.min(254, threshold));
 
   let mask = new Uint8Array(count);
   for (let i = 0; i < count; i++) {
+    if (roi && !roi[i]) continue;
     mask[i] = (lum[i] < threshold || sat[i] > opts.saturation) ? 1 : 0;
   }
 
   for (let i = 0; i < opts.morph; i++) mask = erode(dilate(mask, width, height), width, height); // fermeture
   for (let i = 0; i < opts.morph; i++) mask = dilate(erode(mask, width, height), width, height); // ouverture
+
+  // Les coups de pinceau passent après le nettoyage morphologique : ils sont un
+  // ordre de l'utilisateur, pas une suggestion à filtrer.
+  const include = opts.include && opts.include.length === count ? opts.include : null;
+  const exclude = opts.exclude && opts.exclude.length === count ? opts.exclude : null;
+  if (include || exclude) {
+    for (let i = 0; i < count; i++) {
+      if (include && include[i]) mask[i] = 1;
+      if (exclude && exclude[i]) mask[i] = 0;
+    }
+  }
 
   return { mask, width, height, threshold, backgroundLuminance: bgLum };
 }

@@ -274,6 +274,11 @@
       <button data-tool="select" class="active">Sélectionner</button>
       <button data-tool="calibrate">Calibrer (tracer)</button>
       <button data-tool="measure">Mesurer</button>
+      <span style="width:1px;height:26px;background:var(--line)"></span>
+      <button data-tool="zone" title="Entourer la pièce pour restreindre la recherche">Zone</button>
+      <button data-tool="inclure" title="Peindre ce qui appartient à la pièce">Inclure</button>
+      <button data-tool="exclure" title="Peindre ce qui n'appartient pas à la pièce">Exclure</button>
+      <button data-tool="gomme" title="Effacer le tracé">Gomme</button>
       <span class="spacer"></span>
       <select id="unit" title="Unité d'affichage">
         <option value="mm">mm</option>
@@ -283,6 +288,12 @@
       </select>
     </div>
     <p class="status" id="toolHint">Clique un objet sur la photo pour le sélectionner.</p>
+    <div class="toolbar" id="brushRow" hidden>
+      <span class="muted">Taille du pinceau</span>
+      <input type="range" id="brush" min="4" max="120" step="2" value="24" style="width:180px">
+      <span class="muted" id="brushOut">24</span>
+      <button id="clearPrecut">Effacer le prédécoupage</button>
+    </div>
 
     <div id="dropzone">
       <div class="hint">
@@ -302,6 +313,7 @@
         <label><input type="checkbox" id="view-rect"> Rectangle mini</label>
         <label><input type="checkbox" id="view-feret"> Diagonale max</label>
         <label><input type="checkbox" id="view-radii" checked> Rayons et méplats</label>
+        <label><input type="checkbox" id="view-precut" checked> Prédécoupage</label>
       </div>
     </div>
 
@@ -396,6 +408,15 @@
       <h2>Cotes de l'objet sélectionné</h2>
       <div id="results"><p class="muted">Charge une photo pour obtenir les cotes.</p></div>
       <div id="warnings"></div>
+    </div>
+
+    <div class="card">
+      <h2>Prédécoupage manuel</h2>
+      <p class="muted">Quand la pièce ne se détache pas du fond — du chrome sur du blanc, par exemple — tu peux guider la détection. Les trois outils n'ont pas les mêmes conséquences.</p>
+      <div class="row"><span class="row-label"><strong>Zone</strong><em>tu entoures largement la pièce</em></span><span class="row-value" style="color:var(--ok)">précision intacte</span><span class="row-px"></span></div>
+      <div class="row"><span class="row-label"><strong>Exclure</strong><em>tu écartes une ombre, un reflet</em></span><span class="row-value" style="color:var(--ok)">précision intacte</span><span class="row-px"></span></div>
+      <div class="row"><span class="row-label"><strong>Inclure</strong><em>tu peins la pièce toi-même</em></span><span class="row-value" style="color:var(--warn)">cote = ton trait</span><span class="row-px"></span></div>
+      <p class="note info" style="margin-top:12px">Avec <strong>Zone</strong>, le contour continue d'être lu dans la photo : tu dis seulement où chercher, la précision au pixel est conservée. Avec <strong>Inclure</strong>, c'est ton coup de pinceau qui devient le bord de la pièce — pratique pour rattraper un morceau perdu, mais les rayons mesurés là seront ceux de ta main.</p>
     </div>
 
     <div class="card">

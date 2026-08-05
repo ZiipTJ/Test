@@ -43,10 +43,16 @@ const state = {
   measures: [],
   fileName: '',
   options: { ...DEFAULT_OPTIONS },
-  view: { mask: true, contour: true, rect: false, feret: false, radii: true },
+  view: { mask: true, contour: true, rect: false, feret: false, radii: true, precut: true },
   fit: null,
   fitOptions: { smooth: 2, minSweepDeg: 15 },
   highlight: -1,
+  roi: null,          // zone de recherche tracée au lasso
+  include: null,      // pinceau « c'est la pièce »
+  exclude: null,      // pinceau « ce n'est pas la pièce »
+  brush: 24,
+  lasso: null,
+  painting: false,
 };
 
 // En deçà de ce rayon en pixels, l'ajustement de cercle n'a plus assez de
@@ -97,6 +103,10 @@ async function loadFile(file) {
   state.calibSegment = null;
   state.mmPerPx = null;
   state.calibration = null;
+  state.roi = null;
+  state.include = null;
+  state.exclude = null;
+  state.lasso = null;
 
   canvas.width = work.width;
   canvas.height = work.height;
@@ -113,7 +123,12 @@ async function loadFile(file) {
 function analyze() {
   if (!state.imageData) return;
   const t0 = performance.now();
-  state.result = analyzeImage(state.imageData, state.options);
+  state.result = analyzeImage(state.imageData, {
+    ...state.options,
+    roi: state.roi,
+    include: state.include,
+    exclude: state.exclude,
+  });
   const ms = Math.round(performance.now() - t0);
 
   if (!state.result.objects.length) {
@@ -228,6 +243,7 @@ function drawCanvas() {
     });
   }
 
+  if (state.view.precut) drawMasks();
   if (res && state.view.radii && state.fit) drawPrimitives();
 
   if (state.calibSegment) drawSegment(state.calibSegment, '#f59e0b', 'calibration');
@@ -284,6 +300,56 @@ function drawRect(obj, active) {
   labelAt(lengthEdge ? mid(c[0], c[1]) : mid(c[1], c[2]), lText, '#f97316');
   labelAt(lengthEdge ? mid(c[1], c[2]) : mid(c[0], c[1]), wText, '#f97316');
   void longMid; void shortMid;
+}
+
+/** Surimpression du prédécoupage : zone, pinceaux, lasso en cours, curseur. */
+function drawMasks() {
+  const w = canvas.width;
+  const h = canvas.height;
+
+  if (state.roi || state.include || state.exclude) {
+    const img = ctx.getImageData(0, 0, w, h);
+    for (let i = 0; i < w * h; i++) {
+      const p = i * 4;
+      // Hors zone : on assombrit, pour montrer ce qui est mis de côté.
+      if (state.roi && !state.roi[i]) {
+        img.data[p] *= 0.45;
+        img.data[p + 1] *= 0.45;
+        img.data[p + 2] = img.data[p + 2] * 0.45 + 30;
+      }
+      if (state.include && state.include[i]) {
+        img.data[p] = img.data[p] * 0.5 + 52;
+        img.data[p + 1] = img.data[p + 1] * 0.5 + 211 * 0.5;
+        img.data[p + 2] = img.data[p + 2] * 0.5 + 153 * 0.5;
+      }
+      if (state.exclude && state.exclude[i]) {
+        img.data[p] = img.data[p] * 0.5 + 248 * 0.5;
+        img.data[p + 1] = img.data[p + 1] * 0.5 + 113 * 0.5;
+        img.data[p + 2] = img.data[p + 2] * 0.5 + 133 * 0.5;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  if (state.lasso && state.lasso.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(state.lasso[0].x, state.lasso[0].y);
+    for (const p of state.lasso) ctx.lineTo(p.x, p.y);
+    ctx.closePath();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if (state.cursor && (state.tool in PAINT_TOOLS) && state.tool !== 'zone') {
+    ctx.beginPath();
+    ctx.arc(state.cursor.x, state.cursor.y, state.brush / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = state.tool === 'inclure' ? '#34d399' : state.tool === 'exclure' ? '#f87171' : '#93a4bf';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
 }
 
 /** Trace les droites et les arcs ajustés, avec leur cote. */
@@ -614,6 +680,79 @@ function setStatus(text, kind = 'info') {
 // Interactions sur le canvas
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Prédécoupage manuel
+// ---------------------------------------------------------------------------
+
+function blankMask() {
+  return new Uint8Array(canvas.width * canvas.height);
+}
+
+/** Marque un disque de rayon `r` dans un masque. */
+function stampDisc(mask, cx, cy, r, value = 1) {
+  const w = canvas.width;
+  const h = canvas.height;
+  const x0 = Math.max(0, Math.floor(cx - r));
+  const x1 = Math.min(w - 1, Math.ceil(cx + r));
+  const y0 = Math.max(0, Math.floor(cy - r));
+  const y1 = Math.min(h - 1, Math.ceil(cy + r));
+  const r2 = r * r;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if ((x - cx) ** 2 + (y - cy) ** 2 <= r2) mask[y * w + x] = value;
+    }
+  }
+}
+
+/** Trace un trait épais entre deux points (le pointeur saute entre deux events). */
+function stampStroke(mask, a, b, r, value = 1) {
+  const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / Math.max(1, r / 2)));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    stampDisc(mask, a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, r, value);
+  }
+}
+
+/** Rasterise le polygone du lasso (règle pair-impair) dans le masque de zone. */
+function fillLasso(points) {
+  const w = canvas.width;
+  const h = canvas.height;
+  const roi = blankMask();
+  if (points.length < 3) return roi;
+
+  let minY = Infinity, maxY = -Infinity;
+  for (const p of points) {
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  for (let y = Math.max(0, Math.floor(minY)); y <= Math.min(h - 1, Math.ceil(maxY)); y++) {
+    const xs = [];
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i];
+      const b = points[(i + 1) % points.length];
+      if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+        xs.push(a.x + ((y - a.y) / (b.y - a.y)) * (b.x - a.x));
+      }
+    }
+    xs.sort((p, q) => p - q);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const from = Math.max(0, Math.round(xs[k]));
+      const to = Math.min(w - 1, Math.round(xs[k + 1]));
+      for (let x = from; x <= to; x++) roi[y * w + x] = 1;
+    }
+  }
+  return roi;
+}
+
+function clearMasks() {
+  state.roi = null;
+  state.include = null;
+  state.exclude = null;
+  state.lasso = null;
+  analyze();
+  setStatus('Prédécoupage effacé : retour à la détection automatique seule.');
+}
+
 function canvasPoint(evt) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -622,9 +761,24 @@ function canvasPoint(evt) {
   };
 }
 
+const PAINT_TOOLS = { zone: 'roi', inclure: 'include', exclure: 'exclude', gomme: null };
+
 canvas.addEventListener('pointerdown', (e) => {
   if (!state.result) return;
   const p = canvasPoint(e);
+
+  if (state.tool === 'zone') {
+    canvas.setPointerCapture(e.pointerId);
+    state.lasso = [p];
+    return;
+  }
+  if (state.tool in PAINT_TOOLS) {
+    canvas.setPointerCapture(e.pointerId);
+    state.painting = true;
+    paintAt(p, p);
+    return;
+  }
+
   if (state.tool === 'select') {
     const idx = objectAt(p);
     if (idx >= 0) {
@@ -640,12 +794,70 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 
 canvas.addEventListener('pointermove', (e) => {
+  const p = canvasPoint(e);
+  state.cursor = p;
+
+  if (state.lasso) {
+    state.lasso.push(p);
+    drawCanvas();
+    return;
+  }
+  if (state.painting) {
+    const last = state.lastPaint || p;
+    paintAt(last, p);
+    return;
+  }
+  if (state.tool in PAINT_TOOLS) { drawCanvas(); return; }
   if (!state.drag) return;
-  state.drag.b = canvasPoint(e);
+  state.drag.b = p;
   drawCanvas();
 });
 
+/** Applique le pinceau courant entre deux positions, puis redessine. */
+function paintAt(from, to) {
+  const r = state.brush / 2;
+  if (state.tool === 'gomme') {
+    for (const key of ['include', 'exclude']) {
+      if (state[key]) stampStroke(state[key], from, to, r, 0);
+    }
+    if (state.roi) stampStroke(state.roi, from, to, r, 0);
+  } else {
+    const key = PAINT_TOOLS[state.tool];
+    if (!key) return;
+    if (!state[key]) state[key] = blankMask();
+    // Inclure et exclure s'annulent : peindre l'un efface l'autre au même endroit.
+    const opposite = key === 'include' ? 'exclude' : key === 'exclude' ? 'include' : null;
+    if (opposite && state[opposite]) stampStroke(state[opposite], from, to, r, 0);
+    stampStroke(state[key], from, to, r, 1);
+  }
+  state.lastPaint = to;
+  drawCanvas();
+}
+
 canvas.addEventListener('pointerup', () => {
+  if (state.lasso) {
+    const points = state.lasso;
+    state.lasso = null;
+    if (points.length >= 3) {
+      state.roi = fillLasso(points);
+      let count = 0;
+      for (const v of state.roi) count += v;
+      if (count < 30) {
+        state.roi = null;
+        setStatus('Zone trop petite : entoure la pièce plus largement.', 'warn');
+      }
+      analyze();
+    } else {
+      drawCanvas();
+    }
+    return;
+  }
+  if (state.painting) {
+    state.painting = false;
+    state.lastPaint = null;
+    analyze();
+    return;
+  }
   if (!state.drag) return;
   const seg = state.drag;
   state.drag = null;
@@ -791,7 +1003,7 @@ function bind() {
   });
 
   // Vues
-  ['mask', 'contour', 'rect', 'feret', 'radii'].forEach((key) => {
+  ['mask', 'contour', 'rect', 'feret', 'radii', 'precut'].forEach((key) => {
     $(`view-${key}`).addEventListener('change', (e) => {
       state.view[key] = e.target.checked;
       drawCanvas();
@@ -808,7 +1020,12 @@ function bind() {
         select: 'Clique un objet sur la photo pour le sélectionner.',
         calibrate: 'Trace un segment sur une distance connue (règle, arête cotée, objet de référence).',
         measure: 'Trace un segment pour relever une cote libre.',
+        zone: 'Entoure grossièrement la pièce : la détection ne cherchera plus que là-dedans, et le contour restera celui de la photo.',
+        inclure: 'Peins ce que la détection a manqué. Le contour peint devient celui de ton trait, pas celui de la pièce.',
+        exclure: 'Peins ce qui doit être écarté : ombre portée, reflet, poussière.',
+        gomme: 'Efface les coups de pinceau et la zone.',
       }[state.tool];
+      $('brushRow').hidden = !(state.tool in PAINT_TOOLS) || state.tool === 'zone';
     });
   });
 
@@ -846,6 +1063,13 @@ function bind() {
   };
   fitSlider('fitSmooth', 'smooth', (v) => parseInt(v, 10));
   fitSlider('fitMinSweep', 'minSweepDeg', (v) => parseInt(v, 10));
+
+  $('brush').addEventListener('input', () => {
+    state.brush = parseInt($('brush').value, 10);
+    $('brushOut').textContent = state.brush;
+    drawCanvas();
+  });
+  $('clearPrecut').addEventListener('click', clearMasks);
 
   $('unit').addEventListener('change', (e) => {
     state.unit = e.target.value;

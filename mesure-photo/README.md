@@ -50,6 +50,32 @@ au mesuré et affiche l'écart en %. Au-delà de ~3 %, la prise de vue est en ca
 
 Export : fiche texte (presse-papier ou `.txt`) et image annotée `.png`.
 
+## Prédécoupage manuel
+
+Quand la pièce ne se détache pas du fond — du chrome sur du blanc en est le cas type,
+aucun seuillage global ne le détourera — trois outils permettent de guider la détection.
+Ils n'ont **pas les mêmes conséquences sur la précision**, et c'est le point important :
+
+| Outil | Geste | Effet sur la mesure |
+| --- | --- | --- |
+| **Zone** | entourer largement la pièce au lasso | **précision intacte** |
+| **Exclure** | peindre une ombre, un reflet, une poussière | **précision intacte** |
+| **Inclure** | peindre soi-même la pièce | **la cote devient celle du trait** |
+
+Avec **Zone**, on dit seulement *où chercher* : le contour continue d'être lu dans la
+photo, au pixel près. Le gain est double — l'histogramme d'Otsu, restreint à la zone, ne
+contient plus que l'objet et son fond immédiat, ce qui rend la séparation bien plus
+franche ; et le fond de référence est mesuré sur l'anneau qui entoure la zone plutôt que
+sur les bords de la photo. Une pièce à 240 de luminance sur un fond à 255, indétectable
+autrement, ressort avec ses rayons à quelques pourcents près.
+
+Avec **Inclure**, c'est le coup de pinceau qui devient le bord de la pièce. Utile pour
+rattraper un morceau perdu, mais les rayons mesurés à cet endroit seront ceux de la main
+qui a peint — l'application le signale plutôt que de laisser croire à une mesure.
+
+Les coups de pinceau sont appliqués **après** le nettoyage morphologique : ce sont des
+ordres, pas des suggestions à filtrer.
+
 ## Lecture des rayons
 
 Le contour détouré est décomposé en **droites et arcs de cercle** : au lieu d'un nuage
@@ -159,6 +185,8 @@ qu'un amas de facettes, sans valeur en CAO. Le STL, lui, est directement imprima
 
 ```
 node tests/run.mjs     # 38 vérifications — détourage et mesures 2D
+node tests/runroi.mjs  # 21 vérifications — prédécoupage manuel
+node tests/runfit.mjs  # 31 vérifications — rayons et méplats
 node tests/run3d.mjs   # 61 vérifications — triangulation, prisme, sculptage, STL, STEP
 node build.mjs         # régénère mesure-photo-autonome.html
 ```
