@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesure d'objet sur photo — cotes à partir d'une prise de vue de dessus</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b1220'/%3E%3Crect x='6' y='10' width='20' height='12' rx='2' fill='none' stroke='%2338bdf8' stroke-width='2'/%3E%3Cpath d='M11 10v4M16 10v6M21 10v4' stroke='%23f97316' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --panel: #111c30;
+    --panel-2: #16233a;
+    --line: #24344f;
+    --text: #e6edf7;
+    --muted: #93a4bf;
+    --accent: #38bdf8;
+    --orange: #f97316;
+    --ok: #34d399;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 700px at 20% -10%, #16294a 0%, var(--bg) 60%);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 22px 28px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .2px; }
+  header p { margin: 6px 0 0; color: var(--muted); max-width: 90ch; }
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 400px;
+    gap: 20px;
+    padding: 20px 28px 40px;
+    align-items: start;
+  }
+  @media (max-width: 1080px) { main { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+  }
+
+  #dropzone {
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 14px;
+    text-align: center;
+    transition: border-color .15s, background .15s;
+    cursor: pointer;
+  }
+  #dropzone.dragging { border-color: var(--accent); background: var(--panel-2); }
+  #dropzone.has-image { cursor: default; padding: 10px; }
+  #dropzone .hint { color: var(--muted); padding: 46px 10px; }
+  #dropzone.has-image .hint { display: none; }
+  #dropzone .strong { color: var(--text); font-weight: 600; display: block; margin-bottom: 6px; }
+  canvas {
+    max-width: 100%;
+    display: none;
+    border-radius: 10px;
+    background: #fff;
+    touch-action: none;
+  }
+  #dropzone.has-image canvas { display: block; margin: 0 auto; }
+  canvas.crosshair { cursor: crosshair; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+  button, select, input[type="number"], input[type="text"] {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 8px 12px;
+  }
+  button { cursor: pointer; transition: border-color .15s, background .15s; }
+  button:hover { border-color: var(--accent); }
+  button.active { background: #1d3a58; border-color: var(--accent); color: #fff; }
+  button.primary { background: #1d4ed8; border-color: #2563eb; }
+  .spacer { flex: 1; }
+
+  label.field { display: block; margin-bottom: 10px; }
+  label.field span.lab { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  label.field select, label.field input { width: 100%; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .slider { margin-bottom: 12px; }
+  .slider .top { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+  .checks { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--muted); }
+  .checks label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  .status { font-size: 13px; color: var(--muted); margin: 0 0 12px; min-height: 20px; }
+  .status.warn { color: var(--warn); }
+  .status.ok { color: var(--ok); }
+
+  #objectList { display: flex; flex-wrap: wrap; gap: 8px; }
+  .object-chip {
+    text-align: left;
+    padding: 7px 11px;
+    line-height: 1.25;
+  }
+  .object-chip .chip-title { display: block; font-size: 12px; color: var(--muted); }
+  .object-chip .chip-dims { font-weight: 600; }
+  .object-chip.active { background: #1d3a58; border-color: var(--accent); }
+
+  .scale-badge {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--muted);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .scale-badge.ok { border-left-color: var(--ok); }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto 92px;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(36,52,79,.7);
+    align-items: baseline;
+  }
+  .row:last-child { border-bottom: none; }
+  .row.head { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .row-label em { display: block; font-style: normal; font-size: 11px; color: var(--muted); }
+  .row-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .row-px { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+  .note { font-size: 13px; border-radius: 8px; padding: 8px 11px; margin: 8px 0 0; border: 1px solid var(--line); }
+  .note.warn { border-color: #7c5b12; background: #2b2007; color: #fcd77a; }
+  .note.ok { border-color: #1c5e46; background: #08251b; color: #86efac; }
+  .note.info { border-color: #1e3a5f; background: #0d1c31; color: #a9c8ea; }
+
+  .measure-row {
+    display: grid;
+    grid-template-columns: 34px 1fr auto 30px;
+    gap: 8px;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(36,52,79,.7);
+  }
+  .measure-row button { padding: 2px 7px; background: transparent; border-color: transparent; color: var(--muted); }
+  .measure-row button:hover { color: #fda4af; border-color: var(--line); }
+
+  .muted { color: var(--muted); font-size: 13px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details[open] summary { margin-bottom: 10px; }
+  ol, ul { margin: 8px 0; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mesure d'objet sur photo</h1>
+  <p>Photographie l'objet <strong>posé à plat sur un fond blanc, appareil bien au-dessus et parallèle au plan</strong>. Le logiciel détourne l'objet, en sort les cotes en pixels, puis les convertit en millimètres dès que tu lui donnes une distance connue — une cote de l'objet, une règle dans le champ ou un objet de référence.</p>
+</header>
+
+<main>
+  <section>
+    <div class="toolbar">
+      <input type="file" id="fileInput" accept="image/*" hidden>
+      <button class="primary" onclick="document.getElementById('fileInput').click()">Choisir une photo</button>
+      <button data-tool="select" class="active">Sélectionner</button>
+      <button data-tool="calibrate">Calibrer (tracer)</button>
+      <button data-tool="measure">Mesurer</button>
+      <span class="spacer"></span>
+      <select id="unit" title="Unité d'affichage">
+        <option value="mm">mm</option>
+        <option value="cm">cm</option>
+        <option value="m">m</option>
+        <option value="in">pouces</option>
+      </select>
+    </div>
+    <p class="status" id="toolHint">Clique un objet sur la photo pour le sélectionner.</p>
+
+    <div id="dropzone">
+      <div class="hint">
+        <span class="strong">Dépose ta photo ici</span>
+        …ou clique pour la choisir, ou colle-la avec <kbd>Ctrl</kbd>+<kbd>V</kbd>.
+      </div>
+      <canvas id="canvas"></canvas>
+    </div>
+    <p class="status" id="status">En attente d'une photo.</p>
+    <p class="muted" id="imageInfo"></p>
+
+    <div class="card">
+      <h2>Affichage</h2>
+      <div class="checks">
+        <label><input type="checkbox" id="view-mask" checked> Détourage</label>
+        <label><input type="checkbox" id="view-contour" checked> Contour</label>
+        <label><input type="checkbox" id="view-rect" checked> Rectangle mini</label>
+        <label><input type="checkbox" id="view-feret"> Diagonale max</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Détection</h2>
+      <div class="checks" style="margin-bottom:12px">
+        <label><input type="checkbox" id="autoThreshold" checked> Seuil automatique (Otsu + fond mesuré)</label>
+      </div>
+      <div class="slider">
+        <div class="top"><span>Sensibilité au contraste avec le fond</span><span id="toleranceOut">32</span></div>
+        <input type="range" id="tolerance" min="6" max="120" value="32">
+      </div>
+      <div class="slider">
+        <div class="top"><span>Prise en compte des couleurs claires (saturation %)</span><span id="saturationOut">18</span></div>
+        <input type="range" id="saturation" min="4" max="60" value="18">
+      </div>
+      <div class="slider">
+        <div class="top"><span>Nettoyage du bruit (itérations)</span><span id="morphOut">1</span></div>
+        <input type="range" id="morph" min="0" max="4" value="1">
+      </div>
+      <div class="slider">
+        <div class="top"><span>Taille mini d'un objet (‱ de l'image)</span><span id="minAreaOut">8</span></div>
+        <input type="range" id="minArea" min="1" max="200" value="8">
+      </div>
+      <p class="muted">Si l'ombre portée est détectée comme faisant partie de l'objet, baisse la sensibilité. Si l'objet est clair et se confond avec le fond, augmente-la.</p>
+    </div>
+
+    <div class="card">
+      <h2>Objets détectés</h2>
+      <div id="objectList"><p class="muted">Aucun objet détecté.</p></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>Échelle</h2>
+      <div class="scale-badge" id="scaleBadge">Échelle non définie — les cotes sont en pixels.</div>
+
+      <label class="field">
+        <span class="lab">Méthode de calibration</span>
+        <select id="calibMethod">
+          <option value="object">Je connais une cote de l'objet</option>
+          <option value="segment">Je trace un segment de longueur connue</option>
+          <option value="reference">J'ai posé un objet de référence à côté</option>
+        </select>
+      </label>
+
+      <div id="calibObjectFields">
+        <label class="field">
+          <span class="lab">Cote que je connais</span>
+          <select id="calibTarget">
+            <option value="length">Longueur (grand côté)</option>
+            <option value="width">Largeur (petit côté)</option>
+            <option value="diagonal">Diagonale max</option>
+            <option value="equivalentDiameter">Diamètre (objet rond)</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="calibSegmentFields" hidden>
+        <p class="muted">Choisis l'outil <strong>Calibrer (tracer)</strong> puis trace le segment sur la photo, d'un repère connu à l'autre.</p>
+        <button id="clearSegment" style="margin-bottom:10px">Effacer le segment</button>
+      </div>
+
+      <div id="calibRefFields" hidden>
+        <label class="field">
+          <span class="lab">Objet servant de référence</span>
+          <select id="calibRefObject"></select>
+        </label>
+        <label class="field">
+          <span class="lab">Cote connue de la référence</span>
+          <select id="calibRefTarget">
+            <option value="equivalentDiameter">Diamètre (pièce, rondelle)</option>
+            <option value="length">Longueur (grand côté)</option>
+            <option value="width">Largeur (petit côté)</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field" id="calibRefWrap" hidden>
+        <span class="lab">Référence utilisée</span>
+        <select id="calibRef"></select>
+      </label>
+
+      <label class="field" id="calibValueWrap">
+        <span class="lab" id="calibValueLabel">Valeur réelle de cette cote (mm)</span>
+        <input type="number" id="calibValue" min="0" step="0.01" placeholder="ex. 250">
+      </label>
+    </div>
+
+    <div class="card">
+      <h2>Cotes de l'objet sélectionné</h2>
+      <div id="results"><p class="muted">Charge une photo pour obtenir les cotes.</p></div>
+      <div id="warnings"></div>
+    </div>
+
+    <div class="card">
+      <h2>Contrôle croisé</h2>
+      <p class="muted">Donne une seconde cote connue : le logiciel compare et signale une prise de vue penchée.</p>
+      <div class="grid-2">
+        <label class="field">
+          <span class="lab">Cote</span>
+          <select id="checkTarget">
+            <option value="width">Largeur</option>
+            <option value="length">Longueur</option>
+            <option value="diagonal">Diagonale max</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="lab">Valeur réelle (mm)</span>
+          <input type="number" id="checkValue" min="0" step="0.01" placeholder="ex. 120">
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mesures libres</h2>
+      <div id="measureList"><p class="muted">Choisis l'outil « Mesurer » puis trace un segment sur la photo pour relever une cote libre.</p></div>
+      <div class="toolbar" style="margin-top:12px;margin-bottom:0">
+        <button id="clearMeasures">Tout effacer</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Export</h2>
+      <div class="toolbar" style="margin-bottom:0">
+        <button id="copyReport">Copier la fiche</button>
+        <button id="downloadReport">Télécharger (.txt)</button>
+        <button id="downloadImage">Image annotée (.png)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>Comment obtenir une mesure juste</summary>
+        <ol>
+          <li>Fond <strong>blanc mat et uniforme</strong>, plus grand que l'objet, sans pli marqué.</li>
+          <li>Appareil <strong>bien au-dessus du centre</strong> de l'objet, capteur parallèle au fond. Une photo prise de biais fausse tout.</li>
+          <li><strong>Éloigne-toi et zoome</strong> plutôt que de coller l'objectif : ça réduit la perspective et l'effet d'épaisseur.</li>
+          <li>Éclairage diffus, <strong>sans ombre portée dure</strong> (l'ombre serait détourée avec l'objet).</li>
+          <li>Pose une <strong>règle ou une carte bancaire</strong> à plat, au même niveau que l'objet, pour la calibration.</li>
+          <li>Un objet <strong>épais</strong> mesuré par une référence posée au sol apparaît plus grand qu'il n'est : cale la référence à la même hauteur que la face mesurée.</li>
+        </ol>
+      </details>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>Ce que chaque cote signifie</summary>
+        <ul>
+          <li><strong>Longueur / largeur</strong> : côtés du plus petit rectangle qui enferme l'objet, quelle que soit son inclinaison sur la photo.</li>
+          <li><strong>Encombrement horizontal / vertical</strong> : boîte alignée sur les bords de la photo.</li>
+          <li><strong>Diagonale max (Feret)</strong> : plus grande distance entre deux points du contour.</li>
+          <li><strong>Diamètre équivalent</strong> : diamètre du disque de même aire — utile pour les pièces rondes.</li>
+          <li><strong>Aire matière</strong> : silhouette moins les trous et découpes intérieures.</li>
+          <li><strong>Circularité</strong> : 1 pour un cercle parfait, plus bas pour une forme allongée ou découpée.</li>
+        </ul>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
