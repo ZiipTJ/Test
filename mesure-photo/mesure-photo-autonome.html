@@ -294,6 +294,9 @@
         <option value="contour">Les points sont le contour</option>
         <option value="zone">Les points sont une zone de recherche</option>
       </select>
+      <span class="muted">Loupe</span>
+      <input type="range" id="loupe" min="1" max="12" step="1" value="6" style="width:110px">
+      <span class="muted" id="loupeOut">×6</span>
       <span class="muted">Forme du tracé</span>
       <input type="range" id="pointsSmooth" min="0" max="100" step="10" value="100" style="width:130px">
       <span class="muted" id="pointsSmoothOut">lissé</span>
@@ -494,6 +497,11 @@
 
     <div class="card">
       <h2>Export</h2>
+      <div class="toolbar">
+        <button id="exportDxf" class="primary">Esquisse DXF (droites + arcs)</button>
+        <button id="exportDxfPoly">DXF polyligne</button>
+      </div>
+      <p class="muted" style="margin:0 0 12px">Le DXF s'ouvre directement comme esquisse dans SolidWorks (Fichier → Ouvrir, ou clic droit sur un plan → Insérer un DXF). La première version contient de <strong>vraies droites et de vrais arcs</strong>, cotables et contraignables ; la polyligne colle au pixel mais ne se reprend pas. Pense à donner l'échelle avant, sinon le dessin sort en pixels.</p>
       <div class="toolbar" style="margin-bottom:0">
         <button id="copyReport">Copier la fiche</button>
         <button id="downloadReport">Télécharger (.txt)</button>
@@ -2204,6 +2212,160 @@ function shapeFromPoints(points, options = {}) {
 
 return { sampleClosedPath, rasterizePolygon, shapeFromPoints };
 })();
+/* ===== js/dxf.js ===== */
+__modules['js/dxf.js'] = (function () {
+// Export DXF (AutoCAD R12) : le format que SolidWorks, Fusion, FreeCAD et les
+// découpeuses lisent directement comme esquisse 2D.
+//
+// Deux points de méthode :
+//
+// 1. On exporte les primitives ajustées — LINE et ARC — et non le nuage de
+//    points du contour. Une esquisse faite de vrais arcs se cote, se contraint
+//    et se reprend en CAO ; une polyligne de trois mille sommets ne se reprend
+//    pas.
+// 2. Le repère image a son Y vers le bas, celui du DXF vers le haut. Le
+//    retournement inverse le sens de parcours : un arc horaire à l'écran
+//    devient trigonométrique dans le fichier. Or DXF impose de décrire un arc
+//    dans le sens trigonométrique de son angle de départ à son angle d'arrivée.
+//    Les bornes sont donc recalculées après retournement, et échangées quand il
+//    le faut.
+
+const DEG = 180 / Math.PI;
+
+function pair(code, value) {
+  return `${code}\n${value}\n`;
+}
+
+const num = (v) => (Math.abs(v) < 1e-10 ? '0.0' : Number(v.toFixed(6)).toString());
+
+/** Repère image (Y vers le bas, pixels) -> repère DXF (Y vers le haut, mm). */
+function makeTransform({ mmPerPx = 1, originY = 0 } = {}) {
+  return (p) => ({ x: p.x * mmPerPx, y: (originY - p.y) * mmPerPx });
+}
+
+function lineEntity(a, b, layer) {
+  return pair(0, 'LINE') + pair(8, layer)
+    + pair(10, num(a.x)) + pair(20, num(a.y)) + pair(30, '0.0')
+    + pair(11, num(b.x)) + pair(21, num(b.y)) + pair(31, '0.0');
+}
+
+function arcEntity(center, radius, startDeg, endDeg, layer) {
+  return pair(0, 'ARC') + pair(8, layer)
+    + pair(10, num(center.x)) + pair(20, num(center.y)) + pair(30, '0.0')
+    + pair(40, num(radius))
+    + pair(50, num(startDeg)) + pair(51, num(endDeg));
+}
+
+function polylineEntity(points, layer, closed = true) {
+  let out = pair(0, 'POLYLINE') + pair(8, layer) + pair(66, 1)
+    + pair(10, '0.0') + pair(20, '0.0') + pair(30, '0.0')
+    + pair(70, closed ? 1 : 0);
+  for (const p of points) {
+    out += pair(0, 'VERTEX') + pair(8, layer)
+      + pair(10, num(p.x)) + pair(20, num(p.y)) + pair(30, '0.0');
+  }
+  out += pair(0, 'SEQEND') + pair(8, layer);
+  return out;
+}
+
+function wrap(entities) {
+  return pair(0, 'SECTION') + pair(2, 'HEADER')
+    + pair(9, '$ACADVER') + pair(1, 'AC1009')
+    + pair(9, '$INSUNITS') + pair(70, 4)          // 4 = millimètres
+    + pair(0, 'ENDSEC')
+    + pair(0, 'SECTION') + pair(2, 'ENTITIES')
+    + entities
+    + pair(0, 'ENDSEC')
+    + pair(0, 'EOF');
+}
+
+/**
+ * Esquisse DXF à partir des primitives ajustées.
+ * @param primitives sortie de fitPrimitives (droites et arcs, en pixels image)
+ * @param options.mmPerPx échelle ; 1 laisse le dessin en pixels
+ * @param options.originY ordonnée servant de zéro (hauteur de l'image en général)
+ */
+function primitivesToDxf(primitives, options = {}) {
+  const layer = options.layer || 'CONTOUR';
+  const to = makeTransform(options);
+  const mmPerPx = options.mmPerPx || 1;
+  let entities = '';
+
+  for (const p of primitives) {
+    if (p.type === 'line') {
+      entities += lineEntity(to(p.a), to(p.b), layer);
+      continue;
+    }
+
+    const center = to(p.center);
+    const radius = p.radius * mmPerPx;
+
+    if (p.full) {
+      entities += pair(0, 'CIRCLE') + pair(8, layer)
+        + pair(10, num(center.x)) + pair(20, num(center.y)) + pair(30, '0.0')
+        + pair(40, num(radius));
+      continue;
+    }
+
+    // Bornes exprimées dans le repère DXF, après retournement de Y.
+    const startPt = to({
+      x: p.center.x + p.radius * Math.cos(p.startAngle),
+      y: p.center.y + p.radius * Math.sin(p.startAngle),
+    });
+    const endPt = to({
+      x: p.center.x + p.radius * Math.cos(p.endAngle),
+      y: p.center.y + p.radius * Math.sin(p.endAngle),
+    });
+    const angleOf = (q) => {
+      const a = Math.atan2(q.y - center.y, q.x - center.x) * DEG;
+      return a < 0 ? a + 360 : a;
+    };
+    const aStart = angleOf(startPt);
+    const aEnd = angleOf(endPt);
+
+    // Le retournement inverse le sens : un arc horaire à l'image se décrit
+    // dans le fichier de l'arrivée vers le départ.
+    const clockwiseInImage = p.sweep < 0;
+    entities += clockwiseInImage
+      ? arcEntity(center, radius, aStart, aEnd, layer)
+      : arcEntity(center, radius, aEnd, aStart, layer);
+  }
+
+  return wrap(entities);
+}
+
+/** Esquisse DXF sous forme de polyligne fermée — fidèle au pixel, non cotable. */
+function contourToDxf(contour, options = {}) {
+  const layer = options.layer || 'CONTOUR';
+  const to = makeTransform(options);
+  return wrap(polylineEntity(contour.map(to), layer, true));
+}
+
+/**
+ * Esquisse complète : contour extérieur et trous, chacun sur son calque.
+ * `holes` est une liste de contours (nuages de points).
+ */
+function sketchToDxf({ primitives, contour, holes = [] }, options = {}) {
+  const to = makeTransform(options);
+  let entities = '';
+
+  if (primitives && primitives.length) {
+    entities += primitivesToDxf(primitives, { ...options, layer: 'CONTOUR' })
+      .split(pair(2, 'ENTITIES'))[1]
+      .split(pair(0, 'ENDSEC'))[0];
+  } else if (contour && contour.length) {
+    entities += polylineEntity(contour.map(to), 'CONTOUR', true);
+  }
+
+  for (const hole of holes) {
+    if (hole && hole.length >= 3) entities += polylineEntity(hole.map(to), 'TROUS', true);
+  }
+
+  return wrap(entities);
+}
+
+return { primitivesToDxf, contourToDxf, sketchToDxf };
+})();
 /* ===== js/carve.js ===== */
 __modules['js/carve.js'] = (function () {
 // Reconstruction 3D par intersection de silhouettes (visual hull) :
@@ -3592,6 +3754,7 @@ __modules['js/app.js'] = (function () {
 const { analyzeImage, toRealUnits, DEFAULT_OPTIONS } = __modules['js/vision.js'];
 const { fitPrimitives, groupRadii } = __modules['js/fitshapes.js'];
 const { shapeFromPoints, sampleClosedPath, rasterizePolygon } = __modules['js/manualshape.js'];
+const { sketchToDxf, contourToDxf } = __modules['js/dxf.js'];
 const { init3d } = __modules['js/app3d.js'];
 const { shared } = __modules['js/shared.js'];
 
@@ -3648,6 +3811,7 @@ const state = {
   pointsSmooth: 1,       // 1 = spline, 0 = segments droits
   manualShape: null,
   dragPoint: -1,
+  loupe: 6,
 };
 
 // En deçà de ce rayon en pixels, l'ajustement de cercle n'a plus assez de
@@ -3902,6 +4066,7 @@ function drawCanvas() {
 
   if (state.view.precut) drawMasks();
   if (state.points.length) drawPoints();
+  if (state.tool === 'points') drawLoupe();
   if (res && state.view.radii && state.fit) drawPrimitives();
 
   if (state.calibSegment) drawSegment(state.calibSegment, '#f59e0b', 'calibration');
@@ -4008,6 +4173,69 @@ function drawMasks() {
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+}
+
+/**
+ * Loupe de visée : agrandit la zone sous le curseur pour placer un point sur le
+ * bord exact. Elle affiche la photo brute, sans surimpression de détourage, et
+ * se place dans le coin opposé au curseur pour ne jamais masquer la cible.
+ */
+function drawLoupe() {
+  if (!state.cursor || !state.work || state.loupe <= 1) return;
+  const zoom = state.loupe;
+  const size = Math.round(Math.min(canvas.width, canvas.height) * 0.26);
+  const src = size / zoom;
+  const c = state.cursor;
+
+  // Coin opposé au curseur
+  const left = c.x > canvas.width / 2;
+  const top = c.y > canvas.height / 2;
+  const margin = Math.round(size * 0.08);
+  const dx = left ? margin : canvas.width - size - margin;
+  const dy = top ? margin : canvas.height - size - margin;
+  const cx = dx + size / 2;
+  const cy = dy + size / 2;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+  ctx.clip();
+
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(dx, dy, size, size);
+  ctx.imageSmoothingEnabled = false;   // on veut voir les pixels, pas les deviner
+  ctx.drawImage(state.work, c.x - src / 2, c.y - src / 2, src, src, dx, dy, size, size);
+  ctx.imageSmoothingEnabled = true;
+
+  // Points déjà posés, replacés dans le repère de la loupe
+  const toLoupe = (p) => ({ x: cx + (p.x - c.x) * zoom, y: cy + (p.y - c.y) * zoom });
+  for (const p of state.points) {
+    const q = toLoupe(p);
+    if (Math.hypot(q.x - cx, q.y - cy) > size / 2) continue;
+    ctx.beginPath();
+    ctx.arc(q.x, q.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+  }
+
+  // Réticule
+  ctx.strokeStyle = 'rgba(56,189,248,.9)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 14, cy); ctx.lineTo(cx - 4, cy);
+  ctx.moveTo(cx + 4, cy); ctx.lineTo(cx + 14, cy);
+  ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy - 4);
+  ctx.moveTo(cx, cy + 4); ctx.lineTo(cx, cy + 14);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(148,163,184,.9)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  labelAt({ x: cx, y: dy + size - 14 }, `×${zoom}`, '#93a4bf');
 }
 
 /** Contour tracé à la main : la courbe et les poignées numérotées. */
@@ -4577,6 +4805,10 @@ function paintAt(from, to) {
   drawCanvas();
 }
 
+canvas.addEventListener('pointerleave', () => {
+  if (state.cursor) { state.cursor = null; drawCanvas(); }
+});
+
 canvas.addEventListener('pointerup', () => {
   if (state.dragPoint >= 0) {
     state.dragPoint = -1;
@@ -4883,6 +5115,39 @@ function bind() {
     const text = buildReport();
     if (text) download(`mesures-${state.fileName.replace(/\.[^.]+$/, '')}.txt`, text);
   });
+  $('exportDxf').addEventListener('click', () => {
+    const obj = currentObject();
+    if (!obj) {
+      setStatus('Rien à exporter : aucune forme détectée ni tracée.', 'warn');
+      return;
+    }
+    const k = state.mmPerPx;
+    const dxf = sketchToDxf({
+      primitives: state.fit ? state.fit.primitives : null,
+      contour: obj.contour,
+      holes: (obj.holes || []).map((h) => h.outline || h.contour),
+    }, { mmPerPx: k || 1, originY: canvas.height });
+    download(`${state.fileName.replace(/\.[^.]+$/, '') || 'esquisse'}.dxf`, dxf, 'application/dxf');
+    setStatus(k
+      ? 'Esquisse DXF exportée en millimètres — importable directement comme esquisse.'
+      : 'Esquisse DXF exportée, mais en pixels : sans échelle, il faudra la mettre à l\'échelle dans le logiciel de CAO.',
+      k ? 'ok' : 'warn');
+  });
+
+  $('exportDxfPoly').addEventListener('click', () => {
+    const obj = currentObject();
+    if (!obj) return;
+    const dxf = contourToDxf(obj.outline && obj.outline.length >= 3 ? obj.outline : obj.contour,
+      { mmPerPx: state.mmPerPx || 1, originY: canvas.height });
+    download(`${state.fileName.replace(/\.[^.]+$/, '') || 'esquisse'}-polyligne.dxf`, dxf, 'application/dxf');
+  });
+
+  $('loupe').addEventListener('input', (e) => {
+    state.loupe = parseInt(e.target.value, 10);
+    $('loupeOut').textContent = state.loupe > 1 ? `×${state.loupe}` : 'off';
+    drawCanvas();
+  });
+
   $('downloadImage').addEventListener('click', () => {
     if (!state.result) return;
     canvas.toBlob((blob) => {

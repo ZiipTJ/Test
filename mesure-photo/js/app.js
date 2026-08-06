@@ -3,6 +3,7 @@
 import { analyzeImage, toRealUnits, DEFAULT_OPTIONS } from './vision.js';
 import { fitPrimitives, groupRadii } from './fitshapes.js';
 import { shapeFromPoints, sampleClosedPath, rasterizePolygon } from './manualshape.js';
+import { sketchToDxf, contourToDxf } from './dxf.js';
 import { init3d } from './app3d.js';
 import { shared } from './shared.js';
 
@@ -59,6 +60,7 @@ const state = {
   pointsSmooth: 1,       // 1 = spline, 0 = segments droits
   manualShape: null,
   dragPoint: -1,
+  loupe: 6,
 };
 
 // En deçà de ce rayon en pixels, l'ajustement de cercle n'a plus assez de
@@ -313,6 +315,7 @@ function drawCanvas() {
 
   if (state.view.precut) drawMasks();
   if (state.points.length) drawPoints();
+  if (state.tool === 'points') drawLoupe();
   if (res && state.view.radii && state.fit) drawPrimitives();
 
   if (state.calibSegment) drawSegment(state.calibSegment, '#f59e0b', 'calibration');
@@ -419,6 +422,69 @@ function drawMasks() {
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+}
+
+/**
+ * Loupe de visée : agrandit la zone sous le curseur pour placer un point sur le
+ * bord exact. Elle affiche la photo brute, sans surimpression de détourage, et
+ * se place dans le coin opposé au curseur pour ne jamais masquer la cible.
+ */
+function drawLoupe() {
+  if (!state.cursor || !state.work || state.loupe <= 1) return;
+  const zoom = state.loupe;
+  const size = Math.round(Math.min(canvas.width, canvas.height) * 0.26);
+  const src = size / zoom;
+  const c = state.cursor;
+
+  // Coin opposé au curseur
+  const left = c.x > canvas.width / 2;
+  const top = c.y > canvas.height / 2;
+  const margin = Math.round(size * 0.08);
+  const dx = left ? margin : canvas.width - size - margin;
+  const dy = top ? margin : canvas.height - size - margin;
+  const cx = dx + size / 2;
+  const cy = dy + size / 2;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+  ctx.clip();
+
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(dx, dy, size, size);
+  ctx.imageSmoothingEnabled = false;   // on veut voir les pixels, pas les deviner
+  ctx.drawImage(state.work, c.x - src / 2, c.y - src / 2, src, src, dx, dy, size, size);
+  ctx.imageSmoothingEnabled = true;
+
+  // Points déjà posés, replacés dans le repère de la loupe
+  const toLoupe = (p) => ({ x: cx + (p.x - c.x) * zoom, y: cy + (p.y - c.y) * zoom });
+  for (const p of state.points) {
+    const q = toLoupe(p);
+    if (Math.hypot(q.x - cx, q.y - cy) > size / 2) continue;
+    ctx.beginPath();
+    ctx.arc(q.x, q.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+  }
+
+  // Réticule
+  ctx.strokeStyle = 'rgba(56,189,248,.9)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 14, cy); ctx.lineTo(cx - 4, cy);
+  ctx.moveTo(cx + 4, cy); ctx.lineTo(cx + 14, cy);
+  ctx.moveTo(cx, cy - 14); ctx.lineTo(cx, cy - 4);
+  ctx.moveTo(cx, cy + 4); ctx.lineTo(cx, cy + 14);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(148,163,184,.9)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  labelAt({ x: cx, y: dy + size - 14 }, `×${zoom}`, '#93a4bf');
 }
 
 /** Contour tracé à la main : la courbe et les poignées numérotées. */
@@ -988,6 +1054,10 @@ function paintAt(from, to) {
   drawCanvas();
 }
 
+canvas.addEventListener('pointerleave', () => {
+  if (state.cursor) { state.cursor = null; drawCanvas(); }
+});
+
 canvas.addEventListener('pointerup', () => {
   if (state.dragPoint >= 0) {
     state.dragPoint = -1;
@@ -1294,6 +1364,39 @@ function bind() {
     const text = buildReport();
     if (text) download(`mesures-${state.fileName.replace(/\.[^.]+$/, '')}.txt`, text);
   });
+  $('exportDxf').addEventListener('click', () => {
+    const obj = currentObject();
+    if (!obj) {
+      setStatus('Rien à exporter : aucune forme détectée ni tracée.', 'warn');
+      return;
+    }
+    const k = state.mmPerPx;
+    const dxf = sketchToDxf({
+      primitives: state.fit ? state.fit.primitives : null,
+      contour: obj.contour,
+      holes: (obj.holes || []).map((h) => h.outline || h.contour),
+    }, { mmPerPx: k || 1, originY: canvas.height });
+    download(`${state.fileName.replace(/\.[^.]+$/, '') || 'esquisse'}.dxf`, dxf, 'application/dxf');
+    setStatus(k
+      ? 'Esquisse DXF exportée en millimètres — importable directement comme esquisse.'
+      : 'Esquisse DXF exportée, mais en pixels : sans échelle, il faudra la mettre à l\'échelle dans le logiciel de CAO.',
+      k ? 'ok' : 'warn');
+  });
+
+  $('exportDxfPoly').addEventListener('click', () => {
+    const obj = currentObject();
+    if (!obj) return;
+    const dxf = contourToDxf(obj.outline && obj.outline.length >= 3 ? obj.outline : obj.contour,
+      { mmPerPx: state.mmPerPx || 1, originY: canvas.height });
+    download(`${state.fileName.replace(/\.[^.]+$/, '') || 'esquisse'}-polyligne.dxf`, dxf, 'application/dxf');
+  });
+
+  $('loupe').addEventListener('input', (e) => {
+    state.loupe = parseInt(e.target.value, 10);
+    $('loupeOut').textContent = state.loupe > 1 ? `×${state.loupe}` : 'off';
+    drawCanvas();
+  });
+
   $('downloadImage').addEventListener('click', () => {
     if (!state.result) return;
     canvas.toBlob((blob) => {

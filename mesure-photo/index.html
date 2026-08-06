@@ -294,6 +294,9 @@
         <option value="contour">Les points sont le contour</option>
         <option value="zone">Les points sont une zone de recherche</option>
       </select>
+      <span class="muted">Loupe</span>
+      <input type="range" id="loupe" min="1" max="12" step="1" value="6" style="width:110px">
+      <span class="muted" id="loupeOut">×6</span>
       <span class="muted">Forme du tracé</span>
       <input type="range" id="pointsSmooth" min="0" max="100" step="10" value="100" style="width:130px">
       <span class="muted" id="pointsSmoothOut">lissé</span>
@@ -494,6 +497,11 @@
 
     <div class="card">
       <h2>Export</h2>
+      <div class="toolbar">
+        <button id="exportDxf" class="primary">Esquisse DXF (droites + arcs)</button>
+        <button id="exportDxfPoly">DXF polyligne</button>
+      </div>
+      <p class="muted" style="margin:0 0 12px">Le DXF s'ouvre directement comme esquisse dans SolidWorks (Fichier → Ouvrir, ou clic droit sur un plan → Insérer un DXF). La première version contient de <strong>vraies droites et de vrais arcs</strong>, cotables et contraignables ; la polyligne colle au pixel mais ne se reprend pas. Pense à donner l'échelle avant, sinon le dessin sort en pixels.</p>
       <div class="toolbar" style="margin-bottom:0">
         <button id="copyReport">Copier la fiche</button>
         <button id="downloadReport">Télécharger (.txt)</button>

@@ -142,6 +142,39 @@ systématiquement : l'application signale ces arcs en jaune plutôt que de prés
 chiffre trompeur. **La règle pratique : cadrer pour que le plus petit congé à mesurer
 fasse au moins 20 px de rayon sur la photo.**
 
+## Export DXF — reprendre l'esquisse en CAO
+
+Le bouton **Esquisse DXF** produit un fichier AutoCAD R12 que SolidWorks, Fusion,
+FreeCAD ou une découpeuse ouvrent directement comme esquisse 2D.
+
+Ce sont les **primitives ajustées** qui sont exportées, `LINE` et `ARC`, et non le nuage
+de points du contour. La différence est décisive à l'usage : une esquisse faite de vraies
+droites et de vrais arcs se cote, se contraint et se modifie ; une polyligne de trois
+mille sommets ne se reprend pas. Le second bouton exporte cette polyligne quand la
+fidélité au pixel prime sur l'exploitabilité.
+
+Le contour part sur le calque `CONTOUR`, les perçages sur `TROUS`, et le fichier déclare
+le millimètre comme unité. Sans échelle définie, le dessin sort en pixels et
+l'application le signale.
+
+Un détail qui vaut d'être connu : une entité `ARC` du DXF est **par définition** décrite
+dans le sens trigonométrique. Quand le contour parcourt un congé dans l'autre sens, son
+arc est donc nécessairement écrit « à l'envers » dans le fichier — ce n'est pas un
+défaut, un noyau CAO raccorde par la géométrie et non par l'ordre des entités. Le repère
+est retourné au passage, l'image ayant son Y vers le bas et le DXF vers le haut.
+
+Vérification : le fichier produit est relu, les entités raccordées bout à bout, et l'aire
+du contour reconstruit comparée à la forme d'origine — un arc inversé remplacerait un
+congé rentrant par un bourrelet sortant et se verrait immédiatement.
+
+## Loupe de visée
+
+Pendant le placement des points, une loupe agrandit la zone sous le curseur (×1 à ×12,
+×6 par défaut). Elle montre la **photo brute**, sans surimpression de détourage, avec un
+réticule et les points déjà posés. Elle se place dans le coin opposé au curseur pour ne
+jamais masquer la cible, et l'interpolation est désactivée : on voit les pixels tels
+qu'ils sont plutôt qu'un lissage qui inventerait un bord.
+
 ## Réglages de détection
 
 Le détourage combine un seuil d'Otsu et la luminance du fond mesurée sur la bordure
@@ -224,6 +257,7 @@ node tests/run.mjs     # 38 vérifications — détourage et mesures 2D
 node tests/runroi.mjs  # 21 vérifications — prédécoupage manuel
 node tests/runfit.mjs  # 31 vérifications — rayons et méplats
 node tests/runpoints.mjs # 28 vérifications — contour tracé point par point
+node tests/rundxf.mjs  # 21 vérifications — export DXF relu et reconstruit
 node tests/run3d.mjs   # 61 vérifications — triangulation, prisme, sculptage, STL, STEP
 node build.mjs         # régénère mesure-photo-autonome.html
 ```
