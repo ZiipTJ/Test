@@ -275,6 +275,7 @@
       <button data-tool="calibrate">Calibrer (tracer)</button>
       <button data-tool="measure">Mesurer</button>
       <span style="width:1px;height:26px;background:var(--line)"></span>
+      <button data-tool="points" title="Définir la pièce point par point">Points</button>
       <button data-tool="zone" title="Entourer la pièce pour restreindre la recherche">Zone</button>
       <button data-tool="inclure" title="Peindre ce qui appartient à la pièce">Inclure</button>
       <button data-tool="exclure" title="Peindre ce qui n'appartient pas à la pièce">Exclure</button>
@@ -288,6 +289,17 @@
       </select>
     </div>
     <p class="status" id="toolHint">Clique un objet sur la photo pour le sélectionner.</p>
+    <div class="toolbar" id="pointsRow" hidden>
+      <select id="pointsMode" title="Ce que représentent les points">
+        <option value="contour">Les points sont le contour</option>
+        <option value="zone">Les points sont une zone de recherche</option>
+      </select>
+      <span class="muted">Forme du tracé</span>
+      <input type="range" id="pointsSmooth" min="0" max="100" step="10" value="100" style="width:130px">
+      <span class="muted" id="pointsSmoothOut">lissé</span>
+      <button id="undoPoint">Annuler le dernier</button>
+      <button id="clearPoints">Tout effacer</button>
+    </div>
     <div class="toolbar" id="brushRow" hidden>
       <span class="muted">Taille du pinceau</span>
       <input type="range" id="brush" min="4" max="120" step="2" value="24" style="width:180px">
@@ -408,6 +420,21 @@
       <h2>Cotes de l'objet sélectionné</h2>
       <div id="results"><p class="muted">Charge une photo pour obtenir les cotes.</p></div>
       <div id="warnings"></div>
+    </div>
+
+    <div class="card">
+      <h2>Contour tracé point par point</h2>
+      <div id="pointsPanel"><p class="muted">Outil <strong>Points</strong> : clique le long du bord de la pièce. Trois points suffisent pour fermer une forme, mais la précision vient du nombre.</p></div>
+      <p class="note info" style="margin-top:12px">Les points sont reliés par une <strong>courbe lissée</strong>, pas par des segments : des segments droits donneraient une courbure nulle partout et rendraient toute lecture de rayon impossible. Mets le curseur sur « droit » si ta pièce a des angles vifs.</p>
+      <details style="margin-top:10px">
+        <summary>Combien de points, et pour quelle précision</summary>
+        <div class="row head"><span>Points placés</span><span>Cotes</span><span>Rayons</span></div>
+        <div class="row"><span class="row-label">12</span><span class="row-value">± 3,6 %</span><span class="row-px">non</span></div>
+        <div class="row"><span class="row-label">24</span><span class="row-value">± 1,2 %</span><span class="row-px">grossiers</span></div>
+        <div class="row"><span class="row-label">48</span><span class="row-value">± 0,6 %</span><span class="row-px">± 15 %</span></div>
+        <div class="row"><span class="row-label">64</span><span class="row-value">± 0,3 %</span><span class="row-px">± 10 %</span></div>
+        <p class="muted" style="margin-top:10px">Mesuré sur un trapèze à congés connus. Pour comparaison, un détourage réussi sur une photo nette donne les rayons à ± 2 %. Le tracé manuel dépanne quand la pièce ne se détache pas du fond ; il ne remplace pas une bonne photo.</p>
+      </details>
     </div>
 
     <div class="card">

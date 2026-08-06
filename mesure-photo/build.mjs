@@ -15,6 +15,7 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 // Ordre de dépendance : un module doit être évalué après ceux qu'il importe.
 const ORDER = [
   'js/shared.js', 'js/geometry.js', 'js/triangulate.js', 'js/vision.js', 'js/fitshapes.js',
+  'js/manualshape.js',
   'js/carve.js', 'js/mesh3d.js', 'js/step.js', 'js/scene3d.js',
   'js/app3d.js', 'js/app.js',
 ];

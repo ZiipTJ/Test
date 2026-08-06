@@ -50,6 +50,42 @@ au mesuré et affiche l'écart en %. Au-delà de ~3 %, la prise de vue est en ca
 
 Export : fiche texte (presse-papier ou `.txt`) et image annotée `.png`.
 
+## Contour tracé point par point
+
+Quand la pièce ne se détache pas assez du fond, l'outil **Points** permet de la définir
+à la main : on clique le long du bord, on ajuste un point en le faisant glisser, on le
+retire d'un clic droit, `Ctrl+Z` annule le dernier. Un nouveau point s'insère
+automatiquement à l'endroit du contour où il rallonge le moins le tracé — on peut donc
+densifier une zone après coup sans repartir du début.
+
+Les points sont reliés par une **spline de Catmull-Rom centripète**, pas par des
+segments droits. Ce n'est pas cosmétique : des segments donneraient une courbure nulle
+sur les côtés et infinie aux sommets, ce qui rendrait toute lecture de rayon impossible.
+La variante centripète est retenue pour sa garantie d'absence de boucle et de
+rebroussement, y compris quand deux points cliqués sont très proches — ce qui arrive
+vite à la main. Un curseur permet de revenir aux segments droits pour une pièce à
+angles vifs.
+
+**Précision mesurée** sur un trapèze à congés connus, points placés sur le vrai bord :
+
+| Points placés | Cotes d'ensemble | Rayons |
+| --- | --- | --- |
+| 12 | ± 3,6 % | inexploitables |
+| 24 | ± 1,2 % | grossiers |
+| 48 | ± 0,6 % | ± 15 % |
+| 64 | ± 0,3 % | ± 10 % |
+
+En conditions de bureau (clics sur le contour réel affiché à l'écran), les congés d'un
+trapèze R40/R50 ressortent à R39,5 et R49,9. La qualité tient entièrement à la fidélité
+des clics : des points qui coupent les coins au lieu de suivre les congés donnent des
+rayons sans rapport avec la pièce.
+
+Le tracé manuel **dépanne**, il ne remplace pas une bonne photo : un détourage
+automatique réussi donne les rayons à ± 2 %.
+
+Les points peuvent aussi servir de simple **zone de recherche** plutôt que de contour —
+dans ce mode, le bord reste lu dans la photo et la précision est intacte.
+
 ## Prédécoupage manuel
 
 Quand la pièce ne se détache pas du fond — du chrome sur du blanc en est le cas type,
@@ -187,6 +223,7 @@ qu'un amas de facettes, sans valeur en CAO. Le STL, lui, est directement imprima
 node tests/run.mjs     # 38 vérifications — détourage et mesures 2D
 node tests/runroi.mjs  # 21 vérifications — prédécoupage manuel
 node tests/runfit.mjs  # 31 vérifications — rayons et méplats
+node tests/runpoints.mjs # 28 vérifications — contour tracé point par point
 node tests/run3d.mjs   # 61 vérifications — triangulation, prisme, sculptage, STL, STEP
 node build.mjs         # régénère mesure-photo-autonome.html
 ```

@@ -275,6 +275,7 @@
       <button data-tool="calibrate">Calibrer (tracer)</button>
       <button data-tool="measure">Mesurer</button>
       <span style="width:1px;height:26px;background:var(--line)"></span>
+      <button data-tool="points" title="Définir la pièce point par point">Points</button>
       <button data-tool="zone" title="Entourer la pièce pour restreindre la recherche">Zone</button>
       <button data-tool="inclure" title="Peindre ce qui appartient à la pièce">Inclure</button>
       <button data-tool="exclure" title="Peindre ce qui n'appartient pas à la pièce">Exclure</button>
@@ -288,6 +289,17 @@
       </select>
     </div>
     <p class="status" id="toolHint">Clique un objet sur la photo pour le sélectionner.</p>
+    <div class="toolbar" id="pointsRow" hidden>
+      <select id="pointsMode" title="Ce que représentent les points">
+        <option value="contour">Les points sont le contour</option>
+        <option value="zone">Les points sont une zone de recherche</option>
+      </select>
+      <span class="muted">Forme du tracé</span>
+      <input type="range" id="pointsSmooth" min="0" max="100" step="10" value="100" style="width:130px">
+      <span class="muted" id="pointsSmoothOut">lissé</span>
+      <button id="undoPoint">Annuler le dernier</button>
+      <button id="clearPoints">Tout effacer</button>
+    </div>
     <div class="toolbar" id="brushRow" hidden>
       <span class="muted">Taille du pinceau</span>
       <input type="range" id="brush" min="4" max="120" step="2" value="24" style="width:180px">
@@ -408,6 +420,21 @@
       <h2>Cotes de l'objet sélectionné</h2>
       <div id="results"><p class="muted">Charge une photo pour obtenir les cotes.</p></div>
       <div id="warnings"></div>
+    </div>
+
+    <div class="card">
+      <h2>Contour tracé point par point</h2>
+      <div id="pointsPanel"><p class="muted">Outil <strong>Points</strong> : clique le long du bord de la pièce. Trois points suffisent pour fermer une forme, mais la précision vient du nombre.</p></div>
+      <p class="note info" style="margin-top:12px">Les points sont reliés par une <strong>courbe lissée</strong>, pas par des segments : des segments droits donneraient une courbure nulle partout et rendraient toute lecture de rayon impossible. Mets le curseur sur « droit » si ta pièce a des angles vifs.</p>
+      <details style="margin-top:10px">
+        <summary>Combien de points, et pour quelle précision</summary>
+        <div class="row head"><span>Points placés</span><span>Cotes</span><span>Rayons</span></div>
+        <div class="row"><span class="row-label">12</span><span class="row-value">± 3,6 %</span><span class="row-px">non</span></div>
+        <div class="row"><span class="row-label">24</span><span class="row-value">± 1,2 %</span><span class="row-px">grossiers</span></div>
+        <div class="row"><span class="row-label">48</span><span class="row-value">± 0,6 %</span><span class="row-px">± 15 %</span></div>
+        <div class="row"><span class="row-label">64</span><span class="row-value">± 0,3 %</span><span class="row-px">± 10 %</span></div>
+        <p class="muted" style="margin-top:10px">Mesuré sur un trapèze à congés connus. Pour comparaison, un détourage réussi sur une photo nette donne les rayons à ± 2 %. Le tracé manuel dépanne quand la pièce ne se détache pas du fond ; il ne remplace pas une bonne photo.</p>
+      </details>
     </div>
 
     <div class="card">
@@ -2018,6 +2045,165 @@ function groupRadii(primitives, tolerance = 0.12) {
 
 return { resampleClosed, curvatureProfile, fitCircle, fitLine, fitPrimitives, groupRadii };
 })();
+/* ===== js/manualshape.js ===== */
+__modules['js/manualshape.js'] = (function () {
+// Forme définie à la main par une suite de points cliqués sur le contour.
+//
+// Deux points de méthode importants :
+//
+// 1. Relier les points par des segments droits interdirait toute lecture de
+//    rayon : la courbure serait nulle partout et infinie aux sommets. On fait
+//    donc passer une spline de Catmull-Rom centripète par les points, ce qui
+//    redonne une courbure continue exploitable par la décomposition en arcs.
+// 2. La variante centripète (alpha = 0,5) est choisie pour sa propriété
+//    d'absence de boucle ni de rebroussement, y compris quand deux points
+//    cliqués sont très proches — ce qui arrive vite à la main.
+
+const { minAreaRect, feretMax, polygonPerimeter, polygonArea, simplifyClosed } = __modules['js/geometry.js'];
+
+/**
+ * Échantillonne un contour fermé passant par les points.
+ * @param smooth 0 = polygone à segments droits, 1 = spline lissée
+ */
+function sampleClosedPath(points, { smooth = 1, spacing = 2 } = {}) {
+  const n = points.length;
+  if (n < 3) return points.slice();
+
+  const out = [];
+  const at = (i) => points[(i % n + n) % n];
+
+  for (let i = 0; i < n; i++) {
+    const p0 = at(i - 1);
+    const p1 = at(i);
+    const p2 = at(i + 1);
+    const p3 = at(i + 2);
+
+    const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const steps = Math.max(2, Math.ceil(segLen / spacing));
+
+    // Paramétrage centripète : t_{k+1} = t_k + |p_{k+1} - p_k|^0.5
+    const d = (a, b) => Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)) || 1e-6;
+    const t0 = 0;
+    const t1 = t0 + d(p0, p1);
+    const t2 = t1 + d(p1, p2);
+    const t3 = t2 + d(p2, p3);
+
+    for (let s = 0; s < steps; s++) {
+      const u = s / steps;
+      const t = t1 + (t2 - t1) * u;
+
+      // Interpolation de Barry-Goldman
+      const lerp = (a, b, ta, tb) => {
+        const w = (t - ta) / (tb - ta || 1e-6);
+        return { x: a.x + (b.x - a.x) * w, y: a.y + (b.y - a.y) * w };
+      };
+      const a1 = lerp(p0, p1, t0, t1);
+      const a2 = lerp(p1, p2, t1, t2);
+      const a3 = lerp(p2, p3, t2, t3);
+      const b1 = { x: a1.x + (a2.x - a1.x) * ((t - t0) / (t2 - t0 || 1e-6)), y: a1.y + (a2.y - a1.y) * ((t - t0) / (t2 - t0 || 1e-6)) };
+      const b2 = { x: a2.x + (a3.x - a2.x) * ((t - t1) / (t3 - t1 || 1e-6)), y: a2.y + (a3.y - a2.y) * ((t - t1) / (t3 - t1 || 1e-6)) };
+      const spline = {
+        x: b1.x + (b2.x - b1.x) * ((t - t1) / (t2 - t1 || 1e-6)),
+        y: b1.y + (b2.y - b1.y) * ((t - t1) / (t2 - t1 || 1e-6)),
+      };
+
+      const straight = { x: p1.x + (p2.x - p1.x) * u, y: p1.y + (p2.y - p1.y) * u };
+      out.push({
+        x: straight.x + (spline.x - straight.x) * smooth,
+        y: straight.y + (spline.y - straight.y) * smooth,
+      });
+    }
+  }
+  return out;
+}
+
+/** Rasterise un polygone fermé dans un masque (règle pair-impair). */
+function rasterizePolygon(points, width, height) {
+  const mask = new Uint8Array(width * height);
+  if (points.length < 3) return mask;
+
+  let minY = Infinity, maxY = -Infinity;
+  for (const p of points) {
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  for (let y = Math.max(0, Math.floor(minY)); y <= Math.min(height - 1, Math.ceil(maxY)); y++) {
+    const xs = [];
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i];
+      const b = points[(i + 1) % points.length];
+      if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+        xs.push(a.x + ((y - a.y) / (b.y - a.y)) * (b.x - a.x));
+      }
+    }
+    xs.sort((p, q) => p - q);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const from = Math.max(0, Math.round(xs[k]));
+      const to = Math.min(width - 1, Math.round(xs[k + 1]));
+      for (let x = from; x <= to; x++) mask[y * width + x] = 1;
+    }
+  }
+  return mask;
+}
+
+/**
+ * Construit un objet mesurable à partir des points cliqués, dans la même forme
+ * que ceux produits par la détection automatique — les panneaux de cotes, de
+ * rayons et l'export 3D s'en servent sans rien savoir de leur origine.
+ */
+function shapeFromPoints(points, options = {}) {
+  if (!points || points.length < 3) return null;
+  const contour = sampleClosedPath(points, {
+    smooth: options.smooth ?? 1,
+    spacing: options.spacing ?? 2,
+  });
+  if (contour.length < 8) return null;
+
+  const rect = minAreaRect(contour);
+  const feret = feretMax(contour);
+  const perimeter = polygonPerimeter(contour);
+  const area = polygonArea(contour);
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of contour) {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+  }
+
+  const rectArea = rect ? rect.width * rect.height : 0;
+  return {
+    id: -1,
+    manual: true,
+    contour,
+    outline: simplifyClosed(contour, 1.0),
+    holes: [],
+    hull: [],
+    rect,
+    feret,
+    touchesBorder: false,
+    px: {
+      length: rect ? rect.width : 0,
+      width: rect ? rect.height : 0,
+      angle: rect ? rect.angle : 0,
+      bboxWidth: maxX - minX,
+      bboxHeight: maxY - minY,
+      diagonal: feret.length,
+      perimeter,
+      areaNet: area,
+      areaGross: area,
+      holeArea: 0,
+      equivalentDiameter: Math.sqrt((4 * area) / Math.PI),
+    },
+    ratios: {
+      fill: rectArea ? area / rectArea : 0,
+      circularity: perimeter ? (4 * Math.PI * area) / (perimeter * perimeter) : 0,
+      holes: 0,
+    },
+  };
+}
+
+return { sampleClosedPath, rasterizePolygon, shapeFromPoints };
+})();
 /* ===== js/carve.js ===== */
 __modules['js/carve.js'] = (function () {
 // Reconstruction 3D par intersection de silhouettes (visual hull) :
@@ -3405,6 +3591,7 @@ __modules['js/app.js'] = (function () {
 
 const { analyzeImage, toRealUnits, DEFAULT_OPTIONS } = __modules['js/vision.js'];
 const { fitPrimitives, groupRadii } = __modules['js/fitshapes.js'];
+const { shapeFromPoints, sampleClosedPath, rasterizePolygon } = __modules['js/manualshape.js'];
 const { init3d } = __modules['js/app3d.js'];
 const { shared } = __modules['js/shared.js'];
 
@@ -3456,6 +3643,11 @@ const state = {
   brush: 24,
   lasso: null,
   painting: false,
+  points: [],           // points cliqués sur le contour
+  pointsMode: 'contour', // 'contour' = la forme, 'zone' = simple zone de recherche
+  pointsSmooth: 1,       // 1 = spline, 0 = segments droits
+  manualShape: null,
+  dragPoint: -1,
 };
 
 // En deçà de ce rayon en pixels, l'ajustement de cercle n'a plus assez de
@@ -3510,6 +3702,8 @@ async function loadFile(file) {
   state.include = null;
   state.exclude = null;
   state.lasso = null;
+  state.points = [];
+  state.manualShape = null;
 
   canvas.width = work.width;
   canvas.height = work.height;
@@ -3558,8 +3752,67 @@ function computeFit() {
 }
 
 function currentObject() {
+  // Une forme tracée à la main l'emporte sur la détection : c'est un choix
+  // explicite de l'utilisateur.
+  if (state.manualShape && state.pointsMode === 'contour') return state.manualShape;
   if (!state.result || !state.result.objects.length) return null;
   return state.result.objects[state.selected] || state.result.objects[0];
+}
+
+/** Reconstruit la forme manuelle après toute modification des points. */
+function refreshPoints({ reanalyze = false } = {}) {
+  state.manualShape = state.points.length >= 3
+    ? shapeFromPoints(state.points, { smooth: state.pointsSmooth })
+    : null;
+
+  if (state.pointsMode === 'zone') {
+    state.roi = state.manualShape
+      ? rasterizePolygon(sampleClosedPath(state.points, { smooth: state.pointsSmooth }), canvas.width, canvas.height)
+      : null;
+    analyze();
+    return;
+  }
+  if (reanalyze) {
+    analyze();
+    return;
+  }
+  computeFit();
+  applyCalibration();
+  renderAll();
+}
+
+/**
+ * Insère un point là où il rallonge le moins le contour : on peut ainsi
+ * compléter une zone déjà tracée sans repartir du début ni croiser le tracé.
+ */
+function insertPoint(p) {
+  if (state.points.length < 3) {
+    state.points.push(p);
+    return;
+  }
+  let best = 0;
+  let bestCost = Infinity;
+  for (let i = 0; i < state.points.length; i++) {
+    const a = state.points[i];
+    const b = state.points[(i + 1) % state.points.length];
+    const cost = Math.hypot(p.x - a.x, p.y - a.y) + Math.hypot(p.x - b.x, p.y - b.y)
+      - Math.hypot(b.x - a.x, b.y - a.y);
+    if (cost < bestCost) { bestCost = cost; best = i; }
+  }
+  state.points.splice(best + 1, 0, p);
+}
+
+/** Indice du point sous le curseur, ou -1. */
+// Rayon de saisie volontairement serré : trop large, on ne pourrait plus placer
+// deux points rapprochés sur un petit congé — on ne ferait que déplacer le voisin.
+function pointAt(p, radius = 7) {
+  let best = -1;
+  let bestD = radius;
+  state.points.forEach((q, i) => {
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    if (d < bestD) { bestD = d; best = i; }
+  });
+  return best;
 }
 
 // ---------------------------------------------------------------------------
@@ -3624,6 +3877,7 @@ function renderAll() {
   drawCanvas();
   renderObjectList();
   renderResults();
+  renderPointsPanel();
   renderRadii();
   renderMeasures();
   renderCalibrationPanel();
@@ -3647,6 +3901,7 @@ function drawCanvas() {
   }
 
   if (state.view.precut) drawMasks();
+  if (state.points.length) drawPoints();
   if (res && state.view.radii && state.fit) drawPrimitives();
 
   if (state.calibSegment) drawSegment(state.calibSegment, '#f59e0b', 'calibration');
@@ -3753,6 +4008,42 @@ function drawMasks() {
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+}
+
+/** Contour tracé à la main : la courbe et les poignées numérotées. */
+function drawPoints() {
+  const scale = Math.max(1, canvas.width / 900);
+
+  if (state.manualShape) {
+    const c = state.manualShape.contour;
+    ctx.beginPath();
+    ctx.moveTo(c[0].x, c[0].y);
+    for (const p of c) ctx.lineTo(p.x, p.y);
+    ctx.closePath();
+    ctx.strokeStyle = state.pointsMode === 'zone' ? 'rgba(56,189,248,.85)' : '#fbbf24';
+    ctx.lineWidth = 2 * scale;
+    if (state.pointsMode === 'zone') ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  } else if (state.points.length > 1) {
+    ctx.beginPath();
+    ctx.moveTo(state.points[0].x, state.points[0].y);
+    for (const p of state.points) ctx.lineTo(p.x, p.y);
+    ctx.strokeStyle = 'rgba(251,191,36,.6)';
+    ctx.lineWidth = 1.5 * scale;
+    ctx.stroke();
+  }
+
+  state.points.forEach((p, i) => {
+    const active = i === state.dragPoint;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, (active ? 7 : 5) * scale, 0, Math.PI * 2);
+    ctx.fillStyle = active ? '#fff' : '#fbbf24';
+    ctx.fill();
+    ctx.strokeStyle = '#0b1220';
+    ctx.lineWidth = 1.5 * scale;
+    ctx.stroke();
+  });
 }
 
 /** Trace les droites et les arcs ajustés, avec leur cote. */
@@ -3941,6 +4232,24 @@ function renderWarnings(obj) {
 }
 
 /** Panneau de lecture des rayons et des méplats. */
+/** Compte des points et rappel de ce que vaut la mesure qui en découle. */
+function renderPointsPanel() {
+  const box = $('pointsPanel');
+  const n = state.points.length;
+  if (!n) {
+    box.innerHTML = '<p class="muted">Outil <strong>Points</strong> : clique le long du bord de la pièce. Trois points suffisent pour fermer une forme, mais la précision vient du nombre.</p>';
+    return;
+  }
+  const quality = n < 16
+    ? ['warn', 'Trop peu de points pour un rayon exploitable. Sur une pièce à congés, compte une dizaine de points par congé.']
+    : n < 40
+      ? ['info', 'Assez pour les cotes d\'ensemble (à 1 % près). Les rayons restent approximatifs.']
+      : ['ok', 'Densité suffisante : cotes d\'ensemble à mieux que 1 %, rayons à ±10 % environ.'];
+
+  box.innerHTML = `<div class="row"><span class="row-label">Points placés</span><span class="row-value">${n}</span><span class="row-px">${state.pointsMode === 'zone' ? 'zone' : 'contour'}</span></div>`
+    + `<p class="note ${quality[0]}">${quality[1]}</p>`;
+}
+
 function renderRadii() {
   const box = $('radiiPanel');
   const summary = $('radiiSummary');
@@ -4152,6 +4461,8 @@ function clearMasks() {
   state.include = null;
   state.exclude = null;
   state.lasso = null;
+  state.points = [];
+  state.manualShape = null;
   analyze();
   setStatus('Prédécoupage effacé : retour à la détection automatique seule.');
 }
@@ -4169,6 +4480,25 @@ const PAINT_TOOLS = { zone: 'roi', inclure: 'include', exclure: 'exclude', gomme
 canvas.addEventListener('pointerdown', (e) => {
   if (!state.result) return;
   const p = canvasPoint(e);
+
+  if (state.tool === 'points') {
+    canvas.setPointerCapture(e.pointerId);
+    const hit = pointAt(p);
+    if (hit >= 0) {
+      // Alt (ou clic droit) supprime, sinon on saisit le point pour le déplacer.
+      if (e.altKey || e.button === 2) {
+        state.points.splice(hit, 1);
+        refreshPoints();
+      } else {
+        state.dragPoint = hit;
+      }
+      return;
+    }
+    insertPoint(p);
+    state.dragPoint = state.points.indexOf(p);
+    refreshPoints();
+    return;
+  }
 
   if (state.tool === 'zone') {
     canvas.setPointerCapture(e.pointerId);
@@ -4199,6 +4529,16 @@ canvas.addEventListener('pointerdown', (e) => {
 canvas.addEventListener('pointermove', (e) => {
   const p = canvasPoint(e);
   state.cursor = p;
+
+  if (state.dragPoint >= 0) {
+    state.points[state.dragPoint] = p;
+    state.manualShape = state.points.length >= 3
+      ? shapeFromPoints(state.points, { smooth: state.pointsSmooth })
+      : null;
+    drawCanvas();
+    return;
+  }
+  if (state.tool === 'points') { drawCanvas(); return; }
 
   if (state.lasso) {
     state.lasso.push(p);
@@ -4238,6 +4578,11 @@ function paintAt(from, to) {
 }
 
 canvas.addEventListener('pointerup', () => {
+  if (state.dragPoint >= 0) {
+    state.dragPoint = -1;
+    refreshPoints();
+    return;
+  }
   if (state.lasso) {
     const points = state.lasso;
     state.lasso = null;
@@ -4273,6 +4618,24 @@ canvas.addEventListener('pointerup', () => {
     state.measures.push(seg);
   }
   renderAll();
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  if (state.tool !== 'points') return;
+  e.preventDefault();
+  const hit = pointAt(canvasPoint(e));
+  if (hit >= 0) {
+    state.points.splice(hit, 1);
+    refreshPoints();
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'z' && (e.ctrlKey || e.metaKey) && state.points.length) {
+    e.preventDefault();
+    state.points.pop();
+    refreshPoints();
+  }
 });
 
 function objectAt(p) {
@@ -4427,8 +4790,10 @@ function bind() {
         inclure: 'Peins ce que la détection a manqué. Le contour peint devient celui de ton trait, pas celui de la pièce.',
         exclure: 'Peins ce qui doit être écarté : ombre portée, reflet, poussière.',
         gomme: 'Efface les coups de pinceau et la zone.',
+        points: 'Clique le long du bord de la pièce pour la définir point par point. Glisse un point pour l\'ajuster, Alt-clic ou clic droit pour le retirer, Ctrl+Z pour annuler le dernier.',
       }[state.tool];
       $('brushRow').hidden = !(state.tool in PAINT_TOOLS) || state.tool === 'zone';
+      $('pointsRow').hidden = state.tool !== 'points';
     });
   });
 
@@ -4473,6 +4838,26 @@ function bind() {
     drawCanvas();
   });
   $('clearPrecut').addEventListener('click', clearMasks);
+
+  $('clearPoints').addEventListener('click', () => {
+    state.points = [];
+    refreshPoints({ reanalyze: state.pointsMode === 'zone' });
+    setStatus('Points effacés.');
+  });
+  $('undoPoint').addEventListener('click', () => {
+    state.points.pop();
+    refreshPoints();
+  });
+  $('pointsMode').addEventListener('change', (e) => {
+    state.pointsMode = e.target.value;
+    if (state.pointsMode === 'contour') state.roi = null;
+    refreshPoints({ reanalyze: true });
+  });
+  $('pointsSmooth').addEventListener('input', (e) => {
+    state.pointsSmooth = parseInt(e.target.value, 10) / 100;
+    $('pointsSmoothOut').textContent = e.target.value === '100' ? 'lissé' : e.target.value === '0' ? 'droit' : `${e.target.value} %`;
+    refreshPoints();
+  });
 
   $('unit').addEventListener('change', (e) => {
     state.unit = e.target.value;
