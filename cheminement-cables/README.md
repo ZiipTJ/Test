@@ -15,12 +15,12 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
 
 ## Prise en main (éditeur)
 
-1. **Document** → charger la photo ou le plan du coffret (PNG/JPG), puis le
-   cartouche : titre, référence d'affaire, indice, auteur, date. L'image est
-   encodée dans le fichier : plus aucune dépendance ensuite. Le bloc
-   *Réglages du tracé* contient l'**échelle** en px/mm, qui permet d'estimer
-   les longueurs de fil directement depuis le tracé, et l'**épaisseur de
-   référence pour 1,5 mm²**.
+1. **Document** → ajouter un ou plusieurs plans (PNG/JPG), puis le cartouche :
+   titre, référence d'affaire, indice, auteur, date. Les images sont encodées
+   dans le fichier : plus aucune dépendance ensuite. Le bloc *Réglages du
+   tracé* contient l'**échelle** en px/mm, qui permet d'estimer les longueurs
+   de fil directement depuis le tracé, et l'**épaisseur de référence pour
+   1,5 mm²**.
 2. **+ Étape** → une étape = un fil à brancher. À droite, l'essentiel est
    toujours visible — n° de fil, couleur, départ, arrivée — et le reste est
    replié : *Détail du câble* (section, longueur, remarque) et *Étape*
@@ -34,9 +34,17 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
    c'est l'ordre de câblage remis à l'opérateur.
 5. **Exporter pour l'opérateur** → produit le HTML autonome à transmettre.
 
-**Enregistrer** produit un `.json` : c'est le fichier de travail, à conserver
-pour rouvrir et modifier le projet plus tard. Le projet en cours est aussi
-sauvegardé automatiquement dans le navigateur.
+## Enregistrement
+
+**Rien n'est écrit sur le poste** : ni sauvegarde automatique, ni stockage
+navigateur. Le projet vit dans la page tant qu'elle est ouverte, et
+**Enregistrer** produit un `.json` que vous rangez où vous voulez. C'est ce
+fichier qu'on rouvre avec **Ouvrir** pour reprendre le travail.
+
+Dès qu'une modification est faite, le témoin **● non enregistré** apparaît dans
+la barre haute et le bouton *Enregistrer* passe en bleu. Si vous fermez
+l'onglet dans cet état, le navigateur demande confirmation. Le témoin
+disparaît après un enregistrement.
 
 ## Raccourcis
 
@@ -54,6 +62,25 @@ sauvegardé automatiquement dans le navigateur.
 
 Souris : **molette** = zoom, **clic droit** sur un point = le supprimer,
 **double-clic** sur un coude = l'inverser, **glisser** un point = le déplacer.
+
+## Collection de plans
+
+Un projet peut contenir **plusieurs plans**, réutilisables d'une étape à
+l'autre : armoire, platine, pupitre, détail d'un bornier… Ils s'ajoutent dans
+*Document → Plans du projet*, où on peut aussi les renommer, voir combien
+d'étapes s'en servent et les retirer.
+
+Chaque étape désigne son plan dans le bloc *Étape* de la fiche de droite ; le
+bouton **+** à côté importe une image et l'affecte directement à l'étape en
+cours. Changer le plan d'une étape efface son tracé, qui n'aurait plus de sens
+ailleurs — l'application le demande avant.
+
+Ce découpage vaut aussi pour l'affichage : les **étapes précédentes en
+transparence** ne montrent que les fils tracés sur le plan affiché, les repères
+appartiennent à leur plan, et l'aimantation n'accroche que les points du même
+plan. Passer d'une étape à l'autre recadre automatiquement quand le plan
+change. Le nom du plan est rappelé sous le titre de l'étape dès qu'il y en a
+plusieurs.
 
 ## Échelle et épaisseur des fils
 
@@ -83,12 +110,19 @@ force toujours un fond blanc.
 - À droite : couleur et n° de fil en grand, puis **départ → arrivée**. Le
   *détail du câble* (section, longueur) est replié, son contenu est résumé
   sur la ligne repliée ; une remarque de câblage, elle, reste toujours visible.
-- Case **« Câblage réalisé et vérifié »** dont l'état est mémorisé sur le poste.
+- Case **« Câblage réalisé et vérifié »**. Ce suivi ne vit que le temps de la
+  session — rien n'est écrit sur le poste — et la fermeture est confirmée si
+  des cases sont cochées.
 - Bouton **Imprimer** pour une sortie papier.
 
 ## Format de fichier
 
-Le `.json` est un format ouvert et lisible ; l'image y est incluse en base64.
-`steps[]` porte l'ordre de câblage, `path[]` les points du tracé (chaque point
-possède un `elbow` valant `h` ou `v` qui décide du sens du coude), `marks[]`
-les étiquettes posées sur le schéma.
+Le `.json` est un format ouvert et lisible ; les images y sont incluses en
+base64. `images[]` est la collection de plans, `steps[]` porte l'ordre de
+câblage (chaque étape désignant son plan par `img`), `path[]` les points du
+tracé (chaque point possède un `elbow` valant `h` ou `v` qui décide du sens du
+coude) et `marks[]` les étiquettes posées sur les plans.
+
+Les projets enregistrés avant l'arrivée de la collection de plans se rouvrent
+sans manipulation : leur schéma unique devient le premier plan et toutes les
+étapes lui sont rattachées.
