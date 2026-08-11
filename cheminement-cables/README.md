@@ -32,7 +32,8 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
    points existants sont toujours actives, il n'y a rien à régler.
 4. Réordonner les étapes par **glisser-déposer** dans la liste de gauche :
    c'est l'ordre de câblage remis à l'opérateur.
-5. **Exporter pour l'opérateur** → produit le HTML autonome à transmettre.
+5. **Exporter pour l'opérateur** → renseigner le cartouche de sortie
+   (trigramme, version Hard, date), puis le HTML autonome est produit.
 
 ## Enregistrement
 
@@ -70,6 +71,13 @@ l'autre : armoire, platine, pupitre, détail d'un bornier… Ils s'ajoutent dans
 *Document → Plans du projet*, où on peut aussi les renommer, voir combien
 d'étapes s'en servent et les retirer.
 
+L'import ne pose aucune question : l'image rejoint la bibliothèque, et on peut
+en sélectionner plusieurs d'un coup. Les fichiers lourds sont **allégés
+automatiquement** — au-delà de 2600 px, le plan est réduit à cette dimension,
+et au-delà de 900 Ko il est ré-encodé en JPEG. Un plan de plusieurs mégaoctets
+alourdirait d'autant le document remis à l'opérateur sans rien apporter à la
+lecture. Le gain est indiqué au passage.
+
 Chaque étape désigne son plan dans le bloc *Étape* de la fiche de droite ; le
 bouton **+** à côté importe une image et l'affecte directement à l'étape en
 cours. Changer le plan d'une étape efface son tracé, qui n'aurait plus de sens
@@ -81,6 +89,19 @@ appartiennent à leur plan, et l'aimantation n'accroche que les points du même
 plan. Passer d'une étape à l'autre recadre automatiquement quand le plan
 change. Le nom du plan est rappelé sous le titre de l'étape dès qu'il y en a
 plusieurs.
+
+## Cartouche du document remis
+
+L'export demande trois informations qui identifient la version livrée :
+**trigramme**, **version Hard** et **date** (préremplie du jour). Le trigramme
+et la version Hard sont obligatoires — c'est ce qui permet de savoir, au poste,
+à quelle version du matériel correspond la feuille de câblage.
+
+L'opérateur les voit dans le cartouche, sous le titre du document, avec la
+référence et l'indice ; elles figurent aussi dans le bandeau d'impression et
+dans le nom du fichier exporté
+(`ma-reference-operateur-b2-tjz.html`). Les valeurs sont conservées dans le
+projet et repréremplies à l'export suivant.
 
 ## Échelle et épaisseur des fils
 

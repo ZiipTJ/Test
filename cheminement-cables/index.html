@@ -349,7 +349,11 @@ body.viewer .editor-only{display:none !important}
 body.viewer .left{width:300px;flex-basis:300px}
 
 /* ------------------------------------------------------------ impression */
+#print-head{display:none}
 @media print{
+  #print-head{display:block;margin:0 0 10px;border-bottom:2px solid #000;padding-bottom:6px}
+  #print-head h1{margin:0;font-size:17px}
+  #print-head div{font-size:11.5px;color:#333;font-family:var(--mono)}
   body{overflow:visible;background:#fff;color:#000}
   .topbar,.stage-bar,.left,.hint,.stepper,.editor-only{display:none !important}
   .app,.body{display:block;height:auto}
@@ -446,6 +450,7 @@ function emptyProject(){
     version:1, kind:'cheminement-cables',
     title:'Cheminement de câbles', ref:'', revision:'A', author:'', date:'',
     images:[],               /* collection de plans réutilisables */
+    release:{ trigram:'', hard:'', date:'' },   /* cartouche de la version remise */
     scale:0,                 /* pixels image par mm ; 0 = non défini */
     steps:[], marks:[],
     settings:{ ghost:'prev', labels:true, thickness:6, theme:'clair' }
@@ -503,6 +508,7 @@ function buildLayout(root){
       '<div class="spacer"></div>'+
       '<div class="top-actions" id="top-actions"></div>'+
     '</header>'+
+    '<div id="print-head"></div>'+
     '<div class="body">'+
       '<aside class="left">'+
         '<div class="panel-head"><span>Connecteurs / étapes</span><span class="count" id="step-count"></span></div>'+
@@ -738,11 +744,16 @@ function renderNav(S){
   q('#nav-next').disabled = S.current>=n-1;
   var t=S.project.title||'Cheminement de câbles';
   q('#hd-title').textContent=t;
-  var bits=[]; if(S.project.ref) bits.push(S.project.ref);
-  if(S.project.revision) bits.push('Ind. '+S.project.revision);
-  if(S.project.date) bits.push(S.project.date);
-  if(S.project.author) bits.push(S.project.author);
+  var P=S.project, r=P.release||{};
+  var bits=[]; if(P.ref) bits.push(P.ref);
+  if(P.revision) bits.push('Ind. '+P.revision);
+  if(r.hard) bits.push('Version Hard '+r.hard);
+  if(r.trigram) bits.push(r.trigram);
+  if(r.date||P.date) bits.push(r.date||P.date);
+  if(P.author) bits.push(P.author);
   q('#hd-sub').textContent=bits.join('  ·  ');
+  var ph=q('#print-head');
+  if(ph) ph.innerHTML='<h1>'+esc(t)+'</h1><div>'+esc(bits.join('  ·  '))+'</div>';
   document.title = t + (S.project.ref? ' — '+S.project.ref : '');
 }
 function fitView(S){
@@ -916,6 +927,7 @@ function bootViewer(project){
     var d=emptyProject();
     o.settings=Object.assign({},d.settings,o.settings||{});
     o.marks=o.marks||[]; o.steps=o.steps||[]; o.images=o.images||[];
+    o.release=Object.assign({trigram:'',hard:'',date:''},o.release||{});
     /* projets antérieurs à la collection de plans : un seul schéma */
     if(o.image){
       o.images=[{id:uid(),name:'Schéma',data:o.image,w:o.imgW||DEF_W,h:o.imgH||DEF_H}];
@@ -955,7 +967,7 @@ function bootViewer(project){
       '<button class="btn" id="t-open">Ouvrir</button>'+
       '<button class="btn" id="t-save">Enregistrer</button>'+
       '<button class="btn primary" id="t-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 20h16"/></svg> Exporter pour l\'opérateur</button>'+
-      '<input type="file" id="f-img" accept="image/*" hidden><input type="file" id="f-json" accept=".json,application/json" hidden>';
+      '<input type="file" id="f-img" accept="image/*" multiple hidden><input type="file" id="f-json" accept=".json,application/json" hidden>';
     bindThemeBtn(S,touch);
     flagDirty();
     q('#f-img').addEventListener('change',onImage);
@@ -963,7 +975,7 @@ function bootViewer(project){
     q('#t-doc').addEventListener('click',dlgDoc);
     q('#t-open').addEventListener('click',function(){ q('#f-json').click(); });
     q('#t-save').addEventListener('click',saveJson);
-    q('#t-export').addEventListener('click',exportViewer);
+    q('#t-export').addEventListener('click',dlgExport);
   }
 
   /* ---------------------------------------------------------- barre basse */
@@ -1310,33 +1322,71 @@ function bootViewer(project){
   }
 
   /* ------------------------------------------------------------- schéma */
-  /* Le plan importé rejoint la collection. S'il est demandé depuis une étape,
-     il lui est affecté ; au tout premier import, les étapes encore sans plan
-     l'adoptent. */
+  /* Un plan importé rejoint la bibliothèque sans rien demander. S'il est
+     demandé depuis une étape, il lui est en plus affecté ; au tout premier
+     import, les étapes encore sans plan l'adoptent. */
+  var MAX_PX = 2600;        /* côté le plus long conservé */
+  var HEAVY  = 900*1024;    /* au-delà, on ré-encode */
+
   function onImage(e){
-    var f=e.target.files && e.target.files[0]; if(!f) return;
+    var files=Array.prototype.slice.call(e.target.files||[]);
     var assign = e.target.dataset.assign==='1', back = e.target.dataset.back==='1';
-    e.target.dataset.assign=''; e.target.dataset.back='';
+    e.target.dataset.assign=''; e.target.dataset.back=''; e.target.value='';
+    if(!files.length) return;
+    var added=[], gain=0;
+    (function next(){
+      var f=files.shift();
+      if(!f) return done();
+      readImage(f,function(im,saved){
+        if(!im) return next();
+        var P=S.project, first=!P.images.length;
+        P.images.push(im); added.push(im); gain+=saved;
+        if(assign && P.steps[S.current]) P.steps[S.current].img=im.id;
+        if(first) P.steps.forEach(function(st){ if(!st.img) st.img=im.id; });
+        next();
+      });
+    })();
+    function done(){
+      if(!added.length) return;
+      touch(); S.render();
+      var m=q('.mask'); if(m){ m.remove(); if(back) dlgDoc(); }
+      var last=added[added.length-1];
+      toast(added.length===1
+        ? 'Plan « '+last.name+' » ajouté ('+last.w+' × '+last.h+' px'+(gain>0?', allégé de '+koMo(gain):'')+')'
+        : added.length+' plans ajoutés'+(gain>0?' ('+koMo(gain)+' économisés)':''));
+    }
+  }
+  function readImage(f,cb){
     var rd=new FileReader();
     rd.onload=function(){
       var img=new Image();
       img.onload=function(){
-        var P=S.project, first=!P.images.length;
-        var im={ id:uid(), name:cleanName(f.name), data:rd.result,
-                 w:img.naturalWidth, h:img.naturalHeight };
-        P.images.push(im);
-        if(assign && P.steps[S.current]) P.steps[S.current].img=im.id;
-        if(first) P.steps.forEach(function(st){ if(!st.img) st.img=im.id; });
-        touch(); S.render();
-        var m=q('.mask'); if(m) m.remove();
-        if(back) dlgDoc();
-        toast('Plan « '+im.name+' » ajouté ('+im.w+' × '+im.h+' px)');
+        var src=rd.result, w=img.naturalWidth, h=img.naturalHeight;
+        var sc=Math.min(1, MAX_PX/Math.max(w,h));
+        if(sc>=1 && src.length<HEAVY) return cb({id:uid(),name:cleanName(f.name),data:src,w:w,h:h},0);
+        /* Redimensionnement et ré-encodage : un plan de plusieurs mégaoctets
+           alourdirait autant le document remis à l'opérateur, sans rien
+           apporter à la lecture. */
+        var nw=Math.max(1,Math.round(w*sc)), nh=Math.max(1,Math.round(h*sc));
+        var cv=document.createElement('canvas'); cv.width=nw; cv.height=nh;
+        var cx=cv.getContext('2d');
+        cx.fillStyle='#fff'; cx.fillRect(0,0,nw,nh);   /* le JPEG ignore la transparence */
+        cx.drawImage(img,0,0,nw,nh);
+        var out;
+        try{ out=cv.toDataURL('image/jpeg',0.85); }catch(x){ out=src; }
+        if(out.length>=src.length && sc>=1) return cb({id:uid(),name:cleanName(f.name),data:src,w:w,h:h},0);
+        cb({id:uid(),name:cleanName(f.name),data:out,w:nw,h:nh}, Math.max(0,src.length-out.length));
       };
-      img.onerror=function(){ toast('Image illisible.',true); };
+      img.onerror=function(){ toast('« '+f.name+' » : image illisible.',true); cb(null,0); };
       img.src=rd.result;
     };
+    rd.onerror=function(){ cb(null,0); };
     rd.readAsDataURL(f);
-    e.target.value='';
+  }
+  function koMo(n){
+    n=n*0.75;   /* le base64 pèse un tiers de plus que les octets */
+    return n>1048576 ? (n/1048576).toFixed(1).replace('.',',')+' Mo'
+                     : Math.round(n/1024)+' Ko';
   }
   function cleanName(n){
     return String(n||'Plan').replace(/\.[a-z0-9]+$/i,'').replace(/[_-]+/g,' ').slice(0,40) || 'Plan';
@@ -1420,7 +1470,10 @@ function bootViewer(project){
     function close(){ m.remove(); }
     m.addEventListener('click',function(e){ if(e.target===m) close(); });
     q('[data-x]',m).addEventListener('click',close);
-    q('[data-ok]',m).addEventListener('click',function(){ ok&&ok(); close(); });
+    q('[data-ok]',m).addEventListener('click',function(){
+      if(ok && ok()===false) return;   /* refus : on garde la saisie à l'écran */
+      close();
+    });
     if(onOpen) onOpen(m);
   }
 
@@ -1455,6 +1508,32 @@ function bootViewer(project){
   }
 
   /* ---------------------------------------------------- export opérateur */
+  /* L'export est la remise d'un document daté et identifié : on renseigne
+     son cartouche avant de le produire. */
+  function dlgExport(){
+    var P=S.project;
+    if(!P.steps.length){ toast('Aucune étape à exporter.',true); return; }
+    var r=P.release||(P.release={trigram:'',hard:'',date:''});
+    modal('Exporter pour l\'opérateur',
+      '<div class="row">'+
+        '<div class="field"><label>Trigramme</label><input class="inp" id="x-trg" value="'+esc(r.trigram)+'" maxlength="8" placeholder="ABC" autofocus></div>'+
+        '<div class="field"><label>Version Hard</label><input class="inp" id="x-hard" value="'+esc(r.hard)+'" placeholder="B2"></div>'+
+      '</div>'+
+      '<div class="field"><label>Date</label><input class="inp" id="x-date" value="'+esc(r.date||today())+'" placeholder="JJ/MM/AAAA"></div>'+
+      '<div class="note" style="margin-top:4px"><div class="k">Rappel</div>'+
+        'Ces trois informations apparaissent dans le cartouche du document remis à l\'opérateur, à l\'écran comme à l\'impression.</div>',
+      function(){
+        r.trigram=q('#x-trg').value.trim();
+        r.hard=q('#x-hard').value.trim();
+        r.date=q('#x-date').value.trim()||today();
+        if(!r.trigram || !r.hard){ toast('Trigramme et version Hard sont nécessaires.',true); return false; }
+        touch(); renderNav(S); exportViewer();
+      });
+  }
+  function today(){
+    var d=new Date(), p2=function(n){ return (n<10?'0':'')+n; };
+    return p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear();
+  }
   function exportViewer(){
     var P=S.project;
     if(!P.steps.length){ toast('Aucune étape à exporter.',true); return; }
@@ -1469,7 +1548,9 @@ function bootViewer(project){
       '<style>\n'+css+'\n</style>\n</head>\n<body>\n<div id="root"></div>\n'+
       '<script>\n'+js+'\n<\/script>\n'+
       '<script>bootViewer('+data+');<\/script>\n</body>\n</html>\n';
-    download(slug(P.ref||P.title)+'-operateur.html', html, 'text/html;charset=utf-8');
+    var r=P.release||{};
+    var nom=slug(P.ref||P.title)+'-operateur'+(r.hard?'-'+slug(r.hard):'')+(r.trigram?'-'+slug(r.trigram):'');
+    download(nom+'.html', html, 'text/html;charset=utf-8');
     toast('Document opérateur exporté ('+Math.round(html.length/1024)+' Ko)');
   }
 
