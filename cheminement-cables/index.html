@@ -269,6 +269,57 @@ button,input,select,textarea{font:inherit;color:inherit}
 .check input{width:17px;height:17px;accent-color:var(--ok);cursor:pointer}
 .check.on{background:var(--done-bg);border-color:var(--done-bd)}
 
+/* --------------------------------------------------------- carte câble */
+.cab{
+  display:flex;align-items:center;gap:10px;padding:9px 11px;margin-bottom:7px;
+  background:var(--bg-3);border:1px solid var(--line);border-radius:var(--r);
+  cursor:pointer;transition:border-color .12s,background .12s
+}
+.cab:hover{border-color:var(--line-2)}
+.cab.on{border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 18%,transparent)}
+.cab.done{background:var(--done-bg);border-color:var(--done-bd)}
+.cab-tick{
+  width:20px;height:20px;flex:0 0 20px;border-radius:6px;display:grid;place-items:center;
+  border:1.5px solid var(--line-2);background:var(--bg);font-size:13px;font-weight:800;color:var(--done-tx)
+}
+.cab.done .cab-tick{background:var(--ok);border-color:var(--ok);color:#fff}
+.cab-sw{
+  width:22px;height:22px;flex:0 0 22px;border-radius:6px;border:1px solid var(--sw-bd);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)
+}
+.cab-txt{flex:1;min-width:0}
+.cab-t1{font-family:var(--mono);font-size:14.5px;font-weight:650;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cab-t2{
+  display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12.5px;
+  color:var(--tx-2);min-width:0
+}
+.cab-t2 span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.cab-t2 i{font-style:normal;color:var(--acc);flex:0 0 auto;font-weight:700}
+.cab-n{
+  font-family:var(--mono);font-size:11px;color:var(--tx-3);flex:0 0 auto;
+  border:1px solid var(--line);border-radius:20px;padding:1px 7px
+}
+.cab-n.vide{color:var(--warn);border-color:var(--note-bd);background:var(--note-bg)}
+.cabs-head{
+  display:flex;align-items:center;margin:14px 0 7px;font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.9px;color:var(--tx-3);font-weight:650
+}
+.cabs-head button{margin-left:auto}
+.dots{display:flex;gap:3px;flex:0 0 auto}
+
+/* ------------------------------------------------------------ menu contextuel */
+.ctx{
+  position:fixed;z-index:90;background:var(--bg-2);border:1px solid var(--line-2);
+  border-radius:9px;box-shadow:var(--sh);padding:4px;min-width:170px
+}
+.ctx button{
+  display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;background:none;border:0;
+  border-radius:6px;text-align:left;cursor:pointer;font-size:13px;color:var(--tx)
+}
+.ctx button:hover{background:var(--hov)}
+.ctx button.danger:hover{background:var(--dgr-bg);color:var(--dgr-tx)}
+.ctx hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+
 /* ------------------------------------------------------------ accordéon */
 .acc{border:1px solid var(--line);border-radius:var(--r);background:var(--bg-3);margin-bottom:9px;overflow:hidden}
 .acc>summary{
@@ -329,8 +380,9 @@ select.inp{cursor:pointer}
 .modal header{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:650;display:flex;align-items:center;gap:8px}
 .modal .mbody{padding:16px;overflow:auto}
 .modal footer{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.toasts{position:fixed;top:64px;left:302px;z-index:80;display:flex;flex-direction:column;gap:7px;pointer-events:none}
 .toast{
-  position:fixed;top:64px;left:302px;z-index:80;
+  position:relative;
   background:var(--bg-3);border:1px solid var(--line-2);border-left:3px solid var(--ok);
   padding:10px 16px;border-radius:10px;box-shadow:var(--sh);font-size:13px;
   animation:pop .18s ease-out
@@ -402,18 +454,8 @@ function colorOf(id){
 }
 var DEF_W = 1600, DEF_H = 1000;
 
-/* Section en mm², virgule ou point acceptés. */
-function parseSection(v){
-  var n=parseFloat(String(v==null?'':v).replace(',','.'));
-  return (isFinite(n)&&n>0)?n:0;
-}
-/* Épaisseur du tracé : le diamètre d'un conducteur varie comme la racine
-   carrée de sa section, l'épaisseur de référence valant pour 1,5 mm². */
-function wireWidth(P,st){
-  var base=P.settings.thickness||6;
-  var sec=parseSection(st && st.wire ? st.wire.section : 0);
-  return sec>0 ? base*Math.sqrt(sec/1.5) : base;
-}
+/* Épaisseur du tracé, en unités du schéma. */
+function wireWidth(P){ return P.settings.thickness||6; }
 /* Unité de dessin liée au schéma, jamais au zoom : repères et étiquettes
    conservent donc leur taille par rapport au plan quand on zoome. */
 function docUnit(im){ return Math.max(10,((im&&im.w)||DEF_W)/100); }
@@ -457,18 +499,26 @@ function emptyProject(){
     title:'Cheminement de câbles', ref:'', revision:'', author:'', date:'',
     images:[],               /* collection de plans réutilisables */
     release:{ trigram:'', hard:'', date:'' },   /* cartouche de la version remise */
-    scale:0,                 /* pixels image par mm ; 0 = non défini */
     steps:[], marks:[],
-    settings:{ ghost:'prev', labels:true, thickness:6, theme:'clair' }
+    settings:{ ghost:'prev', labels:true, thickness:6, thickAuto:true, theme:'clair' }
   };
 }
+/* Un câble : son repère, sa couleur, son origine, son extrémité, son tracé. */
+function emptyCable(){
+  return { id:uid(), num:'', color:'noir', from:'', to:'', path:[] };
+}
+/* Une étape rassemble les câbles à brancher d'un même tenant, typiquement
+   un connecteur. */
 function emptyStep(n){
-  return {
-    id:uid(), group:'', name:'Étape '+n, img:'',
-    wire:{ num:'', color:'noir', section:'', length:'', from:'', to:'', comment:'' },
-    path:[]
-  };
+  return { id:uid(), group:'', name:'Étape '+n, img:'', cables:[emptyCable()] };
 }
+function curStep(S){ return S.project.steps[S.current]||null; }
+function curCable(S){
+  var st=curStep(S); if(!st||!st.cables.length) return null;
+  var i=(S.cable>=0)?S.cable:0;
+  return st.cables[clamp(i,0,st.cables.length-1)];
+}
+function cableLabel(c,i){ return c && c.num ? 'Câble '+c.num : 'Câble '+(i+1); }
 
 /* ------------------------------------------------- géométrie orthogonale */
 /* Chaque point porte un coude (elbow) : 'h' = on part à l'horizontale,
@@ -616,38 +666,47 @@ function renderCanvas(S){
   /* ------------------------------------------------------------- les fils */
   var s='';
   var cur=S.current, steps=P.steps, ghost=P.settings.ghost;
+  var W2=wireWidth(P);
+
+  function drawCable(c,fade){
+    if(!c.path || c.path.length<2) return '';
+    var col=colorOf(c.color), d=pathD(c.path), o='';
+    var op = fade ? ' stroke-opacity=".45"' : '';
+    o+='<path d="'+d+'" fill="none" stroke="'+C.halo+'" stroke-opacity="'+(fade?'.45':C.haloOp)+'" stroke-width="'+(W2+u*(fade?.12:.22))+'" stroke-linecap="round" stroke-linejoin="round"/>';
+    o+='<path d="'+d+'" fill="none" stroke="'+col.hex+'"'+op+' stroke-width="'+W2+'" stroke-linecap="round" stroke-linejoin="round"/>';
+    if(col.hex2) o+='<path d="'+d+'" fill="none" stroke="'+col.hex2+'"'+op+' stroke-width="'+W2+'" stroke-dasharray="'+(W2*2.2)+' '+(W2*2.2)+'" stroke-linecap="butt"/>';
+    return o;
+  }
+
+  /* étapes précédentes, en transparence */
   var lo = ghost==='all' ? 0 : (ghost==='prev' ? Math.max(0,cur-1) : cur);
   if(ghost!=='none'){
     for(var i=lo;i<cur;i++){
-      var st=steps[i]; if(!st || st.path.length<2) continue;
+      var st=steps[i]; if(!st) continue;
       if(stepImage(P,st)!==im) continue;   /* autre plan : sans objet ici */
-      var c=colorOf(st.wire.color), gw=wireWidth(P,st), gd=pathD(st.path);
-      s+='<path d="'+gd+'" fill="none" stroke="'+C.halo+'" stroke-opacity=".45" stroke-width="'+(gw+u*.12)+'" stroke-linecap="round" stroke-linejoin="round"/>';
-      s+='<path d="'+gd+'" fill="none" stroke="'+c.hex+'" stroke-opacity=".45" stroke-width="'+gw+'" stroke-linecap="round" stroke-linejoin="round"/>';
-      if(c.hex2) s+='<path d="'+gd+'" fill="none" stroke="'+c.hex2+'" stroke-opacity=".45" stroke-width="'+gw+'" stroke-dasharray="'+(gw*2.2)+' '+(gw*2.2)+'" stroke-linecap="butt"/>';
+      st.cables.forEach(function(c){ s+=drawCable(c,true); });
     }
   }
 
+  /* l'étape courante : tous ses câbles */
   var st2 = steps[cur];
-  if(st2 && st2.path.length){
-    var cc=colorOf(st2.wire.color), cw=wireWidth(P,st2);
-    var d=pathD(st2.path);
-    if(st2.path.length>1){
-      s+='<path d="'+d+'" fill="none" stroke="'+C.halo+'" stroke-opacity="'+C.haloOp+'" stroke-width="'+(cw+u*.22)+'" stroke-linecap="round" stroke-linejoin="round"/>';
-      s+='<path d="'+d+'" fill="none" stroke="'+cc.hex+'" stroke-width="'+cw+'" stroke-linecap="round" stroke-linejoin="round"/>';
-      if(cc.hex2) s+='<path d="'+d+'" fill="none" stroke="'+cc.hex2+'" stroke-width="'+cw+'" stroke-dasharray="'+(cw*2.2)+' '+(cw*2.2)+'" stroke-linecap="butt"/>';
-    }
-    var a=st2.path[0], b=st2.path[st2.path.length-1];
-    var r=Math.max(cw*1.6, u*.55);
-    s+=marker(a.x,a.y,r,'#12915a','D',C);
-    if(st2.path.length>1) s+=marker(b.x,b.y,r,'#1a63d6','A',C);
-    /* étiquette du fil au milieu du parcours */
-    if(P.settings.labels && st2.wire.num && st2.path.length>1){
-      var rp=routePoints(st2.path), mid=rp[Math.floor(rp.length/2)];
-      var fs=Math.max(cw*2.2,u*.9), tw=String(st2.wire.num).length*fs*.66+fs;
-      s+='<g><rect x="'+(mid.x-tw/2)+'" y="'+(mid.y-r-fs*1.55)+'" rx="'+(fs*.42)+'" width="'+tw+'" height="'+(fs*1.45)+'" fill="'+C.lblBg+'" fill-opacity=".94" stroke="'+cc.hex+'" stroke-width="'+(fs*.11)+'"/>'+
-         '<text x="'+mid.x+'" y="'+(mid.y-r-fs*.42)+'" fill="'+C.lblTx+'" font-size="'+fs+'" font-family="ui-monospace,monospace" text-anchor="middle">'+esc(st2.wire.num)+'</text></g>';
-    }
+  if(st2){
+    st2.cables.forEach(function(c,ci){
+      s+=drawCable(c,false);
+      if(!c.path.length) return;
+      var a=c.path[0], b=c.path[c.path.length-1];
+      var r=Math.max(W2*1.6, u*.55);
+      s+=marker(a.x,a.y,r,'#12915a','O',C);
+      if(c.path.length>1) s+=marker(b.x,b.y,r,'#1a63d6','E',C);
+      /* repère du câble, au milieu du parcours */
+      if(P.settings.labels && c.num && c.path.length>1){
+        var col=colorOf(c.color);
+        var rp=routePoints(c.path), mid=rp[Math.floor(rp.length/2)];
+        var fs=Math.max(W2*2.2,u*.9), tw=String(c.num).length*fs*.66+fs;
+        s+='<g><rect x="'+(mid.x-tw/2)+'" y="'+(mid.y-r-fs*1.55)+'" rx="'+(fs*.42)+'" width="'+tw+'" height="'+(fs*1.45)+'" fill="'+C.lblBg+'" fill-opacity=".94" stroke="'+col.hex+'" stroke-width="'+(fs*.11)+'"/>'+
+           '<text x="'+mid.x+'" y="'+(mid.y-r-fs*.42)+'" fill="'+C.lblTx+'" font-size="'+fs+'" font-family="ui-monospace,monospace" text-anchor="middle">'+esc(c.num)+'</text></g>';
+      }
+    });
   }
 
   (P.marks||[]).filter(function(m){ return !im || !m.img || m.img===im.id; }).forEach(function(m){
@@ -694,13 +753,18 @@ function renderSteps(S){
     }
     html+='<div class="grp-body">';
     g.items.forEach(function(o){
-      var st=o.st, i=o.i, c=colorOf(st.wire.color);
-      var route = (st.wire.from||'?')+' → '+(st.wire.to||'?');
-      html+='<div class="step'+(i===S.current?' on':'')+(S.done[st.id]?' done':'')+'" data-i="'+i+'"'+(S.edit?' draggable="true"':'')+'>'+
-        '<div class="idx">'+(S.done[st.id]?'✓':(i+1))+'</div>'+
-        '<div class="dot" style="background:'+c.hex+(c.hex2?';background:linear-gradient(135deg,'+c.hex+' 50%,'+c.hex2+' 50%)':'')+'"></div>'+
+      var st=o.st, i=o.i;
+      var done = st.cables.length>0 && st.cables.every(function(c){ return S.done[c.id]; });
+      var dots = st.cables.slice(0,4).map(function(c){
+        var k=colorOf(c.color);
+        return '<span class="dot" style="'+(k.hex2?'background:linear-gradient(135deg,'+k.hex+' 50%,'+k.hex2+' 50%)':'background:'+k.hex)+'"></span>';
+      }).join('');
+      var nums = st.cables.map(function(c,ci){ return c.num||'—'; }).join(' · ');
+      html+='<div class="step'+(i===S.current?' on':'')+(done?' done':'')+'" data-i="'+i+'"'+(S.edit?' draggable="true"':'')+'>'+
+        '<div class="idx">'+(done?'✓':(i+1))+'</div>'+
+        '<div class="dots">'+dots+'</div>'+
         '<div class="txt"><div class="t1">'+esc(st.name||('Étape '+(i+1)))+'</div>'+
-          '<div class="t2">'+esc(st.wire.num?('['+st.wire.num+'] '):'')+esc(route)+'</div></div>'+
+          '<div class="t2">'+st.cables.length+' câble'+(st.cables.length>1?'s':'')+' · '+esc(nums)+'</div></div>'+
         (S.edit?'<span class="grab" title="Glisser pour réordonner">⠿</span>':'')+
       '</div>';
     });
@@ -728,58 +792,51 @@ function renderFiche(S){
   if(S.edit && window.editorFiche) return window.editorFiche(S);
   var P=S.project, st=P.steps[S.current], host=q('#fiche');
   if(!st){ host.innerHTML='<div class="empty">Sélectionnez une étape à gauche.</div>'; return; }
-  var w=st.wire, c=colorOf(w.color);
-  var sw = c.hex2 ? 'background:linear-gradient(135deg,'+c.hex+' 50%,'+c.hex2+' 50%)' : 'background:'+c.hex;
-  var lenTxt = w.length ? esc(w.length)+' <small>mm</small>' : estim(P,st);
-  /* aperçu replié : ce que l'on voit sans ouvrir le bloc */
-  var peek=[]; if(w.section) peek.push(w.section+' mm²'); if(w.length) peek.push(w.length+' mm');
   var h='<div class="fiche">'+
     '<h2>'+esc(st.name||('Étape '+(S.current+1)))+'</h2>'+
     '<div class="sub">Étape '+(S.current+1)+' / '+P.steps.length+(st.group?' · '+esc(st.group):'')+
       ((P.images||[]).length>1 ? ' · plan '+esc((stepImage(P,st)||{}).name||'—') : '')+'</div>'+
-    '<div class="wire-head"><div class="wire-swatch" style="'+sw+'"></div>'+
-      '<div><div class="wn">'+esc(w.num||'—')+'</div><div class="wc">'+esc(c.name)+'</div></div></div>'+
-    '<div class="route">'+
-      '<div class="node from"><div class="pin">D</div><div><div class="k">Départ</div><div class="v">'+esc(w.from||'—')+'</div></div></div>'+
-      '<div class="arrow"></div>'+
-      '<div class="node to"><div class="pin">A</div><div><div class="k">Arrivée</div><div class="v">'+esc(w.to||'—')+'</div></div></div>'+
-    '</div>'+
-    (w.comment?'<div class="note"><div class="k">À vérifier</div>'+esc(w.comment)+'</div>':'')+
-    '<details class="acc" id="acc-det"'+(S.open.det?' open':'')+'><summary>Détail du câble'+
-      (peek.length?'<span class="peek">'+esc(peek.join('  ·  '))+'</span>':'')+'</summary>'+
-      '<div class="accb"><div class="kv">'+
-        '<div class="cell"><div class="k">Section</div><div class="v">'+(w.section?esc(w.section)+' <small>mm²</small>':'—')+'</div></div>'+
-        '<div class="cell"><div class="k">Longueur</div><div class="v">'+(lenTxt||'—')+'</div></div>'+
-      '</div></div>'+
-    '</details>'+
-    '<label class="check'+(S.done[st.id]?' on':'')+'"><input type="checkbox" id="chk-done"'+(S.done[st.id]?' checked':'')+'> <span>Câblage réalisé et vérifié</span></label>'+
+    st.cables.map(function(c,i){ return cableCard(c,i,{done:!!S.done[c.id],check:true}); }).join('')+
   '</div>';
   host.innerHTML=h;
-  var acc=q('#acc-det');
-  if(acc) bindAcc(acc,'det',S);
-  var chk=q('#chk-done');
-  if(chk) chk.addEventListener('change',function(){
-    S.done[st.id]=chk.checked; S.saveDone&&S.saveDone(); renderSteps(S); renderFiche(S);
+  qa('.cab',host).forEach(function(el){
+    el.addEventListener('click',function(){
+      var c=st.cables[parseInt(el.dataset.ci,10)];
+      S.done[c.id]=!S.done[c.id];
+      renderSteps(S); renderFiche(S);
+    });
   });
+}
+/* Carte d'un câble : repère, couleur, origine et extrémité. Volontairement
+   compacte et de hauteur constante, pour qu'une étape puisse en aligner
+   plusieurs sans que la fiche devienne illisible. */
+function cableCard(c,i,o){
+  o=o||{};
+  var k=colorOf(c.color);
+  var sw = k.hex2 ? 'background:linear-gradient(135deg,'+k.hex+' 50%,'+k.hex2+' 50%)' : 'background:'+k.hex;
+  return '<div class="cab'+(o.done?' done':'')+(o.sel?' on':'')+'" data-ci="'+i+'">'+
+    (o.check?'<span class="cab-tick">'+(o.done?'✓':'')+'</span>':'')+
+    '<span class="cab-sw" style="'+sw+'" title="'+esc(k.name)+'"></span>'+
+    '<div class="cab-txt">'+
+      '<div class="cab-t1">'+esc(cableLabel(c,i))+'</div>'+
+      '<div class="cab-t2"><span>'+esc(c.from||'—')+'</span><i>→</i><span>'+esc(c.to||'—')+'</span></div>'+
+    '</div>'+
+    (o.right||'')+
+  '</div>';
 }
 /* Mémorise l'état déplié d'un bloc, dès le clic. */
 function bindAcc(det,key,S){
   var sum=det.querySelector('summary'); if(!sum) return;
   sum.addEventListener('click',function(){ S.open[key]=!det.open; });
 }
-function estim(P,st){
-  if(!st.path || st.path.length<2) return '';
-  var px=pathLen(st.path);
-  if(P.scale>0) return fmt(px/P.scale,0)+' <small>mm (estimé)</small>';
-  return '';
-}
-
 /* --------------------------------------------------- navigation / clavier */
 function makeState(project, edit){
-  var S={ project:project, current:0, edit:!!edit, collapsed:{}, done:{}, open:{det:false,etp:false}, view:null, overlay:null };
+  var S={ project:project, current:0, cable:0, editCable:-1, edit:!!edit,
+          collapsed:{}, done:{}, open:{det:false,etp:false}, view:null, overlay:null };
   S.go=function(i){
     if(!S.project.steps.length){ S.current=0; }
     else S.current=clamp(i,0,S.project.steps.length-1);
+    S.cable=0; S.editCable=-1; S.sel=-1;
     S.render();
   };
   S.render=function(){ renderSteps(S); renderFiche(S); renderCanvas(S); renderNav(S); if(S.afterRender) S.afterRender(S); };
@@ -911,17 +968,22 @@ function bindThemeBtn(S,after){
 }
 /* Bandeau d'attente : lire et décoder un plan en 8K prend plusieurs secondes,
    il faut le dire. Renvoie la fonction qui le retire. */
+function toastHost(){
+  var h=q('.toasts');
+  if(!h){ h=document.createElement('div'); h.className='toasts'; document.body.appendChild(h); }
+  return h;
+}
 function working(msg){
   var t=document.createElement('div');
   t.className='toast work';
   t.innerHTML='<span class="spin"></span>'+esc(msg);
-  document.body.appendChild(t);
+  toastHost().appendChild(t);
   return function(){ t.remove(); };
 }
 function toast(msg,err){
   var t=document.createElement('div');
   t.className='toast'+(err?' err':''); t.textContent=msg;
-  document.body.appendChild(t);
+  toastHost().appendChild(t);
   setTimeout(function(){ t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(function(){ t.remove(); },320); },2200);
 }
 
@@ -968,7 +1030,8 @@ function bootViewer(project){
     var p=emptyProject();
     S=makeState(p,true);
     window.S=S;
-    S.tool='select'; S.sel=-1; S.elbow='h'; S.snap=10; S.magnet=true;   /* aimantation et grille toujours actives */
+    S.tool='select'; S.sel=-1; S.cable=0; S.editCable=-1;
+    S.elbow='h'; S.snap=10; S.magnet=true;   /* aimantation et grille toujours actives */
     applyTheme(S.project);
     buildLayout(q('#root'));
     topbar(); stagebar(); leftfoot();
@@ -992,8 +1055,19 @@ function bootViewer(project){
     }
     var first=o.images[0]?o.images[0].id:'';
     o.steps.forEach(function(st){
-      st.wire=Object.assign({num:'',color:'noir',section:'',length:'',from:'',to:'',comment:''},st.wire||{});
-      st.path=st.path||[]; st.id=st.id||uid(); st.group=st.group||'';
+      st.id=st.id||uid(); st.group=st.group||'';
+      /* projets antérieurs : une étape portait un seul fil */
+      if(!st.cables){
+        var w=st.wire||{};
+        st.cables=[{ id:uid(), num:w.num||'', color:w.color||'noir',
+                     from:w.from||'', to:w.to||'', path:st.path||[] }];
+      }
+      delete st.wire; delete st.path;
+      st.cables.forEach(function(c){
+        c.id=c.id||uid(); c.path=c.path||[]; c.color=c.color||'noir';
+        delete c.section; delete c.length; delete c.comment;
+      });
+      if(!st.cables.length) st.cables=[emptyCable()];
       if(!imageById(o,st.img)) st.img=first;
     });
     o.marks.forEach(function(m){ if(!imageById(o,m.img)) m.img=first; });
@@ -1067,12 +1141,14 @@ function bootViewer(project){
     var h=q('#hint');
     var txt='';
     if(S.tool==='draw'){
-      txt='<b>Clic</b> = poser un point · <kbd>Tab</kbd> inverser le coude · <kbd>Retour arr.</kbd> annuler le dernier · <kbd>Échap</kbd> terminer';
+      var c0=curCable(S);
+      txt='Tracé de <b>'+esc(c0?cableLabel(c0,S.cable):'—')+'</b> · <b>Clic</b> = poser un point · '+
+          '<kbd>Tab</kbd> inverser le coude · <kbd>Retour arr.</kbd> annuler le dernier · <kbd>Échap</kbd> tout effacer';
     }else if(S.tool==='mark'){
       txt='<b>Clic</b> = poser un repère (X1, Wago A, Flexisoft…) · <kbd>Échap</kbd> pour sortir';
     }else if(S.tool==='select'){
-      var st=S.project.steps[S.current];
-      if(st && st.path.length) txt='<b>Glisser</b> un point pour le déplacer · <b>Clic droit</b> = supprimer · <b>Double-clic</b> sur un coude = inverser';
+      var c1=curCable(S);
+      if(c1 && c1.path.length) txt='<b>Glisser</b> un point pour le déplacer · <b>Clic droit</b> = supprimer · <b>Double-clic</b> sur un coude = inverser';
     }
     h.innerHTML=txt; h.style.display= txt?'block':'none';
   }
@@ -1092,7 +1168,7 @@ function bootViewer(project){
   function addStep(){
     var P=S.project, prev=P.steps[P.steps.length-1];
     var st=emptyStep(P.steps.length+1);
-    if(prev){ st.group=prev.group; st.wire.color=prev.wire.color; st.wire.section=prev.wire.section; }
+    if(prev && prev.cables.length){ st.group=prev.group; st.cables[0].color=prev.cables[prev.cables.length-1].color; }
     P.steps.push(st); touch(); S.go(P.steps.length-1); setTool('draw');
   }
   function dupStep(){
@@ -1142,40 +1218,25 @@ function bootViewer(project){
   window.editorFiche=function(S){
     var P=S.project, st=P.steps[S.current], host=q('#fiche');
     if(!st){ host.innerHTML='<div class="empty">Aucune étape.<br>Cliquez sur <b>+ Étape</b>.</div>'; return; }
-    var w=st.wire, c=colorOf(w.color);
-    var opts=WIRE_COLORS.map(function(o){
-      return '<option value="'+o.id+'"'+(o.id===w.color?' selected':'')+'>'+o.name+'</option>';
+    if(!(S.cable>=0)) S.cable=0;
+    S.cable=clamp(S.cable,0,Math.max(0,st.cables.length-1));
+
+    var cards = st.cables.map(function(c,i){
+      if(i===S.editCable) return cableForm(c,i);
+      return cableCard(c,i,{ sel:i===S.cable,
+        right:'<span class="cab-n'+(c.path.length<2?' vide':'')+'">'+
+              (c.path.length<2?'à tracer':c.path.length+' pts')+'</span>' });
     }).join('');
-    var est = st.path.length>1 ? pathLen(st.path) : 0;
-    var estTxt = est ? (P.scale>0 ? fmt(est/P.scale,0)+' mm' : fmt(est,0)+' px') : '—';
-    var peek=[]; if(w.section) peek.push(w.section+' mm²'); if(w.length) peek.push(w.length+' mm');
-    if(w.comment) peek.push('remarque');
+
     host.innerHTML=
     '<div class="fiche">'+
-      '<div class="row">'+
-        '<div class="field"><label>N° de fil</label><input class="inp" id="e-num" value="'+esc(w.num)+'" placeholder="1042"></div>'+
-        '<div class="field"><label>Couleur</label><div class="sw-row">'+
-          '<span class="sw-prev" style="'+(c.hex2?'background:linear-gradient(135deg,'+c.hex+' 50%,'+c.hex2+' 50%)':'background:'+c.hex)+'"></span>'+
-          '<select class="inp" id="e-col">'+opts+'</select></div></div>'+
-      '</div>'+
-      '<div class="row">'+
-        '<div class="field"><label>Départ</label><input class="inp" id="e-from" value="'+esc(w.from)+'" placeholder="X1:3"></div>'+
-        '<div class="field"><label>Arrivée</label><input class="inp" id="e-to" value="'+esc(w.to)+'" placeholder="Wago A:2"></div>'+
-      '</div>'+
+      '<div class="cabs-head"><span>Câbles de l\'étape</span>'+
+        '<button class="btn sm" id="c-add">+ Câble</button></div>'+
+      cards+
+      '<div style="font-size:11.5px;color:var(--tx-3);margin:2px 2px 0">'+
+        'Clic = sélectionner · clic droit = modifier, retracer, supprimer</div>'+
 
-      '<details class="acc" data-acc="det"'+(S.open.det?' open':'')+'><summary>Détail du câble'+
-        (peek.length?'<span class="peek">'+esc(peek.join('  ·  '))+'</span>':'')+'</summary><div class="accb">'+
-        '<div class="row">'+
-          '<div class="field"><label>Section (mm²)</label><input class="inp" id="e-sec" value="'+esc(w.section)+'" placeholder="0,75"></div>'+
-          '<div class="field"><label>Longueur (mm)</label><div class="sw-row">'+
-            '<input class="inp" id="e-len" value="'+esc(w.length)+'" placeholder="—">'+
-            (P.scale>0&&est?'<button class="btn sm" id="e-len-est" title="Reprendre la longueur mesurée sur le tracé">≈ '+estTxt+'</button>':'')+
-          '</div></div>'+
-        '</div>'+
-        '<div class="field"><label>À vérifier / remarque</label><textarea class="inp" id="e-com" placeholder="Serrage, repérage, précaution…">'+esc(w.comment)+'</textarea></div>'+
-      '</div></details>'+
-
-      '<details class="acc" data-acc="etp"'+(S.open.etp?' open':'')+'><summary>Étape'+
+      '<details class="acc" data-acc="etp"'+(S.open.etp?' open':'')+' style="margin-top:14px"><summary>Étape'+
         '<span class="peek">'+esc(st.name||'—')+'</span></summary><div class="accb">'+
         '<div class="field"><label>Intitulé</label><input class="inp" id="e-name" value="'+esc(st.name)+'"></div>'+
         '<div class="field"><label>Connecteur / groupe</label><input class="inp" id="e-group" list="grp-list" value="'+esc(st.group)+'" placeholder="X1 — Flexisoft"><datalist id="grp-list">'+groupOpts()+'</datalist></div>'+
@@ -1190,18 +1251,32 @@ function bootViewer(project){
           (st.group?'<button class="btn sm" id="e-img-grp">ce groupe</button>':'')+
           '<button class="btn sm" id="e-img-all">toutes les étapes</button>'+
         '</div>' : '')+
+        '</div>'+
       '</div></details>'+
-
-      '<div class="sw-row" style="justify-content:space-between;margin-top:12px">'+
-        '<span class="tag'+(st.path.length>1?' ok':'')+'">Tracé : '+st.path.length+' point'+(st.path.length>1?'s':'')+'</span>'+
-        '<span style="display:flex;gap:6px">'+
-          '<button class="btn sm" id="e-draw">Tracer</button>'+
-          '<button class="btn sm danger" id="e-clear">Effacer</button>'+
-        '</span>'+
-      '</div>'+
     '</div>';
 
     qa('.acc[data-acc]',host).forEach(function(a){ bindAcc(a,a.dataset.acc,S); });
+
+    /* --- cartes : sélection, clic droit, édition en place --- */
+    qa('.cab',host).forEach(function(el){
+      if(el.dataset.form!==undefined) return;   /* carte en cours d'édition */
+      var i=parseInt(el.dataset.ci,10);
+      el.addEventListener('click',function(){ S.cable=i; S.editCable=-1; renderFiche(S); renderCanvas(S); });
+      el.addEventListener('contextmenu',function(e){
+        e.preventDefault(); S.cable=i; cableMenu(e.clientX,e.clientY,i);
+      });
+    });
+    qa('[data-editdone]',host).forEach(function(b){
+      b.addEventListener('click',function(){ S.editCable=-1; renderFiche(S); });
+    });
+    bindCableForm(st);
+
+    q('#c-add').addEventListener('click',function(){
+      var c=emptyCable(), prev=st.cables[st.cables.length-1];
+      if(prev) c.color=prev.color;
+      st.cables.push(c); S.cable=st.cables.length-1; S.editCable=S.cable;
+      touch(); renderFiche(S); renderSteps(S);
+    });
 
     function bindF(id,fn){
       var e=q(id); if(!e) return;
@@ -1209,20 +1284,15 @@ function bootViewer(project){
     }
     bindF('#e-name',function(v){ st.name=v; });
     bindF('#e-group',function(v){ st.group=v; });
-    bindF('#e-num',function(v){ w.num=v; });
-    bindF('#e-sec',function(v){ w.section=v; });
-    bindF('#e-from',function(v){ w.from=v; });
-    bindF('#e-to',function(v){ w.to=v; });
-    bindF('#e-len',function(v){ w.length=v; });
-    bindF('#e-com',function(v){ w.comment=v; });
-    q('#e-col').addEventListener('change',function(){ w.color=this.value; renderFiche(S); renderSteps(S); renderCanvas(S); touch(); });
     var ei=q('#e-img');
     if(ei) ei.addEventListener('change',function(){
       if(st.img===this.value) return;
-      if(st.path.length && !confirm('Changer de plan efface le tracé de cette étape. Continuer ?')){
+      var traces=st.cables.filter(function(c){ return c.path.length; }).length;
+      if(traces && !confirm('Changer de plan efface le tracé de '+traces+' câble(s). Continuer ?')){
         this.value=st.img; return;
       }
-      st.img=this.value; st.path=[]; touch(); S.viewImg=null; S.render();
+      st.img=this.value; st.cables.forEach(function(c){ c.path=[]; });
+      touch(); S.viewImg=null; S.render();
     });
     var ea=q('#e-img-add');
     if(ea) ea.addEventListener('click',function(){ pickImage({assign:true}); });
@@ -1230,28 +1300,98 @@ function bootViewer(project){
     bindApply('#e-img-all',function(){ return true; });
 
     /* Affecte le plan de l'étape courante à un ensemble d'étapes. Seules
-       celles qui changent effectivement de plan perdent leur tracé. */
+       celles qui changent effectivement de plan perdent leurs tracés. */
     function bindApply(sel,match){
       var b=q(sel); if(!b) return;
       b.addEventListener('click',function(){
         var cibles=P.steps.filter(function(o){ return o!==st && match(o) && o.img!==st.img; });
         if(!cibles.length){ toast('Ces étapes utilisent déjà ce plan.'); return; }
-        var perdus=cibles.filter(function(o){ return o.path.length; }).length;
+        var perdus=0;
+        cibles.forEach(function(o){ o.cables.forEach(function(c){ if(c.path.length) perdus++; }); });
         if(!confirm(cibles.length+' étape(s) passeront sur le plan « '+
             ((imageById(P,st.img)||{}).name||'—')+' ».'+
-            (perdus?'\n\n'+perdus+' d\'entre elles ont déjà un tracé, qui sera effacé.':''))) return;
-        cibles.forEach(function(o){ o.img=st.img; o.path=[]; });
+            (perdus?'\n\n'+perdus+' tracé(s) seront effacés.':''))) return;
+        cibles.forEach(function(o){ o.img=st.img; o.cables.forEach(function(c){ c.path=[]; }); });
         touch(); S.render();
         toast(cibles.length+' étape(s) rattachées à ce plan');
       });
     }
-    q('#e-draw').addEventListener('click',function(){ setTool('draw'); });
-    q('#e-clear').addEventListener('click',function(){ st.path=[]; renderFiche(S); renderCanvas(S); touch(); });
-    var eb=q('#e-len-est');
-    if(eb) eb.addEventListener('click',function(){
-      w.length=String(fmt(est/P.scale,0)); renderFiche(S); touch();
-    });
   };
+
+  /* Carte dépliée en formulaire : repère, couleur, origine, extrémité. */
+  function cableForm(c,i){
+    var opts=WIRE_COLORS.map(function(o){
+      return '<option value="'+o.id+'"'+(o.id===c.color?' selected':'')+'>'+o.name+'</option>';
+    }).join('');
+    return '<div class="cab on" style="display:block;cursor:default" data-form="'+i+'">'+
+      '<div class="row" style="margin-bottom:8px">'+
+        '<div class="field" style="margin:0"><label>N° de fil</label><input class="inp" id="f-num" value="'+esc(c.num)+'" placeholder="142"></div>'+
+        '<div class="field" style="margin:0"><label>Couleur</label><select class="inp" id="f-col">'+opts+'</select></div>'+
+      '</div>'+
+      '<div class="row" style="margin-bottom:8px">'+
+        '<div class="field" style="margin:0"><label>Origine</label><input class="inp" id="f-from" value="'+esc(c.from)+'" placeholder="X1:3"></div>'+
+        '<div class="field" style="margin:0"><label>Extrémité</label><input class="inp" id="f-to" value="'+esc(c.to)+'" placeholder="Wago A:2"></div>'+
+      '</div>'+
+      '<div class="sw-row" style="justify-content:flex-end"><button class="btn sm primary" data-editdone="1">Terminé</button></div>'+
+    '</div>';
+  }
+  function bindCableForm(st){
+    var c=st.cables[S.editCable]; if(!c) return;
+    function bind(id,fn){
+      var e=q(id); if(!e) return;
+      e.addEventListener('input',function(){ fn(e.value); touch(); renderSteps(S); renderCanvas(S); });
+    }
+    bind('#f-num',function(v){ c.num=v; });
+    bind('#f-from',function(v){ c.from=v; });
+    bind('#f-to',function(v){ c.to=v; });
+    var col=q('#f-col');
+    if(col) col.addEventListener('change',function(){
+      c.color=this.value; touch(); renderSteps(S); renderCanvas(S); renderFiche(S);
+    });
+  }
+
+  /* Menu contextuel d'un câble. */
+  function cableMenu(x,y,i){
+    var st=curStep(S); if(!st) return;
+    var c=st.cables[i];
+    menu(x,y,[
+      { t:'Modifier', f:function(){ S.editCable=i; renderFiche(S); } },
+      { t:(c.path.length?'Retracer':'Tracer'), f:function(){
+          c.path=[]; S.cable=i; S.editCable=-1; touch(); renderFiche(S); setTool('draw'); } },
+      { t:'Dupliquer', f:function(){
+          var d=JSON.parse(JSON.stringify(c)); d.id=uid(); d.path=[];
+          st.cables.splice(i+1,0,d); S.cable=i+1; S.editCable=i+1;
+          touch(); renderFiche(S); renderSteps(S); } },
+      null,
+      { t:'Supprimer', danger:true, f:function(){
+          if(st.cables.length<2){ toast('Une étape garde au moins un câble.',true); return; }
+          st.cables.splice(i,1); S.cable=Math.max(0,i-1); S.editCable=-1;
+          touch(); S.render(); } }
+    ]);
+  }
+  function menu(x,y,items){
+    var old=q('.ctx'); if(old) old.remove();
+    var m=document.createElement('div');
+    m.className='ctx';
+    m.innerHTML=items.map(function(it){
+      return it ? '<button'+(it.danger?' class="danger"':'')+'>'+esc(it.t)+'</button>' : '<hr>';
+    }).join('');
+    document.body.appendChild(m);
+    var r=m.getBoundingClientRect();
+    m.style.left=Math.min(x,innerWidth-r.width-8)+'px';
+    m.style.top=Math.min(y,innerHeight-r.height-8)+'px';
+    var bs=qa('button',m), k=0;
+    items.forEach(function(it){ if(it){ bs[k++].addEventListener('click',function(){ m.remove(); it.f(); }); } });
+    /* Le mousedown sur une entrée précède son click : ignorer ceux qui
+       viennent du menu, sinon il disparaît avant d'avoir agi. */
+    setTimeout(function(){
+      window.addEventListener('mousedown',function h(e){
+        if(m.contains(e.target)) return;
+        m.remove(); window.removeEventListener('mousedown',h);
+      });
+    },0);
+  }
+
   function groupOpts(){
     var seen={}, o='';
     S.project.steps.forEach(function(s){ if(s.group && !seen[s.group]){ seen[s.group]=1; o+='<option value="'+esc(s.group)+'">'; } });
@@ -1259,33 +1399,35 @@ function bootViewer(project){
   }
 
   /* ------------------------------------------------------- calque d'édition */
+  /* Le calque d'édition n'est pas du dessin : ses poignées gardent une taille
+     constante à l'écran, sinon elles deviennent énormes dès qu'on zoome. */
+  function screenUnit(S){
+    var svg=q('#svg'); if(!svg||!S.view) return 1;
+    var cw=svg.clientWidth||1000, ch=svg.clientHeight||700;
+    return 1/Math.min(cw/S.view.w, ch/S.view.h);
+  }
   function overlay(S){
-    var st=S.project.steps[S.current];
-    var s='';
-    if(!st) return s;
-    /* poignées exprimées en unités schéma : elles suivent le zoom */
-    var u=docUnit(curImage(S)), r=Math.max(wireWidth(S.project,st)*1.15, u*.34);
-    var c=colorOf(st.wire.color);
+    var c=curCable(S); if(!c) return '';
+    var k=screenUnit(S), r=6*k;          /* ≈ 6 px à l'écran, quel que soit le zoom */
+    var col=colorOf(c.color), s='';
 
     /* aperçu du prochain segment */
-    if(S.tool==='draw' && st.path.length && S.mouse){
-      var a=st.path[st.path.length-1], b={x:S.mouse.x,y:S.mouse.y,elbow:S.elbow};
-      s+='<path d="'+pathD([a,b])+'" fill="none" stroke="'+c.hex+'" stroke-opacity=".55" stroke-width="'+wireWidth(S.project,st)+'" stroke-dasharray="'+(u*.6)+' '+(u*.45)+'" stroke-linecap="round" stroke-linejoin="round"/>';
-      s+='<circle cx="'+b.x+'" cy="'+b.y+'" r="'+(r*.85)+'" fill="none" stroke="'+ink(S.project).lblTx+'" stroke-opacity=".8" stroke-width="'+(r*.2)+'"/>';
+    if(S.tool==='draw' && c.path.length && S.mouse){
+      var a=c.path[c.path.length-1], b={x:S.mouse.x,y:S.mouse.y,elbow:S.elbow};
+      s+='<path d="'+pathD([a,b])+'" fill="none" stroke="'+col.hex+'" stroke-opacity=".55" stroke-width="'+wireWidth(S.project)+'" stroke-dasharray="'+(9*k)+' '+(7*k)+'" stroke-linecap="round" stroke-linejoin="round"/>';
+      s+='<circle cx="'+b.x+'" cy="'+b.y+'" r="'+(r*.9)+'" fill="none" stroke="'+ink(S.project).lblTx+'" stroke-opacity=".8" stroke-width="'+(1.5*k)+'"/>';
     }
-    /* poignées */
     if(S.tool==='select'||S.tool==='draw'){
-      st.path.forEach(function(p,i){
+      c.path.forEach(function(p,i){
         var sel = i===S.sel;
         s+='<circle class="handle" data-pi="'+i+'" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'" '+
-           'fill="'+(sel?'#1a63d6':ink(S.project).lblBg)+'" stroke="'+ink(S.project).lblTx+'" stroke-width="'+(r*.22)+'" style="cursor:move"/>';
+           'fill="'+(sel?'#1a63d6':ink(S.project).lblBg)+'" stroke="'+ink(S.project).lblTx+'" stroke-width="'+(1.5*k)+'" style="cursor:move"/>';
       });
-      /* coudes calculés (double-clic pour inverser) */
-      for(var i=1;i<st.path.length;i++){
-        var A=st.path[i-1], B=st.path[i];
+      for(var i=1;i<c.path.length;i++){
+        var A=c.path[i-1], B=c.path[i];
         if(A.x!==B.x && A.y!==B.y){
           var e=(B.elbow||'h')==='h'?{x:B.x,y:A.y}:{x:A.x,y:B.y};
-          s+='<rect class="elbow" data-ei="'+i+'" x="'+(e.x-r*.7)+'" y="'+(e.y-r*.7)+'" width="'+(r*1.4)+'" height="'+(r*1.4)+'" rx="'+(r*.3)+'" fill="'+ink(S.project).markBg+'" stroke="#1a63d6" stroke-width="'+(r*.2)+'" style="cursor:pointer"/>';
+          s+='<rect class="elbow" data-ei="'+i+'" x="'+(e.x-r*.72)+'" y="'+(e.y-r*.72)+'" width="'+(r*1.44)+'" height="'+(r*1.44)+'" rx="'+(r*.3)+'" fill="'+ink(S.project).markBg+'" stroke="#1a63d6" stroke-width="'+(1.4*k)+'" style="cursor:pointer"/>';
         }
       }
     }
@@ -1303,11 +1445,13 @@ function bootViewer(project){
       if(S.magnet){
         var best=null,bd=14*(S.view.w/(svg.clientWidth||1000));
         var im=curImage(S);
-        P.steps.forEach(function(st,si){
+        P.steps.forEach(function(st){
           if(stepImage(P,st)!==im) return;
-          st.path.forEach(function(q2){
-            var d=Math.hypot(q2.x-p.x,q2.y-p.y);
-            if(d<bd){ bd=d; best={x:q2.x,y:q2.y}; }
+          st.cables.forEach(function(c){
+            c.path.forEach(function(q2){
+              var d=Math.hypot(q2.x-p.x,q2.y-p.y);
+              if(d<bd){ bd=d; best={x:q2.x,y:q2.y}; }
+            });
           });
         });
         if(best) return best;
@@ -1322,9 +1466,9 @@ function bootViewer(project){
     svg.addEventListener('mousemove',function(e){
       S.mouse=snap(S.toImg(e));
       if(drag){
-        var st=S.project.steps[S.current];
-        st.path[drag.i].x=S.mouse.x; st.path[drag.i].y=S.mouse.y;
-        renderCanvas(S); return;
+        var c=curCable(S);
+        if(c){ c.path[drag.i].x=S.mouse.x; c.path[drag.i].y=S.mouse.y; renderCanvas(S); }
+        return;
       }
       if(S.tool==='draw') renderOverlay(S);
     });
@@ -1338,11 +1482,11 @@ function bootViewer(project){
         S.sel=parseInt(t.dataset.pi,10); drag={i:S.sel}; renderCanvas(S); return;
       }
       if(t.classList && t.classList.contains('elbow')) return;   /* géré au dblclick */
-      var st=S.project.steps[S.current];
+      var c=curCable(S);
       var p=snap(S.toImg(e));
       if(S.tool==='draw'){
-        if(!st){ toast('Créez d\'abord une étape.',true); return; }
-        st.path.push({x:p.x,y:p.y,elbow:S.elbow});
+        if(!c){ toast('Créez d\'abord une étape.',true); return; }
+        c.path.push({x:p.x,y:p.y,elbow:S.elbow});
         renderCanvas(S); renderFiche(S); touch();
       }else if(S.tool==='mark'){
         var txt=prompt('Texte du repère (ex. X1, Wago A, Flexisoft M1) :','');
@@ -1360,18 +1504,18 @@ function bootViewer(project){
     });
 
     svg.addEventListener('dblclick',function(e){
-      var t=e.target, st=S.project.steps[S.current]; if(!st) return;
+      var t=e.target, c=curCable(S); if(!c) return;
       if(t.classList && t.classList.contains('elbow')){
         var i=parseInt(t.dataset.ei,10);
-        st.path[i].elbow = (st.path[i].elbow||'h')==='h' ? 'v':'h';
+        c.path[i].elbow = (c.path[i].elbow||'h')==='h' ? 'v':'h';
         renderCanvas(S); touch();
       }
     });
     svg.addEventListener('contextmenu',function(e){
-      var t=e.target, st=S.project.steps[S.current];
-      if(t.classList && t.classList.contains('handle') && st){
+      var t=e.target, c=curCable(S);
+      if(t.classList && t.classList.contains('handle') && c){
         e.preventDefault();
-        st.path.splice(parseInt(t.dataset.pi,10),1);
+        c.path.splice(parseInt(t.dataset.pi,10),1);
         S.sel=-1; renderCanvas(S); renderFiche(S); touch(); return;
       }
       if(t.getAttribute && t.parentNode && t.parentNode.dataset && t.parentNode.dataset.mark){
@@ -1387,14 +1531,18 @@ function bootViewer(project){
     window.addEventListener('keydown',function(e){
       var tag=e.target.tagName;
       if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
-      var st=S.project.steps[S.current];
-      if(e.key==='Tab'){ e.preventDefault(); S.elbow=S.elbow==='h'?'v':'h'; syncSeg(); renderCanvas(S); }
-      if(e.key==='Escape'){ setTool('select'); }
-      if(e.key==='Backspace' && S.tool==='draw' && st && st.path.length){
-        e.preventDefault(); st.path.pop(); renderCanvas(S); renderFiche(S); touch();
+      var c=curCable(S);
+      if(e.key==='Tab'){ e.preventDefault(); S.elbow=S.elbow==='h'?'v':'h'; syncSeg(); renderOverlay(S); }
+      if(e.key==='Escape'){
+        /* on repart de zéro sur ce câble */
+        if(c && c.path.length){ c.path=[]; S.sel=-1; touch(); renderCanvas(S); renderFiche(S); }
+        else setTool('select');
       }
-      if(e.key==='Delete' && S.sel>=0 && st){
-        st.path.splice(S.sel,1); S.sel=-1; renderCanvas(S); renderFiche(S); touch();
+      if(e.key==='Backspace' && S.tool==='draw' && c && c.path.length){
+        e.preventDefault(); c.path.pop(); renderCanvas(S); renderFiche(S); touch();
+      }
+      if(e.key==='Delete' && S.sel>=0 && c){
+        c.path.splice(S.sel,1); S.sel=-1; renderCanvas(S); renderFiche(S); touch();
       }
       if(e.key==='d'||e.key==='D'){ setTool('draw'); }
       if(e.key==='v'||e.key==='V'){ setTool('select'); }
@@ -1420,6 +1568,10 @@ function bootViewer(project){
         if(!im) return next();
         var P=S.project, first=!P.images.length;
         P.images.push(im); added.push(im);
+        /* L'épaisseur est exprimée en unités du schéma : sur un plan en 8K,
+           la valeur par défaut serait un cheveu. On la cale sur la taille du
+           premier plan, tant que l'utilisateur n'y a pas touché. */
+        if(first && P.settings.thickAuto) P.settings.thickness=Math.max(3,Math.round(im.w/200));
         if(assign && P.steps[S.current]) P.steps[S.current].img=im.id;
         if(first) P.steps.forEach(function(st){ if(!st.img) st.img=im.id; });
         next();
@@ -1486,14 +1638,12 @@ function bootViewer(project){
       '<div class="field"><label>Plans du projet</label>'+
         '<div class="imglist">'+list+'</div>'+
         '<button class="btn" id="d-img" style="margin-top:8px">+ Ajouter un plan</button></div>'+
-      '<div class="row" style="margin-top:14px">'+
-        '<div class="field"><label>Échelle (px / mm)</label><input class="inp" id="i-scale" value="'+esc(P.scale||'')+'" placeholder="0 = non défini"></div>'+
-        '<div class="field"><label>Épaisseur pour 1,5 mm²</label><input class="inp" id="i-th" type="number" min="1" max="200" value="'+(P.settings.thickness||6)+'"></div>'+
-      '</div>'+
+      '<div class="field" style="margin-top:14px"><label>Épaisseur du tracé</label>'+
+        '<input class="inp" id="i-th" type="number" min="1" max="400" value="'+(P.settings.thickness||6)+'"></div>'+
       '<label class="check'+(P.settings.labels?' on':'')+'" style="margin-top:0"><input type="checkbox" id="i-lab"'+(P.settings.labels?' checked':'')+'> <span>Afficher le n° de fil sur le tracé</span></label>',
       function(){
-        P.scale=parseFloat(String(q('#i-scale').value).replace(',','.'))||0;
-        P.settings.thickness=clamp(parseInt(q('#i-th').value,10)||6,1,200);
+        P.settings.thickness=clamp(parseInt(q('#i-th').value,10)||6,1,400);
+        P.settings.thickAuto=false;
         P.settings.labels=q('#i-lab').checked;
         touch(); S.render();
       },
@@ -1512,7 +1662,9 @@ function bootViewer(project){
             P.images=P.images.filter(function(x){ return x.id!==id; });
             P.marks=P.marks.filter(function(x){ return x.img!==id; });
             var fb=P.images[0]?P.images[0].id:'';
-            P.steps.forEach(function(st){ if(st.img===id){ st.img=fb; st.path=[]; } });
+            P.steps.forEach(function(st){
+              if(st.img===id){ st.img=fb; st.cables.forEach(function(c){ c.path=[]; }); }
+            });
             touch(); S.viewImg=null; S.bgKey=null; S.render(); m.remove(); dlgDoc();
           });
         });

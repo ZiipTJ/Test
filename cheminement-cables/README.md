@@ -17,15 +17,15 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
 
 1. **Ajouter un plan** — bouton **+** du bloc *Étape*, ou le bouton réglages
    de la barre haute. Rien n'est demandé : l'image rejoint la bibliothèque.
-2. **+ Étape** → une étape = un fil à brancher. À droite, l'essentiel est
-   toujours visible — n° de fil, couleur, départ, arrivée — et le reste est
-   replié : *Détail du câble* (section, longueur, remarque) et *Étape*
-   (intitulé, connecteur). Le champ **Connecteur / groupe** regroupe les
-   étapes dans la liste de gauche (ex. `X1 — Flexisoft`, `Wago A`).
-3. **Tracer le fil** → cliquer les points du parcours. Chaque segment est
-   forcément horizontal ou vertical ; quand deux points ne sont pas alignés,
-   un coude est inséré automatiquement. La grille et l'aimantation sur les
-   points existants sont toujours actives, il n'y a rien à régler.
+2. **+ Étape** → une étape rassemble les câbles à brancher d'un même tenant,
+   typiquement un connecteur. **+ Câble** en ajoute un dans l'étape.
+   Le champ **Connecteur / groupe** regroupe les étapes dans la liste de
+   gauche (ex. `X1 — Flexisoft`, `Wago A`).
+3. **Tracer le fil** → le tracé s'applique au **câble sélectionné** dans la
+   liste de droite. Cliquer les points du parcours ; chaque segment est
+   forcément horizontal ou vertical, et quand deux points ne sont pas
+   alignés un coude est inséré automatiquement. La grille et l'aimantation
+   sont toujours actives, il n'y a rien à régler.
 4. Réordonner les étapes par **glisser-déposer** dans la liste de gauche :
    c'est l'ordre de câblage remis à l'opérateur.
 5. **Exporter pour l'opérateur** → c'est le seul moment où des informations
@@ -55,7 +55,7 @@ disparaît après un enregistrement.
 | `D` / `V` | Outil tracé / modification |
 | `Tab` | Inverser le sens du coude (H→V ou V→H) |
 | `Retour arrière` | Annuler le dernier point posé |
-| `Échap` | Terminer le tracé |
+| `Échap` | Effacer tout le tracé du câble en cours |
 | `N` | Nouvelle étape |
 | `←` `→` | Étape précédente / suivante |
 | `G` | Faire défiler l'affichage des étapes précédentes |
@@ -64,6 +64,29 @@ disparaît après un enregistrement.
 
 Souris : **molette** = zoom, **clic droit** sur un point = le supprimer,
 **double-clic** sur un coude = l'inverser, **glisser** un point = le déplacer.
+
+## Un câble : trois informations
+
+Un câble ne porte que ce qui sert à le brancher : le **n° de fil**, sa
+**couleur**, son **origine** et son **extrémité** — le vocabulaire du carnet
+de câblage. Ni section, ni longueur, ni commentaire : cette information-là
+vit ailleurs, et l'encombrer ici ralentit la lecture au poste.
+
+Sur le plan, l'origine est marquée `O` et l'extrémité `E`.
+
+### La liste de droite
+
+Chaque câble est une **carte compacte et de hauteur constante** — repère,
+pastille de couleur, `origine → extrémité` — pour qu'une étape puisse en
+aligner plusieurs sans que la fiche devienne illisible.
+
+Dans l'éditeur : **clic** sélectionne le câble (c'est celui qu'on trace),
+**clic droit** ouvre *Modifier*, *Retracer*, *Dupliquer*, *Supprimer*. Les
+champs n'apparaissent que le temps de la modification, la carte reprend
+ensuite sa forme compacte.
+
+Côté opérateur, chaque carte se coche indépendamment : l'étape n'est marquée
+terminée que lorsque tous ses câbles le sont.
 
 ## Collection de plans
 
@@ -119,17 +142,18 @@ elles figurent aussi dans le bandeau d'impression et dans le nom du fichier
 exporté (`aff-2026-118-operateur-b2-tjz.html`). Les valeurs sont conservées dans
 le projet et repréremplies à l'export suivant.
 
-## Échelle et épaisseur des fils
-
-L'épaisseur d'un tracé est **proportionnelle à la section du fil** : elle suit
-la racine carrée des mm², comme le diamètre réel d'un conducteur. Un 4 mm² est
-donc exactement 2,3 fois plus large qu'un 0,75 mm² à l'écran. Le réglage
-*Épaisseur pour 1,5 mm²* fixe la référence.
+## Échelle du dessin
 
 Tout ce qui est dessiné sur le plan — tracés, marqueurs `D` et `A`, numéros de
 fil, repères — est exprimé **en unités du schéma**. Zoomer agrandit donc le
 dessin exactement comme le plan : l'échelle est conservée, et un fil garde la
-même largeur relative aux borniers quel que soit le grossissement.
+même largeur relative aux borniers quel que soit le grossissement. L'épaisseur
+du tracé se règle dans les réglages, et se cale d'elle-même sur la définition
+du premier plan chargé.
+
+Les **poignées d'édition** échappent volontairement à cette règle : ce sont des
+outils, pas du dessin. Elles gardent une taille constante à l'écran, sinon
+elles deviendraient énormes dès qu'on zoome.
 
 ## Fond clair ou fond sombre
 
@@ -144,22 +168,21 @@ force toujours un fond blanc.
 - Schéma au centre avec le fil de l'étape en couleur, départ `D` et arrivée `A`.
 - Les **étapes précédentes** s'affichent en transparence : au choix masquées,
   seulement la précédente, ou toutes.
-- À droite : couleur et n° de fil en grand, puis **départ → arrivée**. Le
-  *détail du câble* (section, longueur) est replié, son contenu est résumé
-  sur la ligne repliée ; une remarque de câblage, elle, reste toujours visible.
-- Case **« Câblage réalisé et vérifié »**. Ce suivi ne vit que le temps de la
-  session — rien n'est écrit sur le poste — et la fermeture est confirmée si
-  des cases sont cochées.
+- À droite : une carte par câble — repère, couleur, `origine → extrémité`.
+- Un clic sur une carte pointe le câble comme réalisé. Ce suivi ne vit que le
+  temps de la session — rien n'est écrit sur le poste — et la fermeture est
+  confirmée si des câbles sont cochés.
 - Bouton **Imprimer** pour une sortie papier.
 
 ## Format de fichier
 
 Le `.json` est un format ouvert et lisible ; les images y sont incluses en
 base64. `images[]` est la collection de plans, `steps[]` porte l'ordre de
-câblage (chaque étape désignant son plan par `img`), `path[]` les points du
-tracé (chaque point possède un `elbow` valant `h` ou `v` qui décide du sens du
-coude) et `marks[]` les étiquettes posées sur les plans.
+câblage (chaque étape désignant son plan par `img`), `steps[].cables[]` les
+câbles avec leur `path[]` de points (chaque point possède un `elbow` valant
+`h` ou `v` qui décide du sens du coude) et `marks[]` les étiquettes posées sur
+les plans.
 
-Les projets enregistrés avant l'arrivée de la collection de plans se rouvrent
-sans manipulation : leur schéma unique devient le premier plan et toutes les
-étapes lui sont rattachées.
+Les projets antérieurs se rouvrent sans manipulation : un schéma unique devient
+le premier plan auquel toutes les étapes sont rattachées, et le fil que portait
+une étape devient son premier câble.
