@@ -15,20 +15,23 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
 
 ## Prise en main (éditeur)
 
-1. **Schéma** → charger la photo ou le plan du coffret (PNG/JPG).
-   L'image est encodée dans le fichier : plus aucune dépendance ensuite.
-2. **Cartouche** → titre, référence d'affaire, indice, auteur, date.
-   Optionnel : l'**échelle** en px/mm permet d'estimer les longueurs de fil depuis le tracé.
-3. **+ Étape** → une étape = un fil à brancher. Renseigner à droite :
-   n° de fil, couleur, section, longueur, départ, arrivée, remarque.
-   Le champ **Connecteur / groupe** regroupe les étapes dans la liste de gauche
-   (ex. `X1 — Flexisoft`, `Wago A`).
-4. **Tracer le fil** → cliquer les points du parcours. Chaque segment est
+1. **Document** → charger la photo ou le plan du coffret (PNG/JPG), puis le
+   cartouche : titre, référence d'affaire, indice, auteur, date. L'image est
+   encodée dans le fichier : plus aucune dépendance ensuite. Le bloc
+   *Réglages du tracé* contient l'**échelle** en px/mm, qui permet d'estimer
+   les longueurs de fil directement depuis le tracé.
+2. **+ Étape** → une étape = un fil à brancher. À droite, l'essentiel est
+   toujours visible — n° de fil, couleur, départ, arrivée — et le reste est
+   replié : *Détail du câble* (section, longueur, remarque) et *Étape*
+   (intitulé, connecteur). Le champ **Connecteur / groupe** regroupe les
+   étapes dans la liste de gauche (ex. `X1 — Flexisoft`, `Wago A`).
+3. **Tracer le fil** → cliquer les points du parcours. Chaque segment est
    forcément horizontal ou vertical ; quand deux points ne sont pas alignés,
-   un coude est inséré automatiquement.
-5. Réordonner les étapes par **glisser-déposer** dans la liste de gauche :
+   un coude est inséré automatiquement. La grille et l'aimantation sur les
+   points existants sont toujours actives, il n'y a rien à régler.
+4. Réordonner les étapes par **glisser-déposer** dans la liste de gauche :
    c'est l'ordre de câblage remis à l'opérateur.
-6. **Exporter doc opérateur** → produit le HTML autonome à transmettre.
+5. **Exporter pour l'opérateur** → produit le HTML autonome à transmettre.
 
 **Enregistrer** produit un `.json` : c'est le fichier de travail, à conserver
 pour rouvrir et modifier le projet plus tard. Le projet en cours est aussi
@@ -38,7 +41,7 @@ sauvegardé automatiquement dans le navigateur.
 
 | Touche | Action |
 |---|---|
-| `D` / `V` | Outil tracé / sélection |
+| `D` / `V` | Outil tracé / modification |
 | `Tab` | Inverser le sens du coude (H→V ou V→H) |
 | `Retour arrière` | Annuler le dernier point posé |
 | `Échap` | Terminer le tracé |
@@ -57,8 +60,10 @@ Souris : **molette** = zoom, **clic droit** sur un point = le supprimer,
 - Schéma au centre avec le fil de l'étape en couleur, départ `D` et arrivée `A`.
 - Les **étapes précédentes** s'affichent en transparence : au choix masquées,
   seulement la précédente, ou toutes.
-- Fiche du fil à droite, et case **« Câblage réalisé et vérifié »** dont l'état
-  est mémorisé sur le poste.
+- À droite : couleur et n° de fil en grand, puis **départ → arrivée**. Le
+  *détail du câble* (section, longueur) est replié, son contenu est résumé
+  sur la ligne repliée ; une remarque de câblage, elle, reste toujours visible.
+- Case **« Câblage réalisé et vérifié »** dont l'état est mémorisé sur le poste.
 - Bouton **Imprimer** pour une sortie papier.
 
 ## Format de fichier

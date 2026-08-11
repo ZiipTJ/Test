@@ -14,16 +14,16 @@
 <style id="app-css">
 /* ------------------------------------------------------------------ base */
 :root{
-  --bg:#0e1116;
-  --bg-2:#151a22;
-  --bg-3:#1c232e;
-  --line:#2a3341;
-  --line-2:#3a4657;
-  --tx:#e6ecf5;
-  --tx-2:#9aa8bd;
-  --tx-3:#6b7a90;
-  --acc:#4d9dff;
-  --acc-2:#1f6fd0;
+  --bg:#081020;
+  --bg-2:#0d1a33;
+  --bg-3:#142748;
+  --line:#1d3159;
+  --line-2:#2b4a80;
+  --tx:#e9effc;
+  --tx-2:#9db4dd;
+  --tx-3:#6a85b6;
+  --acc:#3d8bfd;
+  --acc-2:#1a5fd0;
   --ok:#35c47b;
   --warn:#f0a742;
   --danger:#ef5f6b;
@@ -47,14 +47,14 @@ button,input,select,textarea{font:inherit;color:inherit}
 .app{display:flex;flex-direction:column;height:100vh}
 .topbar{
   display:flex;align-items:center;gap:16px;padding:0 14px;height:52px;flex:0 0 52px;
-  background:linear-gradient(180deg,var(--bg-2),var(--bg-2) 60%,#12171f);
+  background:linear-gradient(180deg,var(--bg-2),var(--bg-2) 60%,#0a1428);
   border-bottom:1px solid var(--line);
 }
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
 .logo{
   width:26px;height:26px;border-radius:7px;flex:0 0 26px;
   background:linear-gradient(135deg,var(--acc),#7b5cff);
-  display:grid;place-items:center;box-shadow:0 2px 10px rgba(77,157,255,.35)
+  display:grid;place-items:center;box-shadow:0 2px 10px rgba(61,139,253,.35)
 }
 .logo svg{width:16px;height:16px}
 .brand-txt{min-width:0}
@@ -73,7 +73,7 @@ button,input,select,textarea{font:inherit;color:inherit}
   display:flex;flex-direction:column;min-height:0
 }
 .stage{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:
-  radial-gradient(1200px 600px at 50% -10%,#161d27,var(--bg))}
+  radial-gradient(1200px 600px at 50% -10%,#0f1d38,var(--bg))}
 .panel-head{
   display:flex;align-items:center;gap:8px;padding:10px 12px;flex:0 0 auto;
   font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--tx-3);
@@ -88,13 +88,13 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:var(--bg-3);border:1px solid var(--line-2);color:var(--tx);cursor:pointer;
   white-space:nowrap;transition:background .12s,border-color .12s,transform .06s
 }
-.btn:hover{background:#232c39;border-color:#4a586c}
+.btn:hover{background:#1b3562;border-color:#3a5f9e}
 .btn:active{transform:translateY(1px)}
-.btn.primary{background:linear-gradient(180deg,var(--acc),var(--acc-2));border-color:#2a6fc4;color:#fff;font-weight:600}
+.btn.primary{background:linear-gradient(180deg,var(--acc),var(--acc-2));border-color:#1a5fd0;color:#fff;font-weight:600}
 .btn.primary:hover{filter:brightness(1.07)}
 .btn.ghost{background:transparent;border-color:transparent;color:var(--tx-2)}
 .btn.ghost:hover{background:var(--bg-3);color:var(--tx)}
-.btn.danger:hover{background:#3a222a;border-color:#7a3a46;color:#ffc9cf}
+.btn.danger:hover{background:#3a1f2c;border-color:#7a3a52;color:#ffc9cf}
 .btn.sm{height:26px;padding:0 8px;font-size:12.5px;border-radius:7px}
 .btn.icon{width:32px;padding:0;justify-content:center}
 .btn.icon.sm{width:26px}
@@ -107,13 +107,13 @@ button,input,select,textarea{font:inherit;color:inherit}
 }
 .seg button:last-child{border-right:0}
 .seg button.on{background:var(--acc-2);color:#fff;font-weight:600}
-.seg button:hover:not(.on){background:#232c39;color:var(--tx)}
+.seg button:hover:not(.on){background:#1b3562;color:var(--tx)}
 
 /* --------------------------------------------------------------- étapes */
 .grp{border-bottom:1px solid var(--line)}
 .grp-head{
   display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;
-  background:#131922;color:var(--tx-2);font-size:11.5px;font-weight:650;letter-spacing:.5px;
+  background:#0b1832;color:var(--tx-2);font-size:11.5px;font-weight:650;letter-spacing:.5px;
   position:sticky;top:0;z-index:2
 }
 .grp-head:hover{color:var(--tx)}
@@ -126,9 +126,9 @@ button,input,select,textarea{font:inherit;color:inherit}
   display:flex;align-items:center;gap:9px;padding:8px 12px 8px 10px;cursor:pointer;
   border-left:3px solid transparent;position:relative
 }
-.step:hover{background:#1a212c}
-.step.on{background:linear-gradient(90deg,rgba(77,157,255,.16),rgba(77,157,255,.03));border-left-color:var(--acc)}
-.step.done .idx{background:#1e3a2c;border-color:#2f6b4a;color:#7fe0aa}
+.step:hover{background:#132444}
+.step.on{background:linear-gradient(90deg,rgba(61,139,253,.16),rgba(61,139,253,.03));border-left-color:var(--acc)}
+.step.done .idx{background:#123a2e;border-color:#1f6b52;color:#7fe0aa}
 .step .idx{
   width:24px;height:24px;flex:0 0 24px;border-radius:7px;display:grid;place-items:center;
   background:var(--bg-3);border:1px solid var(--line-2);font-size:11.5px;font-family:var(--mono);color:var(--tx-2)
@@ -159,7 +159,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .stage-bar .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--tx-3);font-weight:650}
 .hint{
   position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:5;
-  background:rgba(14,17,22,.92);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;
+  background:rgba(8,16,32,.93);border:1px solid var(--line-2);border-radius:9px;padding:7px 13px;
   font-size:12.5px;color:var(--tx-2);box-shadow:var(--sh);pointer-events:none;max-width:90%;text-align:center
 }
 .hint b{color:var(--tx)}
@@ -169,7 +169,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 }
 .stepper{
   position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:10px;
-  background:rgba(21,26,34,.94);border:1px solid var(--line-2);border-radius:11px;padding:6px 8px;box-shadow:var(--sh)
+  background:rgba(13,26,51,.95);border:1px solid var(--line-2);border-radius:11px;padding:6px 8px;box-shadow:var(--sh)
 }
 .stepper .pos{font-family:var(--mono);font-size:12.5px;color:var(--tx-2);min-width:74px;text-align:center}
 .stepper .pos b{color:var(--tx);font-size:14px}
@@ -183,10 +183,10 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:var(--bg-3);border:1px solid var(--line);margin-bottom:12px
 }
 .wire-swatch{
-  width:34px;height:34px;border-radius:9px;flex:0 0 34px;border:1px solid rgba(255,255,255,.25);
+  width:42px;height:42px;border-radius:11px;flex:0 0 42px;border:1px solid rgba(255,255,255,.25);
   box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)
 }
-.wire-head .wn{font-family:var(--mono);font-size:19px;font-weight:650;line-height:1.1}
+.wire-head .wn{font-family:var(--mono);font-size:26px;font-weight:700;line-height:1.05;letter-spacing:.5px}
 .wire-head .wc{font-size:12px;color:var(--tx-2)}
 .route{display:flex;flex-direction:column;gap:0;margin-bottom:12px}
 .node{
@@ -194,14 +194,14 @@ button,input,select,textarea{font:inherit;color:inherit}
   border:1px solid var(--line);border-radius:var(--r)
 }
 .node .pin{
-  width:22px;height:22px;flex:0 0 22px;border-radius:50%;display:grid;place-items:center;
-  font-size:11px;font-weight:700;color:#fff
+  width:26px;height:26px;flex:0 0 26px;border-radius:50%;display:grid;place-items:center;
+  font-size:13px;font-weight:700;color:#04101f
 }
 .node.from .pin{background:var(--ok)}
 .node.to .pin{background:var(--acc)}
 .node .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx-3);font-weight:650}
-.node .v{font-size:15px;font-weight:600;font-family:var(--mono);word-break:break-word}
-.route .arrow{height:16px;margin-left:22px;border-left:2px dashed var(--line-2)}
+.node .v{font-size:19px;font-weight:650;font-family:var(--mono);word-break:break-word;letter-spacing:.4px}
+.route .arrow{height:14px;margin-left:25px;border-left:2px dashed var(--line-2)}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
 .cell{background:var(--bg-3);border:1px solid var(--line);border-radius:var(--r);padding:9px 11px}
 .cell .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx-3);font-weight:650}
@@ -220,6 +220,30 @@ button,input,select,textarea{font:inherit;color:inherit}
 .check input{width:17px;height:17px;accent-color:var(--ok);cursor:pointer}
 .check.on{background:rgba(53,196,123,.1);border-color:rgba(53,196,123,.35)}
 
+/* ------------------------------------------------------------ accordéon */
+.acc{border:1px solid var(--line);border-radius:var(--r);background:var(--bg-3);margin-bottom:9px;overflow:hidden}
+.acc>summary{
+  list-style:none;cursor:pointer;padding:10px 12px;display:flex;align-items:center;gap:8px;
+  font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--tx-2);font-weight:650;user-select:none
+}
+.acc>summary::-webkit-details-marker{display:none}
+.acc>summary:hover{color:var(--tx)}
+.acc>summary::after{
+  content:'';width:7px;height:7px;flex:0 0 7px;margin-left:auto;
+  border-right:2px solid currentColor;border-bottom:2px solid currentColor;
+  transform:rotate(45deg) translate(-2px,-2px);transition:transform .16s
+}
+.acc[open]>summary::after{transform:rotate(-135deg) translate(-1px,-1px)}
+.acc>summary .peek{
+  margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--tx-3);
+  text-transform:none;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.acc>summary .peek~::after{margin-left:8px}
+.acc[open]>summary{border-bottom:1px solid var(--line)}
+.acc[open]>summary .peek{display:none}
+.accb{padding:12px}
+.accb .kv,.accb .field:last-child{margin-bottom:0}
+
 /* --------------------------------------------------------------- formes */
 .field{margin-bottom:10px}
 .field label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx-3);font-weight:650;margin-bottom:4px}
@@ -228,7 +252,7 @@ button,input,select,textarea{font:inherit;color:inherit}
   border-radius:8px;outline:none;transition:border-color .12s,box-shadow .12s
 }
 textarea.inp{height:auto;padding:7px 9px;resize:vertical;min-height:60px;font-family:inherit}
-.inp:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(77,157,255,.16)}
+.inp:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(61,139,253,.16)}
 select.inp{cursor:pointer}
 .row{display:flex;gap:8px}
 .row>*{flex:1;min-width:0}
@@ -236,7 +260,7 @@ select.inp{cursor:pointer}
 .sw-prev{width:32px;height:32px;border-radius:8px;flex:0 0 32px;border:1px solid var(--line-2)}
 
 /* --------------------------------------------------------------- modale */
-.mask{position:fixed;inset:0;background:rgba(6,9,13,.72);z-index:60;display:grid;place-items:center;padding:20px}
+.mask{position:fixed;inset:0;background:rgba(4,9,20,.74);z-index:60;display:grid;place-items:center;padding:20px}
 .modal{
   background:var(--bg-2);border:1px solid var(--line-2);border-radius:14px;box-shadow:var(--sh);
   width:min(560px,100%);max-height:86vh;display:flex;flex-direction:column
@@ -245,7 +269,7 @@ select.inp{cursor:pointer}
 .modal .mbody{padding:16px;overflow:auto}
 .modal footer{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
 .toast{
-  position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:80;
+  position:fixed;left:50%;bottom:70px;transform:translateX(-50%);z-index:80;
   background:var(--bg-3);border:1px solid var(--line-2);border-left:3px solid var(--ok);
   padding:10px 16px;border-radius:10px;box-shadow:var(--sh);font-size:13px;
   animation:pop .18s ease-out
@@ -423,18 +447,18 @@ function renderCanvas(S){
   /* défs */
   s+='<defs>'+
      '<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">'+
-       '<path d="M40 0H0V40" fill="none" stroke="#243040" stroke-width="1"/></pattern>'+
+       '<path d="M40 0H0V40" fill="none" stroke="#1b2f57" stroke-width="1"/></pattern>'+
      '</defs>';
 
   /* fond */
   if(P.image){
     s+='<image href="'+P.image+'" xlink:href="'+P.image+'" x="0" y="0" width="'+W+'" height="'+H+'" />';
   }else{
-    s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#111720"/>'+
+    s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#0a1730"/>'+
        '<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="url(#grid)"/>'+
-       '<text x="'+(W/2)+'" y="'+(H/2)+'" fill="#3d4a5c" font-size="34" text-anchor="middle" font-family="system-ui">Aucun schéma chargé</text>';
+       '<text x="'+(W/2)+'" y="'+(H/2)+'" fill="#3d5480" font-size="34" text-anchor="middle" font-family="system-ui">Aucun schéma chargé</text>';
   }
-  s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="#2a3341" stroke-width="'+(1.5*k)+'"/>';
+  s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="#1d3159" stroke-width="'+(1.5*k)+'"/>';
 
   /* étapes fantômes */
   var cur=S.current, steps=P.steps, ghost=P.settings.ghost;
@@ -455,7 +479,7 @@ function renderCanvas(S){
     var cc=colorOf(st2.wire.color);
     var d=pathD(st2.path);
     if(st2.path.length>1){
-      s+='<path d="'+d+'" fill="none" stroke="#05070a" stroke-opacity=".75" stroke-width="'+(th+3.5)+'" stroke-linecap="round" stroke-linejoin="round"/>';
+      s+='<path d="'+d+'" fill="none" stroke="#03080f" stroke-opacity=".75" stroke-width="'+(th+3.5)+'" stroke-linecap="round" stroke-linejoin="round"/>';
       s+='<path d="'+d+'" fill="none" stroke="'+cc.hex+'" stroke-width="'+th+'" stroke-linecap="round" stroke-linejoin="round"/>';
       if(cc.hex2) s+='<path d="'+d+'" fill="none" stroke="'+cc.hex2+'" stroke-width="'+th+'" stroke-dasharray="'+(th*2.2)+' '+(th*2.2)+'" stroke-linecap="butt"/>';
     }
@@ -463,13 +487,13 @@ function renderCanvas(S){
     /* marqueurs : au moins ~11 px à l'écran quel que soit le zoom */
     var r=Math.max(th*1.55, 11*k);
     s+=marker(a.x,a.y,r,'#35c47b','D');
-    if(st2.path.length>1) s+=marker(b.x,b.y,r,'#4d9dff','A');
+    if(st2.path.length>1) s+=marker(b.x,b.y,r,'#3d8bfd','A');
     /* étiquette du fil au milieu du parcours */
     if(P.settings.labels && st2.wire.num && st2.path.length>1){
       var rp=routePoints(st2.path), mid=rp[Math.floor(rp.length/2)];
       var fs=Math.max(13,13*k), tw=String(st2.wire.num).length*fs*.66+fs;
-      s+='<g><rect x="'+(mid.x-tw/2)+'" y="'+(mid.y-r-fs*1.55)+'" rx="'+(fs*.42)+'" width="'+tw+'" height="'+(fs*1.45)+'" fill="#0e1116" fill-opacity=".9" stroke="'+cc.hex+'" stroke-width="'+(1.2*k)+'"/>'+
-         '<text x="'+mid.x+'" y="'+(mid.y-r-fs*.42)+'" fill="#e6ecf5" font-size="'+fs+'" font-family="ui-monospace,monospace" text-anchor="middle">'+esc(st2.wire.num)+'</text></g>';
+      s+='<g><rect x="'+(mid.x-tw/2)+'" y="'+(mid.y-r-fs*1.55)+'" rx="'+(fs*.42)+'" width="'+tw+'" height="'+(fs*1.45)+'" fill="#081020" fill-opacity=".9" stroke="'+cc.hex+'" stroke-width="'+(1.2*k)+'"/>'+
+         '<text x="'+mid.x+'" y="'+(mid.y-r-fs*.42)+'" fill="#e9effc" font-size="'+fs+'" font-family="ui-monospace,monospace" text-anchor="middle">'+esc(st2.wire.num)+'</text></g>';
     }
   }
 
@@ -477,8 +501,8 @@ function renderCanvas(S){
   (P.marks||[]).forEach(function(m){
     var mf=Math.max(14,14*k), w=String(m.text||'').length*mf*.62+mf*1.3, h=mf*1.85;
     s+='<g class="mark" data-mark="'+m.id+'">'+
-       '<rect x="'+(m.x-w/2)+'" y="'+(m.y-h/2)+'" rx="'+(mf*.42)+'" width="'+w+'" height="'+h+'" fill="#151a22" fill-opacity=".93" stroke="#4d9dff" stroke-width="'+(1.4*k)+'"/>'+
-       '<text x="'+m.x+'" y="'+(m.y+mf*.36)+'" fill="#e6ecf5" font-size="'+mf+'" font-weight="600" font-family="system-ui" text-anchor="middle">'+esc(m.text)+'</text>'+
+       '<rect x="'+(m.x-w/2)+'" y="'+(m.y-h/2)+'" rx="'+(mf*.42)+'" width="'+w+'" height="'+h+'" fill="#0d1a33" fill-opacity=".93" stroke="#3d8bfd" stroke-width="'+(1.4*k)+'"/>'+
+       '<text x="'+m.x+'" y="'+(m.y+mf*.36)+'" fill="#e9effc" font-size="'+mf+'" font-weight="600" font-family="system-ui" text-anchor="middle">'+esc(m.text)+'</text>'+
        '</g>';
   });
 
@@ -486,9 +510,9 @@ function renderCanvas(S){
 }
 function marker(x,y,r,col,txt){
   return '<g>'+
-    '<circle cx="'+x+'" cy="'+y+'" r="'+(r+3)+'" fill="#05070a" fill-opacity=".8"/>'+
+    '<circle cx="'+x+'" cy="'+y+'" r="'+(r+3)+'" fill="#03080f" fill-opacity=".8"/>'+
     '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+col+'" stroke="#fff" stroke-width="'+(r*.18)+'"/>'+
-    '<text x="'+x+'" y="'+(y+r*.42)+'" font-size="'+(r*1.15)+'" font-weight="700" fill="#06121a" text-anchor="middle" font-family="system-ui">'+txt+'</text>'+
+    '<text x="'+x+'" y="'+(y+r*.42)+'" font-size="'+(r*1.15)+'" font-weight="700" fill="#04101f" text-anchor="middle" font-family="system-ui">'+txt+'</text>'+
     '</g>';
 }
 
@@ -555,6 +579,8 @@ function renderFiche(S){
   var w=st.wire, c=colorOf(w.color);
   var sw = c.hex2 ? 'background:linear-gradient(135deg,'+c.hex+' 50%,'+c.hex2+' 50%)' : 'background:'+c.hex;
   var lenTxt = w.length ? esc(w.length)+' <small>mm</small>' : estim(P,st);
+  /* aperçu replié : ce que l'on voit sans ouvrir le bloc */
+  var peek=[]; if(w.section) peek.push(w.section+' mm²'); if(w.length) peek.push(w.length+' mm');
   var h='<div class="fiche">'+
     '<h2>'+esc(st.name||('Étape '+(S.current+1)))+'</h2>'+
     '<div class="sub">Étape '+(S.current+1)+' / '+P.steps.length+(st.group?' · '+esc(st.group):'')+'</div>'+
@@ -565,14 +591,19 @@ function renderFiche(S){
       '<div class="arrow"></div>'+
       '<div class="node to"><div class="pin">A</div><div><div class="k">Arrivée</div><div class="v">'+esc(w.to||'—')+'</div></div></div>'+
     '</div>'+
-    '<div class="kv">'+
-      '<div class="cell"><div class="k">Section</div><div class="v">'+(w.section?esc(w.section)+' <small>mm²</small>':'—')+'</div></div>'+
-      '<div class="cell"><div class="k">Longueur</div><div class="v">'+(lenTxt||'—')+'</div></div>'+
-    '</div>'+
-    (w.comment?'<div class="note"><div class="k">Remarque</div>'+esc(w.comment)+'</div>':'')+
+    (w.comment?'<div class="note"><div class="k">À vérifier</div>'+esc(w.comment)+'</div>':'')+
+    '<details class="acc" id="acc-det"'+(S.open.det?' open':'')+'><summary>Détail du câble'+
+      (peek.length?'<span class="peek">'+esc(peek.join('  ·  '))+'</span>':'')+'</summary>'+
+      '<div class="accb"><div class="kv">'+
+        '<div class="cell"><div class="k">Section</div><div class="v">'+(w.section?esc(w.section)+' <small>mm²</small>':'—')+'</div></div>'+
+        '<div class="cell"><div class="k">Longueur</div><div class="v">'+(lenTxt||'—')+'</div></div>'+
+      '</div></div>'+
+    '</details>'+
     '<label class="check'+(S.done[st.id]?' on':'')+'"><input type="checkbox" id="chk-done"'+(S.done[st.id]?' checked':'')+'> <span>Câblage réalisé et vérifié</span></label>'+
   '</div>';
   host.innerHTML=h;
+  var acc=q('#acc-det');
+  if(acc) acc.addEventListener('toggle',function(){ S.open.det=acc.open; });
   var chk=q('#chk-done');
   if(chk) chk.addEventListener('change',function(){
     S.done[st.id]=chk.checked; S.saveDone&&S.saveDone(); renderSteps(S); renderFiche(S);
@@ -587,7 +618,7 @@ function estim(P,st){
 
 /* --------------------------------------------------- navigation / clavier */
 function makeState(project, edit){
-  var S={ project:project, current:0, edit:!!edit, collapsed:{}, done:{}, view:null, overlay:null };
+  var S={ project:project, current:0, edit:!!edit, collapsed:{}, done:{}, open:{det:false,etp:false}, view:null, overlay:null };
   S.go=function(i){
     if(!S.project.steps.length){ S.current=0; }
     else S.current=clamp(i,0,S.project.steps.length-1);
@@ -695,17 +726,11 @@ function bindGhostSeg(S){
   });
 }
 function zoomBtns(){
-  return '<span class="seg">'+
-    '<button id="z-out" title="Dézoomer (-)">−</button>'+
-    '<button id="z-fit" title="Ajuster (0)">Ajuster</button>'+
-    '<button id="z-in" title="Zoomer (+)">+</button>'+
-  '</span>';
+  return '<button class="btn sm" id="z-fit" title="Ajuster la vue (0)">Ajuster</button>';
 }
 function bindZoomBtns(S){
-  var a=q('#z-out'), b=q('#z-fit'), c=q('#z-in');
-  if(a) a.addEventListener('click',function(){ zoomBy(S,1.25); });
+  var b=q('#z-fit');
   if(b) b.addEventListener('click',function(){ fitView(S); });
-  if(c) c.addEventListener('click',function(){ zoomBy(S,1/1.25); });
 }
 function toast(msg,err){
   var t=document.createElement('div');
@@ -723,7 +748,8 @@ function bootViewer(project){
   q('#top-actions').innerHTML=
     '<button class="btn" id="op-print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z"/></svg> Imprimer</button>'+
     '<button class="btn" id="op-reset" title="Réinitialiser les cases cochées">Réinitialiser le suivi</button>';
-  q('#stage-bar').innerHTML = ghostSeg(S)+'<div class="spacer" style="flex:1"></div>'+zoomBtns();
+  q('#stage-bar').innerHTML = '<div style="flex:1"></div>'+ghostSeg(S)+
+    '<span style="width:1px;height:22px;background:var(--line-2);margin:0 6px"></span>'+zoomBtns();
   bindGhostSeg(S); bindZoomBtns(S); bindViewport(S);
 
   /* suivi de câblage mémorisé sur le poste */
@@ -755,7 +781,7 @@ function bootViewer(project){
     }catch(e){}
     S=makeState(p,true);
     window.S=S;
-    S.tool='select'; S.sel=-1; S.elbow='h'; S.snap=10; S.magnet=true;
+    S.tool='select'; S.sel=-1; S.elbow='h'; S.snap=10; S.magnet=true;   /* aimantation et grille toujours actives */
     buildLayout(q('#root'));
     topbar(); stagebar(); leftfoot();
     bindGhostSeg(S); bindZoomBtns(S); bindViewport(S); bindStage();
@@ -783,18 +809,15 @@ function bootViewer(project){
   /* ---------------------------------------------------------- barre haute */
   function topbar(){
     q('#top-actions').innerHTML=
-      '<button class="btn" id="t-img"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-6 6-3-3-4 4"/></svg> Schéma</button>'+
-      '<button class="btn" id="t-info"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.01"/></svg> Cartouche</button>'+
-      '<span style="width:1px;height:24px;background:var(--line-2);margin:0 3px"></span>'+
-      '<button class="btn" id="t-open"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h6l2 2h10v10H3z"/></svg> Ouvrir</button>'+
-      '<button class="btn" id="t-save"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h7"/></svg> Enregistrer</button>'+
-      '<button class="btn primary" id="t-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 20h16"/></svg> Exporter doc opérateur</button>'+
+      '<button class="btn" id="t-doc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg> Document</button>'+
+      '<button class="btn" id="t-open">Ouvrir</button>'+
+      '<button class="btn" id="t-save">Enregistrer</button>'+
+      '<button class="btn primary" id="t-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 20h16"/></svg> Exporter pour l\'opérateur</button>'+
       '<input type="file" id="f-img" accept="image/*" hidden><input type="file" id="f-json" accept=".json,application/json" hidden>';
-    q('#t-img').addEventListener('click',function(){ q('#f-img').click(); });
     q('#f-img').addEventListener('change',onImage);
-    q('#t-info').addEventListener('click',dlgInfo);
-    q('#t-open').addEventListener('click',function(){ q('#f-json').click(); });
     q('#f-json').addEventListener('change',onOpen);
+    q('#t-doc').addEventListener('click',dlgDoc);
+    q('#t-open').addEventListener('click',function(){ q('#f-json').click(); });
     q('#t-save').addEventListener('click',saveJson);
     q('#t-export').addEventListener('click',exportViewer);
   }
@@ -802,37 +825,23 @@ function bootViewer(project){
   /* ---------------------------------------------------------- barre basse */
   function stagebar(){
     q('#stage-bar').innerHTML=
-      '<span class="lbl">Outil</span>'+
       '<span class="seg" id="tool-seg">'+
-        '<button data-t="select">Sélection</button>'+
         '<button data-t="draw">Tracer le fil</button>'+
+        '<button data-t="select">Modifier</button>'+
         '<button data-t="mark">Repère</button>'+
-        '<button data-t="pan">Déplacer</button>'+
       '</span>'+
-      '<span class="lbl" style="margin-left:6px">Coude</span>'+
-      '<span class="seg" id="elbow-seg">'+
-        '<button data-e="h" title="Horizontal puis vertical (Tab)">┐ H→V</button>'+
-        '<button data-e="v" title="Vertical puis horizontal (Tab)">└ V→H</button>'+
-      '</span>'+
-      '<label class="btn sm" style="gap:6px"><input type="checkbox" id="ck-snap" checked style="accent-color:var(--acc)"> Grille</label>'+
-      '<label class="btn sm" style="gap:6px"><input type="checkbox" id="ck-mag" checked style="accent-color:var(--acc)"> Aimant</label>'+
       '<div style="flex:1"></div>'+
       ghostSeg(S)+
-      '<span style="width:1px;height:22px;background:var(--line-2);margin:0 4px"></span>'+
-      zoomBtns();
+      '<span style="width:1px;height:22px;background:var(--line-2);margin:0 6px"></span>'+
+      '<button class="btn sm" id="z-fit">Ajuster</button>';
     qa('#tool-seg button').forEach(function(b){
       b.addEventListener('click',function(){ setTool(b.dataset.t); });
     });
-    qa('#elbow-seg button').forEach(function(b){
-      b.addEventListener('click',function(){ S.elbow=b.dataset.e; syncSeg(); renderCanvas(S); });
-    });
-    q('#ck-snap').addEventListener('change',function(){ S.snap=this.checked?10:0; });
-    q('#ck-mag').addEventListener('change',function(){ S.magnet=this.checked; });
     syncSeg();
   }
+
   function syncSeg(){
     qa('#tool-seg button').forEach(function(b){ b.classList.toggle('on',b.dataset.t===S.tool); });
-    qa('#elbow-seg button').forEach(function(b){ b.classList.toggle('on',b.dataset.e===S.elbow); });
   }
   function setTool(t){
     S.tool=t; S.sel=-1; syncSeg();
@@ -926,28 +935,40 @@ function bootViewer(project){
     }).join('');
     var est = st.path.length>1 ? pathLen(st.path) : 0;
     var estTxt = est ? (P.scale>0 ? fmt(est/P.scale,0)+' mm' : fmt(est,0)+' px') : '—';
+    var peek=[]; if(w.section) peek.push(w.section+' mm²'); if(w.length) peek.push(w.length+' mm');
+    if(w.comment) peek.push('remarque');
     host.innerHTML=
     '<div class="fiche">'+
-      '<div class="field"><label>Nom de l\'étape</label><input class="inp" id="e-name" value="'+esc(st.name)+'"></div>'+
-      '<div class="field"><label>Connecteur / groupe</label><input class="inp" id="e-group" list="grp-list" value="'+esc(st.group)+'" placeholder="ex. X1 — Flexisoft"><datalist id="grp-list">'+groupOpts()+'</datalist></div>'+
       '<div class="row">'+
-        '<div class="field"><label>N° de fil</label><input class="inp" id="e-num" value="'+esc(w.num)+'" placeholder="ex. 1042"></div>'+
-        '<div class="field"><label>Section (mm²)</label><input class="inp" id="e-sec" value="'+esc(w.section)+'" placeholder="0,75"></div>'+
+        '<div class="field"><label>N° de fil</label><input class="inp" id="e-num" value="'+esc(w.num)+'" placeholder="1042"></div>'+
+        '<div class="field"><label>Couleur</label><div class="sw-row">'+
+          '<span class="sw-prev" style="'+(c.hex2?'background:linear-gradient(135deg,'+c.hex+' 50%,'+c.hex2+' 50%)':'background:'+c.hex)+'"></span>'+
+          '<select class="inp" id="e-col">'+opts+'</select></div></div>'+
       '</div>'+
-      '<div class="field"><label>Couleur</label><div class="sw-row">'+
-        '<span class="sw-prev" style="'+(c.hex2?'background:linear-gradient(135deg,'+c.hex+' 50%,'+c.hex2+' 50%)':'background:'+c.hex)+'"></span>'+
-        '<select class="inp" id="e-col">'+opts+'</select></div></div>'+
       '<div class="row">'+
-        '<div class="field"><label>Départ</label><input class="inp" id="e-from" value="'+esc(w.from)+'" placeholder="ex. X1:3"></div>'+
-        '<div class="field"><label>Arrivée</label><input class="inp" id="e-to" value="'+esc(w.to)+'" placeholder="ex. Wago A:2"></div>'+
+        '<div class="field"><label>Départ</label><input class="inp" id="e-from" value="'+esc(w.from)+'" placeholder="X1:3"></div>'+
+        '<div class="field"><label>Arrivée</label><input class="inp" id="e-to" value="'+esc(w.to)+'" placeholder="Wago A:2"></div>'+
       '</div>'+
-      '<div class="field"><label>Longueur (mm)</label><div class="sw-row">'+
-        '<input class="inp" id="e-len" value="'+esc(w.length)+'" placeholder="—">'+
-        '<button class="btn sm" id="e-len-est" title="Reprendre l\'estimation issue du tracé" '+(P.scale>0&&est?'':'disabled')+'>≈ '+estTxt+'</button>'+
-      '</div></div>'+
-      '<div class="field"><label>Remarque</label><textarea class="inp" id="e-com" placeholder="Serrage, repérage, précaution…">'+esc(w.comment)+'</textarea></div>'+
-      '<div style="border-top:1px solid var(--line);margin:14px 0 10px"></div>'+
-      '<div class="sw-row" style="justify-content:space-between">'+
+
+      '<details class="acc" data-acc="det"'+(S.open.det?' open':'')+'><summary>Détail du câble'+
+        (peek.length?'<span class="peek">'+esc(peek.join('  ·  '))+'</span>':'')+'</summary><div class="accb">'+
+        '<div class="row">'+
+          '<div class="field"><label>Section (mm²)</label><input class="inp" id="e-sec" value="'+esc(w.section)+'" placeholder="0,75"></div>'+
+          '<div class="field"><label>Longueur (mm)</label><div class="sw-row">'+
+            '<input class="inp" id="e-len" value="'+esc(w.length)+'" placeholder="—">'+
+            (P.scale>0&&est?'<button class="btn sm" id="e-len-est" title="Reprendre la longueur mesurée sur le tracé">≈ '+estTxt+'</button>':'')+
+          '</div></div>'+
+        '</div>'+
+        '<div class="field"><label>À vérifier / remarque</label><textarea class="inp" id="e-com" placeholder="Serrage, repérage, précaution…">'+esc(w.comment)+'</textarea></div>'+
+      '</div></details>'+
+
+      '<details class="acc" data-acc="etp"'+(S.open.etp?' open':'')+'><summary>Étape'+
+        '<span class="peek">'+esc(st.name||'—')+'</span></summary><div class="accb">'+
+        '<div class="field"><label>Intitulé</label><input class="inp" id="e-name" value="'+esc(st.name)+'"></div>'+
+        '<div class="field"><label>Connecteur / groupe</label><input class="inp" id="e-group" list="grp-list" value="'+esc(st.group)+'" placeholder="X1 — Flexisoft"><datalist id="grp-list">'+groupOpts()+'</datalist></div>'+
+      '</div></details>'+
+
+      '<div class="sw-row" style="justify-content:space-between;margin-top:12px">'+
         '<span class="tag'+(st.path.length>1?' ok':'')+'">Tracé : '+st.path.length+' point'+(st.path.length>1?'s':'')+'</span>'+
         '<span style="display:flex;gap:6px">'+
           '<button class="btn sm" id="e-draw">Tracer</button>'+
@@ -955,6 +976,10 @@ function bootViewer(project){
         '</span>'+
       '</div>'+
     '</div>';
+
+    qa('.acc',host).forEach(function(a){
+      a.addEventListener('toggle',function(){ S.open[a.dataset.acc]=a.open; });
+    });
 
     function bindF(id,fn){
       var e=q(id); if(!e) return;
@@ -1001,14 +1026,14 @@ function bootViewer(project){
       st.path.forEach(function(p,i){
         var sel = i===S.sel;
         s+='<circle class="handle" data-pi="'+i+'" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'" '+
-           'fill="'+(sel?'#4d9dff':'#0e1116')+'" stroke="#fff" stroke-width="'+(1.6*k)+'" style="cursor:move"/>';
+           'fill="'+(sel?'#3d8bfd':'#081020')+'" stroke="#fff" stroke-width="'+(1.6*k)+'" style="cursor:move"/>';
       });
       /* coudes calculés (double-clic pour inverser) */
       for(var i=1;i<st.path.length;i++){
         var A=st.path[i-1], B=st.path[i];
         if(A.x!==B.x && A.y!==B.y){
           var e=(B.elbow||'h')==='h'?{x:B.x,y:A.y}:{x:A.x,y:B.y};
-          s+='<rect class="elbow" data-ei="'+i+'" x="'+(e.x-r*.7)+'" y="'+(e.y-r*.7)+'" width="'+(r*1.4)+'" height="'+(r*1.4)+'" rx="'+(r*.3)+'" fill="#151a22" stroke="#9aa8bd" stroke-width="'+(1.3*k)+'" style="cursor:pointer"/>';
+          s+='<rect class="elbow" data-ei="'+i+'" x="'+(e.x-r*.7)+'" y="'+(e.y-r*.7)+'" width="'+(r*1.4)+'" height="'+(r*1.4)+'" rx="'+(r*.3)+'" fill="#0d1a33" stroke="#9db4dd" stroke-width="'+(1.3*k)+'" style="cursor:pointer"/>';
         }
       }
     }
@@ -1126,7 +1151,8 @@ function bootViewer(project){
         S.project.image=rd.result;
         S.project.imgW=img.naturalWidth; S.project.imgH=img.naturalHeight;
         fitView(S); S.render(); autosave();
-        toast('Schéma chargé ('+img.naturalWidth+'×'+img.naturalHeight+' px)');
+        var m=q('.mask'); if(m) m.remove();
+        toast('Schéma chargé ('+img.naturalWidth+' × '+img.naturalHeight+' px)');
       };
       img.onerror=function(){ toast('Image illisible.',true); };
       img.src=rd.result;
@@ -1136,9 +1162,13 @@ function bootViewer(project){
   }
 
   /* ------------------------------------------------------------ cartouche */
-  function dlgInfo(){
+  function dlgDoc(){
     var P=S.project;
-    modal('Cartouche du document',
+    var img = P.image ? (P.imgW+' × '+P.imgH+' px') : 'aucun schéma chargé';
+    modal('Document',
+      '<div class="field"><label>Schéma de fond</label>'+
+        '<div class="sw-row"><span class="inp" style="display:flex;align-items:center;color:var(--tx-2)">'+esc(img)+'</span>'+
+        '<button class="btn" id="d-img">'+(P.image?'Remplacer':'Charger')+'</button></div></div>'+
       '<div class="field"><label>Titre</label><input class="inp" id="i-title" value="'+esc(P.title)+'"></div>'+
       '<div class="row">'+
         '<div class="field"><label>Référence / affaire</label><input class="inp" id="i-ref" value="'+esc(P.ref)+'"></div>'+
@@ -1148,11 +1178,13 @@ function bootViewer(project){
         '<div class="field"><label>Auteur</label><input class="inp" id="i-auth" value="'+esc(P.author)+'"></div>'+
         '<div class="field"><label>Date</label><input class="inp" id="i-date" value="'+esc(P.date)+'" placeholder="JJ/MM/AAAA"></div>'+
       '</div>'+
-      '<div class="row">'+
-        '<div class="field"><label>Échelle (px / mm)</label><input class="inp" id="i-scale" value="'+esc(P.scale||'')+'" placeholder="0 = non défini"></div>'+
-        '<div class="field"><label>Épaisseur des fils</label><input class="inp" id="i-th" type="number" min="1" max="20" value="'+(P.settings.thickness||5)+'"></div>'+
-      '</div>'+
-      '<label class="check'+(P.settings.labels?' on':'')+'" style="margin-top:4px"><input type="checkbox" id="i-lab"'+(P.settings.labels?' checked':'')+'> <span>Afficher le n° de fil sur le tracé</span></label>',
+      '<details class="acc" style="margin-top:4px"><summary>Réglages du tracé</summary><div class="accb">'+
+        '<div class="row">'+
+          '<div class="field"><label>Échelle (px / mm)</label><input class="inp" id="i-scale" value="'+esc(P.scale||'')+'" placeholder="0 = non défini"></div>'+
+          '<div class="field"><label>Épaisseur des fils</label><input class="inp" id="i-th" type="number" min="1" max="20" value="'+(P.settings.thickness||5)+'"></div>'+
+        '</div>'+
+        '<label class="check'+(P.settings.labels?' on':'')+'" style="margin-top:0"><input type="checkbox" id="i-lab"'+(P.settings.labels?' checked':'')+'> <span>Afficher le n° de fil sur le tracé</span></label>'+
+      '</div></details>',
       function(){
         P.title=q('#i-title').value; P.ref=q('#i-ref').value; P.revision=q('#i-rev').value;
         P.author=q('#i-auth').value; P.date=q('#i-date').value;
@@ -1160,9 +1192,10 @@ function bootViewer(project){
         P.settings.thickness=clamp(parseInt(q('#i-th').value,10)||5,1,20);
         P.settings.labels=q('#i-lab').checked;
         S.render(); autosave();
-      });
+      },
+      function(m){ q('#d-img',m).addEventListener('click',function(){ q('#f-img').click(); }); });
   }
-  function modal(title,body,ok){
+  function modal(title,body,ok,onOpen){
     var m=document.createElement('div');
     m.className='mask';
     m.innerHTML='<div class="modal"><header>'+esc(title)+'</header><div class="mbody">'+body+'</div>'+
@@ -1172,6 +1205,7 @@ function bootViewer(project){
     m.addEventListener('click',function(e){ if(e.target===m) close(); });
     q('[data-x]',m).addEventListener('click',close);
     q('[data-ok]',m).addEventListener('click',function(){ ok&&ok(); close(); });
+    if(onOpen) onOpen(m);
   }
 
   /* ------------------------------------------------------ fichiers projet */
