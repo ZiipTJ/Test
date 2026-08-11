@@ -15,12 +15,8 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
 
 ## Prise en main (éditeur)
 
-1. **Document** → ajouter un ou plusieurs plans (PNG/JPG), puis le cartouche :
-   titre, référence d'affaire, indice, auteur, date. Les images sont encodées
-   dans le fichier : plus aucune dépendance ensuite. Le bloc *Réglages du
-   tracé* contient l'**échelle** en px/mm, qui permet d'estimer les longueurs
-   de fil directement depuis le tracé, et l'**épaisseur de référence pour
-   1,5 mm²**.
+1. **Ajouter un plan** — bouton **+** du bloc *Étape*, ou le bouton réglages
+   de la barre haute. Rien n'est demandé : l'image rejoint la bibliothèque.
 2. **+ Étape** → une étape = un fil à brancher. À droite, l'essentiel est
    toujours visible — n° de fil, couleur, départ, arrivée — et le reste est
    replié : *Détail du câble* (section, longueur, remarque) et *Étape*
@@ -32,8 +28,13 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
    points existants sont toujours actives, il n'y a rien à régler.
 4. Réordonner les étapes par **glisser-déposer** dans la liste de gauche :
    c'est l'ordre de câblage remis à l'opérateur.
-5. **Exporter pour l'opérateur** → renseigner le cartouche de sortie
-   (trigramme, version Hard, date), puis le HTML autonome est produit.
+5. **Exporter pour l'opérateur** → c'est le seul moment où des informations
+   de document sont demandées : titre, référence, trigramme, version Hard et
+   date. Le HTML autonome est ensuite produit.
+
+Le bouton réglages de la barre haute (icône curseurs) regroupe ce qui sert
+rarement : la bibliothèque de plans (renommer, retirer), l'échelle px/mm et
+l'épaisseur de référence pour 1,5 mm².
 
 ## Enregistrement
 
@@ -71,17 +72,17 @@ l'autre : armoire, platine, pupitre, détail d'un bornier… Ils s'ajoutent dans
 *Document → Plans du projet*, où on peut aussi les renommer, voir combien
 d'étapes s'en servent et les retirer.
 
-L'import ne pose aucune question : l'image rejoint la bibliothèque, et on peut
-en sélectionner plusieurs d'un coup. Les fichiers lourds sont **allégés
-automatiquement** — au-delà de 2600 px, le plan est réduit à cette dimension,
-et au-delà de 900 Ko il est ré-encodé en JPEG. Un plan de plusieurs mégaoctets
-alourdirait d'autant le document remis à l'opérateur sans rien apporter à la
-lecture. Le gain est indiqué au passage.
+L'import ne pose **aucune question** et ne touche **pas** au fichier : un plan
+en 8K est conservé dans sa définition d'origine, sans réduction ni
+ré-encodage — c'est précisément cette définition qui permet de zoomer sur un
+bornier. On peut sélectionner plusieurs fichiers d'un coup.
 
 Chaque étape désigne son plan dans le bloc *Étape* de la fiche de droite ; le
 bouton **+** à côté importe une image et l'affecte directement à l'étape en
-cours. Changer le plan d'une étape efface son tracé, qui n'aurait plus de sens
-ailleurs — l'application le demande avant.
+cours. Les boutons **Appliquer à → ce groupe / toutes les étapes** rattachent
+le plan courant à plusieurs étapes d'un coup. Changer le plan d'une étape
+efface son tracé, qui n'aurait plus de sens ailleurs — l'application le demande
+avant, en annonçant combien de tracés sont concernés.
 
 Ce découpage vaut aussi pour l'affichage : les **étapes précédentes en
 transparence** ne montrent que les fils tracés sur le plan affiché, les repères
@@ -90,18 +91,33 @@ plan. Passer d'une étape à l'autre recadre automatiquement quand le plan
 change. Le nom du plan est rappelé sous le titre de l'étape dès qu'il y en a
 plusieurs.
 
+## Travailler sur des plans en 8K
+
+Un plan de 7680 × 4320 pèse plusieurs dizaines de mégaoctets. Le dessin est
+donc réparti en trois couches indépendantes : le plan, les fils, le calque
+d'édition. Le plan reste en place et n'est reconstruit que si l'on en change ;
+les plans déjà affichés sont conservés (trois au plus, un 8K décodé occupant
+beaucoup de mémoire), de sorte qu'y revenir est immédiat. Et comme aucune cote
+ne dépend du zoom, déplacer ou zoomer ne modifie que le cadrage.
+
+Mesuré sur un plan 8K de 35,6 Mo : reconstruire le fond coûte ≈ 2,5 s, mais
+n'arrive qu'au chargement ; redessiner les fils prend 0,1 ms, le calque
+d'édition 0,06 ms, et un pan ou un zoom 0,002 ms. Le tracé à la souris suit
+donc l'écran. La lecture du fichier prend quelques secondes à l'import, signalée
+par un bandeau d'attente.
+
 ## Cartouche du document remis
 
-L'export demande trois informations qui identifient la version livrée :
-**trigramme**, **version Hard** et **date** (préremplie du jour). Le trigramme
-et la version Hard sont obligatoires — c'est ce qui permet de savoir, au poste,
-à quelle version du matériel correspond la feuille de câblage.
+C'est **à l'export**, et seulement là, que le document est identifié : titre,
+référence, **trigramme**, **version Hard** et **date** (préremplie du jour). Le
+trigramme et la version Hard sont obligatoires — c'est ce qui permet de savoir,
+au poste, à quelle version du matériel correspond la feuille de câblage. Le
+poids estimé du fichier produit est annoncé avant de lancer l'export.
 
-L'opérateur les voit dans le cartouche, sous le titre du document, avec la
-référence et l'indice ; elles figurent aussi dans le bandeau d'impression et
-dans le nom du fichier exporté
-(`ma-reference-operateur-b2-tjz.html`). Les valeurs sont conservées dans le
-projet et repréremplies à l'export suivant.
+L'opérateur voit ces informations dans le cartouche, sous le titre du document ;
+elles figurent aussi dans le bandeau d'impression et dans le nom du fichier
+exporté (`aff-2026-118-operateur-b2-tjz.html`). Les valeurs sont conservées dans
+le projet et repréremplies à l'export suivant.
 
 ## Échelle et épaisseur des fils
 

@@ -336,6 +336,12 @@ select.inp{cursor:pointer}
   animation:pop .18s ease-out
 }
 .toast.err{border-left-color:var(--danger)}
+.toast.work{border-left-color:var(--acc);display:flex;align-items:center;gap:9px}
+.spin{
+  width:13px;height:13px;flex:0 0 13px;border-radius:50%;
+  border:2px solid var(--line-2);border-top-color:var(--acc);animation:spin .7s linear infinite
+}
+@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 .tag{
   display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;
@@ -448,7 +454,7 @@ function fmt(n,d){ var f=Math.pow(10,d==null?1:d); return Math.round(n*f)/f; }
 function emptyProject(){
   return {
     version:1, kind:'cheminement-cables',
-    title:'Cheminement de câbles', ref:'', revision:'A', author:'', date:'',
+    title:'Cheminement de câbles', ref:'', revision:'', author:'', date:'',
     images:[],               /* collection de plans réutilisables */
     release:{ trigram:'', hard:'', date:'' },   /* cartouche de la version remise */
     scale:0,                 /* pixels image par mm ; 0 = non défini */
@@ -533,38 +539,82 @@ function buildLayout(root){
 }
 
 /* ------------------------------------------------------------- rendu SVG */
+/* ---------------------------------------------------------------- rendu ---
+   Le dessin est réparti en trois couches indépendantes :
+     #g-bg    le plan, reconstruit seulement quand on change de plan ;
+     #g-wires les fils, les marqueurs et les repères ;
+     #g-over  le calque d'édition (poignées, segment en cours).
+   Un plan en 8K pèse plusieurs dizaines de mégaoctets : reconstruire sa
+   balise <image> à chaque mouvement de souris obligeait le navigateur à la
+   redécoder, ce qui saccadait tout. Le fond reste donc en place, et comme
+   plus aucune cote ne dépend du zoom, déplacer ou zoomer ne touche même
+   que l'attribut viewBox. */
+function applyView(S){
+  var svg=q('#svg'), v=S.view; if(!svg||!v) return;
+  svg.setAttribute('viewBox', fmt(v.x,2)+' '+fmt(v.y,2)+' '+fmt(v.w,2)+' '+fmt(v.h,2));
+}
+/* Les plans déjà affichés restent en place, simplement masqués : revenir sur
+   l'un d'eux est alors immédiat, là où reconstruire sa balise <image> impose
+   au navigateur de redécoder plusieurs dizaines de mégaoctets. On en garde
+   trois, un 8K décodé occupant beaucoup de mémoire. */
+var BG_CACHE = 3;
+function setBackground(S,im){
+  var g=q('#g-bg'); if(!g) return;
+  var nodes=qa('image',g);
+  nodes.forEach(function(n){ n.style.display='none'; });
+  if(!im) return;
+  var node=null;
+  for(var i=0;i<nodes.length;i++){ if(nodes[i].getAttribute('data-img')===im.id) node=nodes[i]; }
+  if(!node){
+    node=document.createElementNS('http://www.w3.org/2000/svg','image');
+    node.setAttribute('data-img',im.id);
+    node.setAttribute('href',im.data);
+    node.setAttributeNS('http://www.w3.org/1999/xlink','href',im.data);
+    node.setAttribute('x','0'); node.setAttribute('y','0');
+    node.setAttribute('width',im.w); node.setAttribute('height',im.h);
+    g.appendChild(node);
+    while(g.childNodes.length>BG_CACHE) g.removeChild(g.firstChild);
+  }else{
+    g.appendChild(node);            /* le plus récemment vu passe en queue */
+  }
+  node.style.display='';
+}
+function renderOverlay(S){
+  var g=q('#g-over'); if(g) g.innerHTML = S.overlay ? S.overlay(S) : '';
+}
 function renderCanvas(S){
   var P=S.project, svg=q('#svg');
   var im=curImage(S), dim=imgDims(im), W=dim.w, H=dim.h;
   /* changement de plan : on recadre, l'ancien zoom n'a plus de sens */
   if(!S.view || S.viewImg!==(im?im.id:'')){ S.viewImg=(im?im.id:''); S.view={x:0,y:0,w:W,h:H}; }
-  var v=S.view;
-  svg.setAttribute('viewBox', fmt(v.x,2)+' '+fmt(v.y,2)+' '+fmt(v.w,2)+' '+fmt(v.h,2));
-  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-
-  /* unités image par pixel écran, en tenant compte du cadrage 'meet' */
-  var cw=svg.clientWidth||1000, ch=svg.clientHeight||700;
-  var k = 1/Math.min(cw/v.w, ch/v.h);
-  var C = ink(P), u = docUnit(im);
-  var s='';
-
-  /* défs */
-  s+='<defs>'+
-     '<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">'+
-       '<path d="M40 0H0V40" fill="none" stroke="'+C.grid+'" stroke-width="1"/></pattern>'+
-     '</defs>';
-
-  /* fond */
-  if(im){
-    s+='<image href="'+im.data+'" xlink:href="'+im.data+'" x="0" y="0" width="'+W+'" height="'+H+'" />';
-  }else{
-    s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="'+C.vd+'"/>'+
-       '<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="url(#grid)"/>'+
-       '<text x="'+(W/2)+'" y="'+(H/2)+'" fill="'+C.vdTx+'" font-size="'+(u*2)+'" text-anchor="middle" font-family="system-ui">Aucun schéma chargé</text>';
+  if(!q('#g-bg')){
+    svg.innerHTML='<defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">'+
+      '<path d="M40 0H0V40" fill="none" stroke="#8899bb" stroke-opacity=".35" stroke-width="1"/></pattern></defs>'+
+      '<g id="g-bg"></g><g id="g-frame"></g><g id="g-wires"></g><g id="g-over"></g>';
+    S.bgKey=null;
   }
-  s+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="'+C.frame+'" stroke-width="'+(u*.09)+'"/>';
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  applyView(S);
 
-  /* étapes fantômes */
+  var C = ink(P), u = docUnit(im);
+
+  /* ------------------------------------------------------------- le plan */
+  setBackground(S,im);
+  var frameKey=(im?im.id:'none')+'|'+P.settings.theme;
+  if(S.frameKey!==frameKey){
+    S.frameKey=frameKey;
+    var fr='';
+    if(!im){
+      fr+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="'+C.vd+'"/>'+
+          '<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="url(#grid)"/>'+
+          '<text x="'+(W/2)+'" y="'+(H/2)+'" fill="'+C.vdTx+'" font-size="'+(u*2)+'" text-anchor="middle" font-family="system-ui">Aucun plan chargé</text>';
+    }
+    fr+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="none" stroke="'+C.frame+'" stroke-width="'+(u*.09)+'"/>';
+    q('#g-frame').innerHTML=fr;
+  }
+
+  /* ------------------------------------------------------------- les fils */
+  var s='';
   var cur=S.current, steps=P.steps, ghost=P.settings.ghost;
   var lo = ghost==='all' ? 0 : (ghost==='prev' ? Math.max(0,cur-1) : cur);
   if(ghost!=='none'){
@@ -578,7 +628,6 @@ function renderCanvas(S){
     }
   }
 
-  /* étape courante */
   var st2 = steps[cur];
   if(st2 && st2.path.length){
     var cc=colorOf(st2.wire.color), cw=wireWidth(P,st2);
@@ -601,7 +650,6 @@ function renderCanvas(S){
     }
   }
 
-  /* repères */
   (P.marks||[]).filter(function(m){ return !im || !m.img || m.img===im.id; }).forEach(function(m){
     var mf=u*1.15, w=String(m.text||'').length*mf*.62+mf*1.3, h=mf*1.85;
     s+='<g class="mark" data-mark="'+m.id+'">'+
@@ -609,8 +657,8 @@ function renderCanvas(S){
        '<text x="'+m.x+'" y="'+(m.y+mf*.36)+'" fill="'+C.lblTx+'" font-size="'+mf+'" font-weight="600" font-family="system-ui" text-anchor="middle">'+esc(m.text)+'</text>'+
        '</g>';
   });
-
-  svg.innerHTML = s + (S.overlay ? S.overlay(S,k) : '');
+  q('#g-wires').innerHTML=s;
+  renderOverlay(S);
 }
 function marker(x,y,r,col,txt,C){
   return '<g>'+
@@ -759,7 +807,7 @@ function renderNav(S){
 function fitView(S){
   var d=imgDims(curImage(S));
   S.view={x:0,y:0,w:d.w,h:d.h};
-  renderCanvas(S);
+  applyView(S);
 }
 function bindViewport(S){
   var svg=q('#svg'), wrap=q('#stage-wrap');
@@ -776,7 +824,7 @@ function bindViewport(S){
     var nw=clamp(S.view.w*f, 40, imgDims(curImage(S)).w*6);
     var ratio=nw/S.view.w;
     S.view={ x:p.x-(p.x-S.view.x)*ratio, y:p.y-(p.y-S.view.y)*ratio, w:nw, h:S.view.h*ratio };
-    renderCanvas(S);
+    applyView(S);
   },{passive:false});
   var pan=null;
   svg.addEventListener('mousedown',function(e){
@@ -789,10 +837,10 @@ function bindViewport(S){
     if(!pan) return;
     var r=svg.getBoundingClientRect(), sc=Math.min(r.width/S.view.w,r.height/S.view.h);
     S.view.x=pan.vx-(e.clientX-pan.sx)/sc; S.view.y=pan.vy-(e.clientY-pan.sy)/sc;
-    renderCanvas(S);
+    applyView(S);
   });
   window.addEventListener('mouseup',function(){ pan=null; svg.classList.remove('panning'); });
-  window.addEventListener('resize',function(){ renderCanvas(S); });
+  window.addEventListener('resize',function(){ applyView(S); });
   q('#nav-prev').addEventListener('click',function(){ S.go(S.current-1); });
   q('#nav-next').addEventListener('click',function(){ S.go(S.current+1); });
   window.addEventListener('keydown',function(e){
@@ -814,7 +862,7 @@ function zoomBy(S,f){
   var cx=S.view.x+S.view.w/2, cy=S.view.y+S.view.h/2;
   var nw=clamp(S.view.w*f,40,imgDims(curImage(S)).w*6), r=nw/S.view.w;
   S.view={x:cx-S.view.w*r/2, y:cy-S.view.h*r/2, w:nw, h:S.view.h*r};
-  renderCanvas(S);
+  applyView(S);
 }
 function cycleGhost(S){
   var o=['none','prev','all'], i=o.indexOf(S.project.settings.ghost);
@@ -860,6 +908,15 @@ function bindThemeBtn(S,after){
     S.project.settings.theme = S.project.settings.theme==='sombre' ? 'clair' : 'sombre';
     applyTheme(S.project); renderCanvas(S); if(after) after();
   });
+}
+/* Bandeau d'attente : lire et décoder un plan en 8K prend plusieurs secondes,
+   il faut le dire. Renvoie la fonction qui le retire. */
+function working(msg){
+  var t=document.createElement('div');
+  t.className='toast work';
+  t.innerHTML='<span class="spin"></span>'+esc(msg);
+  document.body.appendChild(t);
+  return function(){ t.remove(); };
 }
 function toast(msg,err){
   var t=document.createElement('div');
@@ -963,7 +1020,7 @@ function bootViewer(project){
   function topbar(){
     q('#top-actions').innerHTML=
       '<span id="dirty" class="tag warn" style="display:none">● non enregistré</span>'+themeBtn()+
-      '<button class="btn" id="t-doc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg> Document</button>'+
+      '<button class="btn icon" id="t-doc" title="Plans et réglages du tracé"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h9M17 17h3"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="15" cy="17" r="2"/></svg></button>'+
       '<button class="btn" id="t-open">Ouvrir</button>'+
       '<button class="btn" id="t-save">Enregistrer</button>'+
       '<button class="btn primary" id="t-export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4M4 20h16"/></svg> Exporter pour l\'opérateur</button>'+
@@ -1127,7 +1184,12 @@ function bootViewer(project){
             return '<option value="'+im.id+'"'+(im.id===st.img?' selected':'')+'>'+esc(im.name)+'</option>';
           }).join('')+(P.images.length?'':'<option value="">aucun plan</option>')+'</select>'+
           '<button class="btn" id="e-img-add" title="Importer un plan et l\'affecter à cette étape">+</button>'+
-        '</div></div>'+
+        '</div>'+
+        (P.steps.length>1 ? '<div class="sw-row" style="margin-top:6px;gap:6px">'+
+          '<span style="font-size:11.5px;color:var(--tx-3)">Appliquer à</span>'+
+          (st.group?'<button class="btn sm" id="e-img-grp">ce groupe</button>':'')+
+          '<button class="btn sm" id="e-img-all">toutes les étapes</button>'+
+        '</div>' : '')+
       '</div></details>'+
 
       '<div class="sw-row" style="justify-content:space-between;margin-top:12px">'+
@@ -1164,6 +1226,25 @@ function bootViewer(project){
     });
     var ea=q('#e-img-add');
     if(ea) ea.addEventListener('click',function(){ pickImage({assign:true}); });
+    bindApply('#e-img-grp',function(o){ return o.group===st.group; });
+    bindApply('#e-img-all',function(){ return true; });
+
+    /* Affecte le plan de l'étape courante à un ensemble d'étapes. Seules
+       celles qui changent effectivement de plan perdent leur tracé. */
+    function bindApply(sel,match){
+      var b=q(sel); if(!b) return;
+      b.addEventListener('click',function(){
+        var cibles=P.steps.filter(function(o){ return o!==st && match(o) && o.img!==st.img; });
+        if(!cibles.length){ toast('Ces étapes utilisent déjà ce plan.'); return; }
+        var perdus=cibles.filter(function(o){ return o.path.length; }).length;
+        if(!confirm(cibles.length+' étape(s) passeront sur le plan « '+
+            ((imageById(P,st.img)||{}).name||'—')+' ».'+
+            (perdus?'\n\n'+perdus+' d\'entre elles ont déjà un tracé, qui sera effacé.':''))) return;
+        cibles.forEach(function(o){ o.img=st.img; o.path=[]; });
+        touch(); S.render();
+        toast(cibles.length+' étape(s) rattachées à ce plan');
+      });
+    }
     q('#e-draw').addEventListener('click',function(){ setTool('draw'); });
     q('#e-clear').addEventListener('click',function(){ st.path=[]; renderFiche(S); renderCanvas(S); touch(); });
     var eb=q('#e-len-est');
@@ -1178,7 +1259,7 @@ function bootViewer(project){
   }
 
   /* ------------------------------------------------------- calque d'édition */
-  function overlay(S,k){
+  function overlay(S){
     var st=S.project.steps[S.current];
     var s='';
     if(!st) return s;
@@ -1245,9 +1326,9 @@ function bootViewer(project){
         st.path[drag.i].x=S.mouse.x; st.path[drag.i].y=S.mouse.y;
         renderCanvas(S); return;
       }
-      if(S.tool==='draw') renderCanvas(S);
+      if(S.tool==='draw') renderOverlay(S);
     });
-    svg.addEventListener('mouseleave',function(){ S.mouse=null; if(S.tool==='draw') renderCanvas(S); });
+    svg.addEventListener('mouseleave',function(){ S.mouse=null; if(S.tool==='draw') renderOverlay(S); });
 
     svg.addEventListener('mousedown',function(e){
       if(e.button!==0 || e.shiftKey || S.spaceDown || S.tool==='pan') return;
@@ -1325,62 +1406,51 @@ function bootViewer(project){
   /* Un plan importé rejoint la bibliothèque sans rien demander. S'il est
      demandé depuis une étape, il lui est en plus affecté ; au tout premier
      import, les étapes encore sans plan l'adoptent. */
-  var MAX_PX = 2600;        /* côté le plus long conservé */
-  var HEAVY  = 900*1024;    /* au-delà, on ré-encode */
-
   function onImage(e){
     var files=Array.prototype.slice.call(e.target.files||[]);
     var assign = e.target.dataset.assign==='1', back = e.target.dataset.back==='1';
     e.target.dataset.assign=''; e.target.dataset.back=''; e.target.value='';
     if(!files.length) return;
-    var added=[], gain=0;
+    var busy=working('Chargement '+(files.length>1?'de '+files.length+' plans':'du plan')+'…');
+    var added=[];
     (function next(){
       var f=files.shift();
       if(!f) return done();
-      readImage(f,function(im,saved){
+      readImage(f,function(im){
         if(!im) return next();
         var P=S.project, first=!P.images.length;
-        P.images.push(im); added.push(im); gain+=saved;
+        P.images.push(im); added.push(im);
         if(assign && P.steps[S.current]) P.steps[S.current].img=im.id;
         if(first) P.steps.forEach(function(st){ if(!st.img) st.img=im.id; });
         next();
       });
     })();
     function done(){
+      busy();
       if(!added.length) return;
       touch(); S.render();
       var m=q('.mask'); if(m){ m.remove(); if(back) dlgDoc(); }
       var last=added[added.length-1];
       toast(added.length===1
-        ? 'Plan « '+last.name+' » ajouté ('+last.w+' × '+last.h+' px'+(gain>0?', allégé de '+koMo(gain):'')+')'
-        : added.length+' plans ajoutés'+(gain>0?' ('+koMo(gain)+' économisés)':''));
+        ? 'Plan « '+last.name+' » ajouté ('+last.w+' × '+last.h+' px)'
+        : added.length+' plans ajoutés');
     }
   }
+  /* Le fichier est repris tel quel : un plan en 8K est chargé sans être
+     réduit ni ré-encodé, sa définition étant précisément ce qui permet de
+     zoomer sur un bornier. */
   function readImage(f,cb){
     var rd=new FileReader();
     rd.onload=function(){
       var img=new Image();
       img.onload=function(){
-        var src=rd.result, w=img.naturalWidth, h=img.naturalHeight;
-        var sc=Math.min(1, MAX_PX/Math.max(w,h));
-        if(sc>=1 && src.length<HEAVY) return cb({id:uid(),name:cleanName(f.name),data:src,w:w,h:h},0);
-        /* Redimensionnement et ré-encodage : un plan de plusieurs mégaoctets
-           alourdirait autant le document remis à l'opérateur, sans rien
-           apporter à la lecture. */
-        var nw=Math.max(1,Math.round(w*sc)), nh=Math.max(1,Math.round(h*sc));
-        var cv=document.createElement('canvas'); cv.width=nw; cv.height=nh;
-        var cx=cv.getContext('2d');
-        cx.fillStyle='#fff'; cx.fillRect(0,0,nw,nh);   /* le JPEG ignore la transparence */
-        cx.drawImage(img,0,0,nw,nh);
-        var out;
-        try{ out=cv.toDataURL('image/jpeg',0.85); }catch(x){ out=src; }
-        if(out.length>=src.length && sc>=1) return cb({id:uid(),name:cleanName(f.name),data:src,w:w,h:h},0);
-        cb({id:uid(),name:cleanName(f.name),data:out,w:nw,h:nh}, Math.max(0,src.length-out.length));
+        cb({ id:uid(), name:cleanName(f.name), data:rd.result,
+             w:img.naturalWidth, h:img.naturalHeight });
       };
-      img.onerror=function(){ toast('« '+f.name+' » : image illisible.',true); cb(null,0); };
+      img.onerror=function(){ toast('« '+f.name+' » : image illisible.',true); cb(null); };
       img.src=rd.result;
     };
-    rd.onerror=function(){ cb(null,0); };
+    rd.onerror=function(){ cb(null); };
     rd.readAsDataURL(f);
   }
   function koMo(n){
@@ -1412,33 +1482,20 @@ function bootViewer(project){
           '<div class="mt">'+im.w+' × '+im.h+' px · '+(used?used+' étape'+(used>1?'s':''):'inutilisé')+'</div></div>'+
         '<button class="btn icon sm danger" data-del="'+im.id+'" title="Retirer ce plan">🗑</button></div>';
     }).join('') || '<div class="empty" style="padding:14px">Aucun plan pour l\'instant.</div>';
-    modal('Document',
+    modal('Plans et réglages',
       '<div class="field"><label>Plans du projet</label>'+
         '<div class="imglist">'+list+'</div>'+
         '<button class="btn" id="d-img" style="margin-top:8px">+ Ajouter un plan</button></div>'+
-      '<div class="field"><label>Titre</label><input class="inp" id="i-title" value="'+esc(P.title)+'"></div>'+
-      '<div class="row">'+
-        '<div class="field"><label>Référence / affaire</label><input class="inp" id="i-ref" value="'+esc(P.ref)+'"></div>'+
-        '<div class="field"><label>Indice</label><input class="inp" id="i-rev" value="'+esc(P.revision)+'"></div>'+
+      '<div class="row" style="margin-top:14px">'+
+        '<div class="field"><label>Échelle (px / mm)</label><input class="inp" id="i-scale" value="'+esc(P.scale||'')+'" placeholder="0 = non défini"></div>'+
+        '<div class="field"><label>Épaisseur pour 1,5 mm²</label><input class="inp" id="i-th" type="number" min="1" max="200" value="'+(P.settings.thickness||6)+'"></div>'+
       '</div>'+
-      '<div class="row">'+
-        '<div class="field"><label>Auteur</label><input class="inp" id="i-auth" value="'+esc(P.author)+'"></div>'+
-        '<div class="field"><label>Date</label><input class="inp" id="i-date" value="'+esc(P.date)+'" placeholder="JJ/MM/AAAA"></div>'+
-      '</div>'+
-      '<details class="acc" style="margin-top:4px"><summary>Réglages du tracé</summary><div class="accb">'+
-        '<div class="row">'+
-          '<div class="field"><label>Échelle (px / mm)</label><input class="inp" id="i-scale" value="'+esc(P.scale||'')+'" placeholder="0 = non défini"></div>'+
-          '<div class="field"><label>Épaisseur pour 1,5 mm²</label><input class="inp" id="i-th" type="number" min="1" max="60" value="'+(P.settings.thickness||6)+'"></div>'+
-        '</div>'+
-        '<label class="check'+(P.settings.labels?' on':'')+'" style="margin-top:0"><input type="checkbox" id="i-lab"'+(P.settings.labels?' checked':'')+'> <span>Afficher le n° de fil sur le tracé</span></label>'+
-      '</div></details>',
+      '<label class="check'+(P.settings.labels?' on':'')+'" style="margin-top:0"><input type="checkbox" id="i-lab"'+(P.settings.labels?' checked':'')+'> <span>Afficher le n° de fil sur le tracé</span></label>',
       function(){
-        P.title=q('#i-title').value; P.ref=q('#i-ref').value; P.revision=q('#i-rev').value;
-        P.author=q('#i-auth').value; P.date=q('#i-date').value;
         P.scale=parseFloat(String(q('#i-scale').value).replace(',','.'))||0;
-        P.settings.thickness=clamp(parseInt(q('#i-th').value,10)||6,1,60);
+        P.settings.thickness=clamp(parseInt(q('#i-th').value,10)||6,1,200);
         P.settings.labels=q('#i-lab').checked;
-        S.render(); touch();
+        touch(); S.render();
       },
       function(m){
         q('#d-img',m).addEventListener('click',function(){ pickImage({back:true}); });
@@ -1456,7 +1513,7 @@ function bootViewer(project){
             P.marks=P.marks.filter(function(x){ return x.img!==id; });
             var fb=P.images[0]?P.images[0].id:'';
             P.steps.forEach(function(st){ if(st.img===id){ st.img=fb; st.path=[]; } });
-            touch(); S.viewImg=null; S.render(); m.remove(); dlgDoc();
+            touch(); S.viewImg=null; S.bgKey=null; S.render(); m.remove(); dlgDoc();
           });
         });
       });
@@ -1515,20 +1572,31 @@ function bootViewer(project){
     if(!P.steps.length){ toast('Aucune étape à exporter.',true); return; }
     var r=P.release||(P.release={trigram:'',hard:'',date:''});
     modal('Exporter pour l\'opérateur',
+      '<div class="field"><label>Titre du document</label><input class="inp" id="x-title" value="'+esc(P.title)+'"></div>'+
+      '<div class="field"><label>Référence / affaire</label><input class="inp" id="x-ref" value="'+esc(P.ref)+'" placeholder="facultatif"></div>'+
       '<div class="row">'+
-        '<div class="field"><label>Trigramme</label><input class="inp" id="x-trg" value="'+esc(r.trigram)+'" maxlength="8" placeholder="ABC" autofocus></div>'+
+        '<div class="field"><label>Trigramme</label><input class="inp" id="x-trg" value="'+esc(r.trigram)+'" maxlength="8" placeholder="ABC"></div>'+
         '<div class="field"><label>Version Hard</label><input class="inp" id="x-hard" value="'+esc(r.hard)+'" placeholder="B2"></div>'+
       '</div>'+
       '<div class="field"><label>Date</label><input class="inp" id="x-date" value="'+esc(r.date||today())+'" placeholder="JJ/MM/AAAA"></div>'+
-      '<div class="note" style="margin-top:4px"><div class="k">Rappel</div>'+
-        'Ces trois informations apparaissent dans le cartouche du document remis à l\'opérateur, à l\'écran comme à l\'impression.</div>',
+      '<div class="note" style="margin-top:4px"><div class="k">Cartouche</div>'+
+        'Ces informations sont celles que l\'opérateur verra en tête du document, à l\'écran comme à l\'impression.'+
+        '<br><br>Poids estimé du fichier : <b>'+koMo(weightEstimate(P))+'</b>.</div>',
       function(){
+        P.title=q('#x-title').value.trim()||'Cheminement de câbles';
+        P.ref=q('#x-ref').value.trim();
         r.trigram=q('#x-trg').value.trim();
         r.hard=q('#x-hard').value.trim();
         r.date=q('#x-date').value.trim()||today();
         if(!r.trigram || !r.hard){ toast('Trigramme et version Hard sont nécessaires.',true); return false; }
         touch(); renderNav(S); exportViewer();
       });
+  }
+  /* Les plans sont embarqués en base64 : leur poids fait celui du document. */
+  function weightEstimate(P){
+    var n=60*1024;
+    (P.images||[]).forEach(function(im){ n+=im.data.length; });
+    return n;
   }
   function today(){
     var d=new Date(), p2=function(n){ return (n<10?'0':'')+n; };
@@ -1551,7 +1619,7 @@ function bootViewer(project){
     var r=P.release||{};
     var nom=slug(P.ref||P.title)+'-operateur'+(r.hard?'-'+slug(r.hard):'')+(r.trigram?'-'+slug(r.trigram):'');
     download(nom+'.html', html, 'text/html;charset=utf-8');
-    toast('Document opérateur exporté ('+Math.round(html.length/1024)+' Ko)');
+    toast('Document opérateur exporté ('+koMo(html.length)+')');
   }
 
   /* démarrage */
