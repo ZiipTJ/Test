@@ -21,10 +21,10 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
    typiquement un connecteur. **+ Câble** en ajoute un dans l'étape.
    Le champ **Connecteur / groupe** regroupe les étapes dans la liste de
    gauche (ex. `X1 — Flexisoft`, `Wago A`).
-3. **Tracer le fil** → le tracé s'applique au **câble sélectionné** dans la
-   liste de droite. Cliquer les points du parcours ; chaque segment est
-   forcément horizontal ou vertical, et quand deux points ne sont pas
-   alignés un coude est inséré automatiquement. La grille et l'aimantation
+3. **Tracer** → le tracé s'applique au **câble sélectionné** dans la liste de
+   droite. Cliquer les points du parcours ; chaque segment est forcément
+   horizontal ou vertical, et quand deux points ne sont pas alignés un coude
+   est inséré automatiquement. `Échap` termine. La grille et l'aimantation
    sont toujours actives, il n'y a rien à régler.
 4. Réordonner les étapes par **glisser-déposer** dans la liste de gauche :
    c'est l'ordre de câblage remis à l'opérateur.
@@ -33,8 +33,27 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
    date. Le HTML autonome est ensuite produit.
 
 Le bouton réglages de la barre haute (icône curseurs) regroupe ce qui sert
-rarement : la bibliothèque de plans (renommer, retirer), l'échelle px/mm et
-l'épaisseur de référence pour 1,5 mm².
+rarement : la bibliothèque de plans (renommer, retirer) et l'épaisseur du tracé.
+
+**Renommer une étape** : double-clic sur son nom dans la liste de gauche, ou
+clic droit → *Renommer*. Le clic droit propose aussi *Dupliquer* et
+*Supprimer l'étape*.
+
+**Note d'étape** : le champ en haut de la fiche de droite. Ce qui y est écrit
+s'affiche en tête de l'étape chez l'opérateur, dans un encadré.
+
+## Les quatre outils
+
+| Outil | Rôle |
+|---|---|
+| **Vue** | Le tracé seul, sans poignée ni marque. C'est l'état de repos. |
+| **Tracer** | Poser les points du câble sélectionné. |
+| **Modifier** | Déplacer, retirer les points, inverser un coude. |
+| **Repère** | Poser une étiquette sur le plan (X1, Wago A…). |
+
+`Échap` quitte l'outil en cours et revient à **Vue** — le tracé est conservé.
+Rien ne se supprime au clavier : la suppression d'un câble se fait dans le
+panneau de droite (clic droit ou bouton **⋯** → *Supprimer*).
 
 ## Enregistrement
 
@@ -52,10 +71,10 @@ disparaît après un enregistrement.
 
 | Touche | Action |
 |---|---|
-| `D` / `V` | Outil tracé / modification |
+| `D` / `V` | Outil Tracer / Modifier |
 | `Tab` | Inverser le sens du coude (H→V ou V→H) |
 | `Retour arrière` | Annuler le dernier point posé |
-| `Échap` | Effacer tout le tracé du câble en cours |
+| `Échap` | Terminer : retour à l'outil Vue |
 | `N` | Nouvelle étape |
 | `←` `→` | Étape précédente / suivante |
 | `G` | Faire défiler l'affichage des étapes précédentes |
@@ -72,7 +91,10 @@ Un câble ne porte que ce qui sert à le brancher : le **n° de fil**, sa
 de câblage. Ni section, ni longueur, ni commentaire : cette information-là
 vit ailleurs, et l'encombrer ici ralentit la lecture au poste.
 
-Sur le plan, l'origine est marquée `O` et l'extrémité `E`.
+Sur le plan, **seul le fil est dessiné** : pas de pastille d'extrémité, pas de
+marque de coude. Ces repères appartiennent à l'édition et disparaissent dès
+qu'on la quitte ; l'origine et l'extrémité se lisent sur la carte du câble.
+Seul le n° de fil est porté sur le tracé.
 
 ### La liste de droite
 
@@ -81,12 +103,13 @@ pastille de couleur, `origine → extrémité` — pour qu'une étape puisse en
 aligner plusieurs sans que la fiche devienne illisible.
 
 Dans l'éditeur : **clic** sélectionne le câble (c'est celui qu'on trace),
-**clic droit** ouvre *Modifier*, *Retracer*, *Dupliquer*, *Supprimer*. Les
-champs n'apparaissent que le temps de la modification, la carte reprend
-ensuite sa forme compacte.
+**clic droit** ou le bouton **⋯** ouvre *Modifier*, *Retracer*, *Ajuster les
+points*, *Dupliquer*, *Supprimer*. Les champs n'apparaissent que le temps de
+la modification, la carte reprend ensuite sa forme compacte.
 
 Côté opérateur, chaque carte se coche indépendamment : l'étape n'est marquée
-terminée que lorsque tous ses câbles le sont.
+terminée que lorsque tous ses câbles le sont, et une barre d'**avancement**
+en bas de la liste donne le compte global des câbles pointés.
 
 ## Collection de plans
 
@@ -144,8 +167,8 @@ le projet et repréremplies à l'export suivant.
 
 ## Échelle du dessin
 
-Tout ce qui est dessiné sur le plan — tracés, marqueurs `D` et `A`, numéros de
-fil, repères — est exprimé **en unités du schéma**. Zoomer agrandit donc le
+Tout ce qui est dessiné sur le plan — tracés, numéros de fil, repères — est
+exprimé **en unités du schéma**. Zoomer agrandit donc le
 dessin exactement comme le plan : l'échelle est conservée, et un fil garde la
 même largeur relative aux borniers quel que soit le grossissement. L'épaisseur
 du tracé se règle dans les réglages, et se cale d'elle-même sur la définition

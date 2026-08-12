@@ -269,6 +269,27 @@ button,input,select,textarea{font:inherit;color:inherit}
 .check input{width:17px;height:17px;accent-color:var(--ok);cursor:pointer}
 .check.on{background:var(--done-bg);border-color:var(--done-bd)}
 
+/* ---------------------------------------------------------- avancement */
+.prog{padding:11px 13px;border-top:1px solid var(--line)}
+.prog-t{display:flex;align-items:baseline;font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--tx-3);font-weight:650}
+.prog-t b{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--tx);letter-spacing:0}
+.prog-bar{height:6px;margin-top:7px;border-radius:20px;background:var(--bg-3);border:1px solid var(--line);overflow:hidden}
+.prog-bar i{display:block;height:100%;background:var(--ok);border-radius:20px;transition:width .25s}
+
+/* ------------------------------------------------------- note et divers */
+.note-in{
+  width:100%;padding:8px 10px;margin-bottom:4px;background:var(--note-bg);
+  border:1px solid var(--note-bd);border-left-width:3px;border-radius:var(--r);
+  color:var(--note-tx);font:inherit;font-size:12.5px;resize:none;outline:none;overflow:hidden
+}
+.note-in::placeholder{color:var(--tx-3);opacity:.9}
+.note-in:focus{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 18%,transparent)}
+.tip{font-size:11.5px;color:var(--tx-3);margin:2px 2px 0;line-height:1.5}
+.rename{
+  width:100%;height:24px;padding:0 6px;font:inherit;font-size:13px;font-weight:550;
+  background:var(--bg);border:1px solid var(--acc);border-radius:6px;outline:none
+}
+
 /* --------------------------------------------------------- carte câble */
 .cab{
   display:flex;align-items:center;gap:10px;padding:9px 11px;margin-bottom:7px;
@@ -300,6 +321,14 @@ button,input,select,textarea{font:inherit;color:inherit}
   border:1px solid var(--line);border-radius:20px;padding:1px 7px
 }
 .cab-n.vide{color:var(--warn);border-color:var(--note-bd);background:var(--note-bg)}
+.cab-more{
+  width:24px;height:24px;flex:0 0 24px;margin-left:2px;border:0;border-radius:6px;
+  background:none;color:var(--tx-3);cursor:pointer;font-size:15px;line-height:1;
+  opacity:0;transition:opacity .12s,background .12s
+}
+.cab:hover .cab-more,.cab.on .cab-more{opacity:1}
+.cab-more:hover{background:var(--hov);color:var(--tx)}
+.cab-more svg{width:15px;height:15px;display:block;margin:0 auto}
 .cabs-head{
   display:flex;align-items:center;margin:14px 0 7px;font-size:10.5px;text-transform:uppercase;
   letter-spacing:.9px;color:var(--tx-3);font-weight:650
@@ -510,7 +539,7 @@ function emptyCable(){
 /* Une étape rassemble les câbles à brancher d'un même tenant, typiquement
    un connecteur. */
 function emptyStep(n){
-  return { id:uid(), group:'', name:'Étape '+n, img:'', cables:[emptyCable()] };
+  return { id:uid(), group:'', name:'Étape '+n, note:'', img:'', cables:[emptyCable()] };
 }
 function curStep(S){ return S.project.steps[S.current]||null; }
 function curCable(S){
@@ -691,20 +720,17 @@ function renderCanvas(S){
   /* l'étape courante : tous ses câbles */
   var st2 = steps[cur];
   if(st2){
-    st2.cables.forEach(function(c,ci){
+    /* Le tracé se suffit à lui-même : ni pastille d'extrémité, ni marque de
+       coude. Seul le repère du câble est porté, au milieu du parcours. */
+    st2.cables.forEach(function(c){
       s+=drawCable(c,false);
-      if(!c.path.length) return;
-      var a=c.path[0], b=c.path[c.path.length-1];
-      var r=Math.max(W2*1.6, u*.55);
-      s+=marker(a.x,a.y,r,'#12915a','O',C);
-      if(c.path.length>1) s+=marker(b.x,b.y,r,'#1a63d6','E',C);
-      /* repère du câble, au milieu du parcours */
       if(P.settings.labels && c.num && c.path.length>1){
         var col=colorOf(c.color);
         var rp=routePoints(c.path), mid=rp[Math.floor(rp.length/2)];
         var fs=Math.max(W2*2.2,u*.9), tw=String(c.num).length*fs*.66+fs;
-        s+='<g><rect x="'+(mid.x-tw/2)+'" y="'+(mid.y-r-fs*1.55)+'" rx="'+(fs*.42)+'" width="'+tw+'" height="'+(fs*1.45)+'" fill="'+C.lblBg+'" fill-opacity=".94" stroke="'+col.hex+'" stroke-width="'+(fs*.11)+'"/>'+
-           '<text x="'+mid.x+'" y="'+(mid.y-r-fs*.42)+'" fill="'+C.lblTx+'" font-size="'+fs+'" font-family="ui-monospace,monospace" text-anchor="middle">'+esc(c.num)+'</text></g>';
+        var dy=W2*.9+fs*1.2;
+        s+='<g><rect x="'+(mid.x-tw/2)+'" y="'+(mid.y-dy)+'" rx="'+(fs*.42)+'" width="'+tw+'" height="'+(fs*1.45)+'" fill="'+C.lblBg+'" fill-opacity=".94" stroke="'+col.hex+'" stroke-width="'+(fs*.11)+'"/>'+
+           '<text x="'+mid.x+'" y="'+(mid.y-dy+fs*1.08)+'" fill="'+C.lblTx+'" font-size="'+fs+'" font-family="ui-monospace,monospace" text-anchor="middle">'+esc(c.num)+'</text></g>';
       }
     });
   }
@@ -719,14 +745,6 @@ function renderCanvas(S){
   q('#g-wires').innerHTML=s;
   renderOverlay(S);
 }
-function marker(x,y,r,col,txt,C){
-  return '<g>'+
-    '<circle cx="'+x+'" cy="'+y+'" r="'+(r*1.28)+'" fill="'+C.halo+'" fill-opacity="'+C.haloOp+'"/>'+
-    '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+col+'" stroke="#fff" stroke-width="'+(r*.18)+'"/>'+
-    '<text x="'+x+'" y="'+(y+r*.42)+'" font-size="'+(r*1.15)+'" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="system-ui">'+txt+'</text>'+
-    '</g>';
-}
-
 /* ------------------------------------------------------- liste de gauche */
 function renderSteps(S){
   var P=S.project, host=q('#step-list');
@@ -796,6 +814,7 @@ function renderFiche(S){
     '<h2>'+esc(st.name||('Étape '+(S.current+1)))+'</h2>'+
     '<div class="sub">Étape '+(S.current+1)+' / '+P.steps.length+(st.group?' · '+esc(st.group):'')+
       ((P.images||[]).length>1 ? ' · plan '+esc((stepImage(P,st)||{}).name||'—') : '')+'</div>'+
+    (st.note ? '<div class="note"><div class="k">À noter</div>'+esc(st.note)+'</div>' : '')+
     st.cables.map(function(c,i){ return cableCard(c,i,{done:!!S.done[c.id],check:true}); }).join('')+
   '</div>';
   host.innerHTML=h;
@@ -803,7 +822,7 @@ function renderFiche(S){
     el.addEventListener('click',function(){
       var c=st.cables[parseInt(el.dataset.ci,10)];
       S.done[c.id]=!S.done[c.id];
-      renderSteps(S); renderFiche(S);
+      renderSteps(S); renderFiche(S); renderProgress(S);
     });
   });
 }
@@ -839,8 +858,24 @@ function makeState(project, edit){
     S.cable=0; S.editCable=-1; S.sel=-1;
     S.render();
   };
-  S.render=function(){ renderSteps(S); renderFiche(S); renderCanvas(S); renderNav(S); if(S.afterRender) S.afterRender(S); };
+  S.render=function(){
+    renderSteps(S); renderFiche(S); renderCanvas(S); renderNav(S); renderProgress(S);
+    if(S.afterRender) S.afterRender(S);
+  };
   return S;
+}
+function renderProgress(S){
+  var host=q('#left-foot'); if(!host||S.edit) return;
+  var tot=0, fait=0;
+  S.project.steps.forEach(function(st){
+    st.cables.forEach(function(c){ tot++; if(S.done[c.id]) fait++; });
+  });
+  var pc = tot ? Math.round(fait/tot*100) : 0;
+  host.innerHTML=
+    '<div class="prog">'+
+      '<div class="prog-t"><span>Avancement</span><b>'+fait+' / '+tot+'</b></div>'+
+      '<div class="prog-bar"><i style="width:'+pc+'%"></i></div>'+
+    '</div>';
 }
 function renderNav(S){
   var n=S.project.steps.length;
@@ -1011,7 +1046,7 @@ function bootViewer(project){
   });
   q('#op-print').addEventListener('click',function(){ window.print(); });
   q('#op-reset').addEventListener('click',function(){
-    if(confirm('Décocher toutes les étapes ?')){ S.done={}; S.render(); }
+    if(confirm('Décocher tous les câbles ?')){ S.done={}; S.render(); }
   });
   fitView(S); S.go(0);
 }
@@ -1030,7 +1065,7 @@ function bootViewer(project){
     var p=emptyProject();
     S=makeState(p,true);
     window.S=S;
-    S.tool='select'; S.sel=-1; S.cable=0; S.editCable=-1;
+    S.tool='view'; S.sel=-1; S.cable=0; S.editCable=-1;
     S.elbow='h'; S.snap=10; S.magnet=true;   /* aimantation et grille toujours actives */
     applyTheme(S.project);
     buildLayout(q('#root'));
@@ -1055,7 +1090,7 @@ function bootViewer(project){
     }
     var first=o.images[0]?o.images[0].id:'';
     o.steps.forEach(function(st){
-      st.id=st.id||uid(); st.group=st.group||'';
+      st.id=st.id||uid(); st.group=st.group||''; st.note=st.note||'';
       /* projets antérieurs : une étape portait un seul fil */
       if(!st.cables){
         var w=st.wire||{};
@@ -1091,6 +1126,8 @@ function bootViewer(project){
   });
 
   /* ---------------------------------------------------------- barre haute */
+  var ICO='viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"';
+
   function topbar(){
     q('#top-actions').innerHTML=
       '<span id="dirty" class="tag warn" style="display:none">● non enregistré</span>'+themeBtn()+
@@ -1113,9 +1150,10 @@ function bootViewer(project){
   function stagebar(){
     q('#stage-bar').innerHTML=
       '<span class="seg" id="tool-seg">'+
-        '<button data-t="draw">Tracer le fil</button>'+
-        '<button data-t="select">Modifier</button>'+
-        '<button data-t="mark">Repère</button>'+
+        '<button data-t="view" title="Voir le tracé seul (Échap)">Vue</button>'+
+        '<button data-t="draw" title="Tracer le câble sélectionné (D)">Tracer</button>'+
+        '<button data-t="edit" title="Déplacer les points (V)">Modifier</button>'+
+        '<button data-t="mark" title="Poser une étiquette sur le plan">Repère</button>'+
       '</span>'+
       '<div style="flex:1"></div>'+
       ghostSeg(S)+
@@ -1134,7 +1172,6 @@ function bootViewer(project){
     S.tool=t; S.sel=-1; syncSeg();
     var svg=q('#svg');
     svg.classList.toggle('draw', t==='draw'||t==='mark');
-    svg.classList.toggle('pan', t==='pan');
     hint(); renderCanvas(S);
   }
   function hint(){
@@ -1143,12 +1180,14 @@ function bootViewer(project){
     if(S.tool==='draw'){
       var c0=curCable(S);
       txt='Tracé de <b>'+esc(c0?cableLabel(c0,S.cable):'—')+'</b> · <b>Clic</b> = poser un point · '+
-          '<kbd>Tab</kbd> inverser le coude · <kbd>Retour arr.</kbd> annuler le dernier · <kbd>Échap</kbd> tout effacer';
+          '<kbd>Tab</kbd> inverser le coude · <kbd>Retour arr.</kbd> annuler le dernier · <kbd>Échap</kbd> terminer';
     }else if(S.tool==='mark'){
-      txt='<b>Clic</b> = poser un repère (X1, Wago A, Flexisoft…) · <kbd>Échap</kbd> pour sortir';
-    }else if(S.tool==='select'){
+      txt='<b>Clic</b> = poser un repère (X1, Wago A, Flexisoft…) · <kbd>Échap</kbd> terminer';
+    }else if(S.tool==='edit'){
       var c1=curCable(S);
-      if(c1 && c1.path.length) txt='<b>Glisser</b> un point pour le déplacer · <b>Clic droit</b> = supprimer · <b>Double-clic</b> sur un coude = inverser';
+      txt=(c1 && c1.path.length)
+        ? '<b>Glisser</b> un point pour le déplacer · <b>Clic droit</b> sur un point = le retirer · <b>Double-clic</b> sur un coude = inverser · <kbd>Échap</kbd> terminer'
+        : 'Ce câble n\'a pas encore de tracé.';
     }
     h.innerHTML=txt; h.style.display= txt?'block':'none';
   }
@@ -1158,8 +1197,10 @@ function bootViewer(project){
     q('#left-foot').innerHTML=
       '<div style="padding:9px;border-top:1px solid var(--line);display:flex;gap:6px">'+
         '<button class="btn primary sm" id="s-add" style="flex:1">+ Étape</button>'+
-        '<button class="btn sm" id="s-dup" title="Dupliquer l\'étape">⧉</button>'+
-        '<button class="btn sm danger" id="s-del" title="Supprimer l\'étape">🗑</button>'+
+        '<button class="btn sm icon" id="s-dup" title="Dupliquer l\'étape">'+
+          '<svg '+ICO+'><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>'+
+        '<button class="btn sm icon danger" id="s-del" title="Supprimer l\'étape">'+
+          '<svg '+ICO+'><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>'+
       '</div>';
     q('#s-add').addEventListener('click',function(){ addStep(); });
     q('#s-dup').addEventListener('click',dupStep);
@@ -1183,9 +1224,45 @@ function bootViewer(project){
   }
 
   /* ------------------------------------------------ réordonnancement (DnD) */
+  /* Renommage sur place dans la liste de gauche. */
+  function renameStep(i){
+    var el=q('#step-list .step[data-i="'+i+'"]'); if(!el) return;
+    var t1=q('.t1',el), st=S.project.steps[i], old=st.name||'';
+    var inp=document.createElement('input');
+    inp.className='rename'; inp.value=old;
+    t1.replaceWith(inp); inp.focus(); inp.select();
+    var done=false;
+    function finish(keep){
+      if(done) return; done=true;
+      if(keep){ st.name=inp.value.trim()||old; touch(); }
+      renderSteps(S); renderFiche(S);
+    }
+    inp.addEventListener('keydown',function(e){
+      e.stopPropagation();
+      if(e.key==='Enter') finish(true);
+      if(e.key==='Escape') finish(false);
+    });
+    inp.addEventListener('blur',function(){ finish(true); });
+    inp.addEventListener('click',function(e){ e.stopPropagation(); });
+  }
+  function stepMenu(x,y,i){
+    var P=S.project;
+    menu(x,y,[
+      { t:'Renommer', f:function(){ S.go(i); setTimeout(function(){ renameStep(i); },0); } },
+      { t:'Dupliquer', f:function(){ S.go(i); dupStep(); } },
+      null,
+      { t:'Supprimer l\'étape', danger:true, f:function(){ S.go(i); delStep(); } }
+    ]);
+  }
+
   function bindDnd(){
     var dragI=-1;
     qa('#step-list .step').forEach(function(elm){
+      var idx=parseInt(elm.dataset.i,10);
+      elm.addEventListener('dblclick',function(e){ e.stopPropagation(); renameStep(idx); });
+      elm.addEventListener('contextmenu',function(e){
+        e.preventDefault(); e.stopPropagation(); stepMenu(e.clientX,e.clientY,idx);
+      });
       elm.addEventListener('dragstart',function(e){
         dragI=parseInt(elm.dataset.i,10); elm.classList.add('dragging');
         e.dataTransfer.effectAllowed='move'; try{ e.dataTransfer.setData('text/plain',String(dragI)); }catch(x){}
@@ -1225,16 +1302,19 @@ function bootViewer(project){
       if(i===S.editCable) return cableForm(c,i);
       return cableCard(c,i,{ sel:i===S.cable,
         right:'<span class="cab-n'+(c.path.length<2?' vide':'')+'">'+
-              (c.path.length<2?'à tracer':c.path.length+' pts')+'</span>' });
+              (c.path.length<2?'à tracer':c.path.length+' pts')+'</span>'+
+              '<button class="cab-more" data-more="'+i+'" title="Actions sur ce câble">'+
+              '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/>'+
+              '<circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>' });
     }).join('');
 
     host.innerHTML=
     '<div class="fiche">'+
+      '<textarea class="note-in" id="e-note" rows="1" placeholder="Note pour l\'opérateur (facultatif)">'+esc(st.note)+'</textarea>'+
       '<div class="cabs-head"><span>Câbles de l\'étape</span>'+
         '<button class="btn sm" id="c-add">+ Câble</button></div>'+
       cards+
-      '<div style="font-size:11.5px;color:var(--tx-3);margin:2px 2px 0">'+
-        'Clic = sélectionner · clic droit = modifier, retracer, supprimer</div>'+
+      '<div class="tip">Clic = sélectionner · clic droit ou <b>⋯</b> = modifier, retracer, supprimer</div>'+
 
       '<details class="acc" data-acc="etp"'+(S.open.etp?' open':'')+' style="margin-top:14px"><summary>Étape'+
         '<span class="peek">'+esc(st.name||'—')+'</span></summary><div class="accb">'+
@@ -1266,6 +1346,19 @@ function bootViewer(project){
         e.preventDefault(); S.cable=i; cableMenu(e.clientX,e.clientY,i);
       });
     });
+    qa('[data-more]',host).forEach(function(b){
+      b.addEventListener('click',function(e){
+        e.stopPropagation();
+        var i=parseInt(b.dataset.more,10), r=b.getBoundingClientRect();
+        S.cable=i; renderFiche(S); renderCanvas(S);
+        cableMenu(r.right-6, r.bottom+4, i);
+      });
+    });
+    var nt=q('#e-note');
+    if(nt){
+      autoGrow(nt);
+      nt.addEventListener('input',function(){ st.note=nt.value; autoGrow(nt); touch(); });
+    }
     qa('[data-editdone]',host).forEach(function(b){
       b.addEventListener('click',function(){ S.editCable=-1; renderFiche(S); });
     });
@@ -1318,6 +1411,8 @@ function bootViewer(project){
     }
   };
 
+  function autoGrow(t){ t.style.height='auto'; t.style.height=(t.scrollHeight+2)+'px'; }
+
   /* Carte dépliée en formulaire : repère, couleur, origine, extrémité. */
   function cableForm(c,i){
     var opts=WIRE_COLORS.map(function(o){
@@ -1358,6 +1453,8 @@ function bootViewer(project){
       { t:'Modifier', f:function(){ S.editCable=i; renderFiche(S); } },
       { t:(c.path.length?'Retracer':'Tracer'), f:function(){
           c.path=[]; S.cable=i; S.editCable=-1; touch(); renderFiche(S); setTool('draw'); } },
+      { t:'Ajuster les points', f:function(){
+          S.cable=i; S.editCable=-1; renderFiche(S); setTool('edit'); } },
       { t:'Dupliquer', f:function(){
           var d=JSON.parse(JSON.stringify(c)); d.id=uid(); d.path=[];
           st.cables.splice(i+1,0,d); S.cable=i+1; S.editCable=i+1;
@@ -1407,6 +1504,7 @@ function bootViewer(project){
     return 1/Math.min(cw/S.view.w, ch/S.view.h);
   }
   function overlay(S){
+    if(S.tool!=='draw' && S.tool!=='edit') return '';   /* en Vue : le fil seul */
     var c=curCable(S); if(!c) return '';
     var k=screenUnit(S), r=6*k;          /* ≈ 6 px à l'écran, quel que soit le zoom */
     var col=colorOf(c.color), s='';
@@ -1417,7 +1515,7 @@ function bootViewer(project){
       s+='<path d="'+pathD([a,b])+'" fill="none" stroke="'+col.hex+'" stroke-opacity=".55" stroke-width="'+wireWidth(S.project)+'" stroke-dasharray="'+(9*k)+' '+(7*k)+'" stroke-linecap="round" stroke-linejoin="round"/>';
       s+='<circle cx="'+b.x+'" cy="'+b.y+'" r="'+(r*.9)+'" fill="none" stroke="'+ink(S.project).lblTx+'" stroke-opacity=".8" stroke-width="'+(1.5*k)+'"/>';
     }
-    if(S.tool==='select'||S.tool==='draw'){
+    if(S.tool==='edit'||S.tool==='draw'){
       c.path.forEach(function(p,i){
         var sel = i===S.sel;
         s+='<circle class="handle" data-pi="'+i+'" cx="'+p.x+'" cy="'+p.y+'" r="'+r+'" '+
@@ -1495,8 +1593,8 @@ function bootViewer(project){
           S.project.marks.push({id:uid(),img:im?im.id:'',x:p.x,y:p.y,text:txt});
           renderCanvas(S); touch();
         }
-      }else{
-        S.sel=-1; renderCanvas(S);
+      }else if(S.tool==='edit'){
+        S.sel=-1; renderOverlay(S);
       }
     });
     window.addEventListener('mouseup',function(){
@@ -1533,11 +1631,9 @@ function bootViewer(project){
       if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
       var c=curCable(S);
       if(e.key==='Tab'){ e.preventDefault(); S.elbow=S.elbow==='h'?'v':'h'; syncSeg(); renderOverlay(S); }
-      if(e.key==='Escape'){
-        /* on repart de zéro sur ce câble */
-        if(c && c.path.length){ c.path=[]; S.sel=-1; touch(); renderCanvas(S); renderFiche(S); }
-        else setTool('select');
-      }
+      /* Échap termine le tracé : on repasse en Vue, où le fil s'affiche seul.
+         La suppression, elle, se fait depuis le panneau des câbles. */
+      if(e.key==='Escape'){ S.sel=-1; setTool('view'); }
       if(e.key==='Backspace' && S.tool==='draw' && c && c.path.length){
         e.preventDefault(); c.path.pop(); renderCanvas(S); renderFiche(S); touch();
       }
@@ -1545,7 +1641,7 @@ function bootViewer(project){
         c.path.splice(S.sel,1); S.sel=-1; renderCanvas(S); renderFiche(S); touch();
       }
       if(e.key==='d'||e.key==='D'){ setTool('draw'); }
-      if(e.key==='v'||e.key==='V'){ setTool('select'); }
+      if(e.key==='v'||e.key==='V'){ setTool('edit'); }
       if(e.key==='n'||e.key==='N'){ addStep(); }
     });
   }
@@ -1632,7 +1728,8 @@ function bootViewer(project){
         '<img src="'+im.data+'" alt="">'+
         '<div class="txt"><input class="inp nm" value="'+esc(im.name)+'" data-nm="'+im.id+'">'+
           '<div class="mt">'+im.w+' × '+im.h+' px · '+(used?used+' étape'+(used>1?'s':''):'inutilisé')+'</div></div>'+
-        '<button class="btn icon sm danger" data-del="'+im.id+'" title="Retirer ce plan">🗑</button></div>';
+        '<button class="btn icon sm danger" data-del="'+im.id+'" title="Retirer ce plan">'+
+          '<svg '+ICO+'><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></button></div>';
     }).join('') || '<div class="empty" style="padding:14px">Aucun plan pour l\'instant.</div>';
     modal('Plans et réglages',
       '<div class="field"><label>Plans du projet</label>'+
