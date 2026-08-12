@@ -13,14 +13,29 @@ standard, sans outil de build — le fichier restera lisible et exécutable dans
 | Quoi | Charge le schéma, saisit les fils, trace les chemins | Déroule les étapes dans l'ordre, coche ce qui est fait |
 | Modification | Oui | Impossible (document figé) |
 
+## L'écran
+
+Quatre colonnes, de gauche à droite :
+
+| Colonne | Contenu |
+|---|---|
+| **Étapes** | L'ordre de câblage. Glisser-déposer pour le changer, double-clic pour renommer. En pied : le groupe et le plan de l'étape sélectionnée. |
+| **Zone de travail** | En haut la remarque et les points à vérifier, en dessous le plan avec les fils. |
+| **Photo du réel** | Une seconde image propre à l'étape — une photo de l'armoire, un détail de bornier. Un clic l'agrandit. |
+| **Fils** | Une ligne par fil. Un clic ouvre ses champs. |
+
+Le plan ne peut pas être perdu : le cadrage est borné, un tiers de la vue reste
+toujours sur l'image quoi qu'on fasse. **Ajuster** recadre malgré tout d'un clic.
+
 ## Prise en main (éditeur)
 
-1. **Ajouter un plan** — bouton **+** du bloc *Étape*, ou le bouton réglages
-   de la barre haute. Rien n'est demandé : l'image rejoint la bibliothèque.
-2. **+ Étape** → une étape rassemble les câbles à brancher d'un même tenant,
-   typiquement un connecteur. **+ Câble** en ajoute un dans l'étape.
-   Le champ **Connecteur / groupe** regroupe les étapes dans la liste de
-   gauche (ex. `X1 — Flexisoft`, `Wago A`).
+1. **Ajouter un plan** — bouton **+** en pied de la colonne des étapes, ou le
+   bouton réglages de la barre haute. Rien n'est demandé : l'image rejoint la
+   bibliothèque.
+2. **+ Étape** → une étape rassemble les fils à brancher d'un même tenant,
+   typiquement un connecteur. **+ Fil** en ajoute un dans l'étape.
+   Le champ **Connecteur / groupe**, en pied de la colonne de gauche, regroupe
+   les étapes dans la liste (ex. `X1 — Flexisoft`, `Wago A`).
 3. **Tracer** → le tracé s'applique au **câble sélectionné** dans la liste de
    droite. Cliquer les points du parcours ; chaque segment est forcément
    horizontal ou vertical, et quand deux points ne sont pas alignés un coude
@@ -96,20 +111,36 @@ marque de coude. Ces repères appartiennent à l'édition et disparaissent dès
 qu'on la quitte ; l'origine et l'extrémité se lisent sur la carte du câble.
 Seul le n° de fil est porté sur le tracé.
 
-### La liste de droite
+### La colonne des fils
 
-Chaque câble est une **carte compacte et de hauteur constante** — repère,
-pastille de couleur, `origine → extrémité` — pour qu'une étape puisse en
-aligner plusieurs sans que la fiche devienne illisible.
+**Une ligne par fil**, sur une seule hauteur de texte (29 px) : couleur,
+repère, `origine → extrémité`. Une étape en compte parfois beaucoup, et chaque
+ligne gagnée est une ligne visible sans défiler.
 
-Dans l'éditeur : **clic** sélectionne le câble (c'est celui qu'on trace),
-**clic droit** ou le bouton **⋯** ouvre *Modifier*, *Retracer*, *Ajuster les
-points*, *Dupliquer*, *Supprimer*. Les champs n'apparaissent que le temps de
-la modification, la carte reprend ensuite sa forme compacte.
+Dans l'éditeur, **un clic sur la ligne déplie ses champs** juste en dessous —
+n° de fil, couleur, origine, extrémité — avec *Tracer*, *Ajuster* et la
+corbeille. Un nouveau clic la referme. Le bouton **⋯**, au survol, ajoute
+*Dupliquer* et reprend ces actions.
 
-Côté opérateur, chaque carte se coche indépendamment : l'étape n'est marquée
-terminée que lorsque tous ses câbles le sont, et une barre d'**avancement**
-en bas de la liste donne le compte global des câbles pointés.
+Côté opérateur, un clic sur la ligne pointe le fil comme réalisé. L'étape
+n'est marquée terminée que lorsque tous ses fils le sont, et une barre
+d'**avancement** en pied de colonne donne le compte global.
+
+## Remarque et points à vérifier
+
+En haut de la zone de travail, l'étape porte une **remarque** libre et une
+**check-liste**. Dans l'éditeur, la remarque se tape directement et
+*+ Point à vérifier* ajoute une case ; au poste, l'opérateur coche ces points
+comme il coche ses fils. Les deux sont facultatifs : sans eux, seul le titre
+de l'étape reste affiché.
+
+## Photo du réel
+
+Chaque étape peut porter une **seconde image** dans sa propre colonne : une
+photo de l'armoire réelle, un gros plan de bornier, ce que le plan ne montre
+pas. Elle se charge depuis l'en-tête de la colonne, se retire de la même
+façon, et un clic l'ouvre en grand. Elle est indépendante du plan : c'est une
+illustration, on n'y trace rien.
 
 ## Collection de plans
 

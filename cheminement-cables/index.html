@@ -112,24 +112,31 @@ button,input,select,textarea{font:inherit;color:inherit}
 .spacer{flex:1}
 .top-actions{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
 
+/* quatre colonnes : étapes · plan · photo · fils */
 .body{display:flex;flex:1;min-height:0}
-.left{
-  width:288px;flex:0 0 288px;background:var(--bg-2);border-right:1px solid var(--line);
-  display:flex;flex-direction:column;min-height:0
+.col{background:var(--bg-2);display:flex;flex-direction:column;min-height:0}
+.col-steps{width:246px;flex:0 0 246px;border-right:1px solid var(--line)}
+.col-photo{width:258px;flex:0 0 258px;border-left:1px solid var(--line)}
+.col-cables{width:296px;flex:0 0 296px;border-left:1px solid var(--line)}
+.col-main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg-2)}
+.stage{
+  flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;
+  background:radial-gradient(1200px 600px at 50% -10%,var(--stage-top),var(--bg))
 }
-.right{
-  width:330px;flex:0 0 330px;background:var(--bg-2);border-left:1px solid var(--line);
-  display:flex;flex-direction:column;min-height:0
-}
-.stage{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;background:
-  radial-gradient(1200px 600px at 50% -10%,var(--stage-top),var(--bg))}
 .panel-head{
-  display:flex;align-items:center;gap:8px;padding:10px 12px;flex:0 0 auto;
-  font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--tx-3);
-  border-bottom:1px solid var(--line);font-weight:650
+  display:flex;align-items:center;gap:8px;padding:0 12px;height:38px;flex:0 0 38px;
+  font-size:10.5px;letter-spacing:.9px;text-transform:uppercase;color:var(--tx-3);
+  border-bottom:1px solid var(--line);font-weight:650;background:var(--head)
 }
-.panel-head .count{margin-left:auto;color:var(--tx-3);font-size:11px;letter-spacing:0}
+.panel-head .count{margin-left:auto;color:var(--tx-3);font-size:11px;letter-spacing:0;text-transform:none}
+.panel-head .btn{margin-left:auto}
 .scroll{overflow:auto;flex:1;min-height:0}
+
+@media (max-width:1500px){
+  .col-photo{width:206px;flex-basis:206px}
+  .col-cables{width:262px;flex-basis:262px}
+  .col-steps{width:212px;flex-basis:212px}
+}
 
 /* ---------------------------------------------------------------- boutons */
 .btn{
@@ -269,6 +276,65 @@ button,input,select,textarea{font:inherit;color:inherit}
 .check input{width:17px;height:17px;accent-color:var(--ok);cursor:pointer}
 .check.on{background:var(--done-bg);border-color:var(--done-bd)}
 
+/* --------------------------------------------------------- zone de travail */
+.wk-head{
+  display:flex;align-items:baseline;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);
+  background:var(--bg-2)
+}
+.wk-head h2{margin:0;font-size:15.5px;font-weight:650;letter-spacing:.15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk-sub{font-size:11.5px;color:var(--tx-3);font-family:var(--mono);white-space:nowrap;flex:0 0 auto;margin-left:auto}
+
+/* pied de la colonne des étapes */
+.foot{border-top:1px solid var(--line);padding:9px}
+.foot-row{display:flex;gap:6px}
+.prop{margin-top:8px}
+.prop label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--tx-3);font-weight:650;margin-bottom:3px}
+.inp.sm{height:28px;font-size:12.5px}
+
+/* ------------------------------------------------- remarque & check-liste */
+.rq{flex:0 0 auto;border-bottom:1px solid var(--line);background:var(--bg-2);max-height:34vh;overflow:auto}
+.rq-in{padding:10px 14px}
+.rq-box{
+  background:var(--note-bg);border:1px solid var(--note-bd);border-left-width:3px;
+  border-radius:var(--r);padding:9px 12px;color:var(--note-tx);font-size:13px;white-space:pre-wrap
+}
+.rq-k{font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;font-weight:650;color:var(--warn);margin-bottom:3px}
+.chk-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chk{
+  display:flex;align-items:center;gap:8px;padding:6px 11px 6px 8px;border-radius:20px;
+  background:var(--bg-3);border:1px solid var(--line-2);font-size:12.5px;cursor:pointer;user-select:none
+}
+.chk:hover{border-color:var(--acc)}
+.chk.on{background:var(--done-bg);border-color:var(--done-bd);color:var(--done-tx)}
+.chk .b{
+  width:17px;height:17px;flex:0 0 17px;border-radius:5px;border:1.5px solid var(--line-2);
+  background:var(--bg);display:grid;place-items:center;font-size:11px;font-weight:800
+}
+.chk.on .b{background:var(--ok);border-color:var(--ok);color:#fff}
+.chk .x{margin-left:2px;color:var(--tx-3);font-size:14px;line-height:1;opacity:0}
+.chk:hover .x{opacity:.8}
+.chk input{
+  font:inherit;font-size:12.5px;color:inherit;background:none;border:0;outline:none;
+  width:130px;min-width:60px
+}
+.rq-empty{
+  font-size:12.5px;color:var(--tx-3);padding:9px 12px;border:1px dashed var(--line-2);
+  border-radius:var(--r);text-align:center
+}
+
+/* ------------------------------------------------------------- photo réelle */
+.photo-wrap{padding:10px}
+.photo-wrap img{
+  width:100%;border-radius:var(--r);border:1px solid var(--line);display:block;cursor:zoom-in;
+  background:var(--bg-3)
+}
+.photo-cap{font-size:11.5px;color:var(--tx-3);margin-top:6px;text-align:center;font-family:var(--mono)}
+.lightbox{
+  position:fixed;inset:0;z-index:95;background:rgba(6,12,22,.88);display:grid;place-items:center;
+  padding:24px;cursor:zoom-out
+}
+.lightbox img{max-width:100%;max-height:100%;border-radius:8px;box-shadow:var(--sh)}
+
 /* ---------------------------------------------------------- avancement */
 .prog{padding:11px 13px;border-top:1px solid var(--line)}
 .prog-t{display:flex;align-items:baseline;font-size:10.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--tx-3);font-weight:650}
@@ -290,53 +356,61 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:var(--bg);border:1px solid var(--acc);border-radius:6px;outline:none
 }
 
-/* --------------------------------------------------------- carte câble */
+/* ------------------------------------------------------------ ligne fil */
+.cabs{padding:6px}
 .cab{
-  display:flex;align-items:center;gap:10px;padding:9px 11px;margin-bottom:7px;
-  background:var(--bg-3);border:1px solid var(--line);border-radius:var(--r);
-  cursor:pointer;transition:border-color .12s,background .12s
+  display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:7px;
+  border:1px solid transparent;cursor:pointer;line-height:1.3
 }
-.cab:hover{border-color:var(--line-2)}
-.cab.on{border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 18%,transparent)}
-.cab.done{background:var(--done-bg);border-color:var(--done-bd)}
+.cab+.cab{margin-top:1px}
+.cab:hover{background:var(--hov)}
+.cab.on{background:color-mix(in srgb,var(--acc) 12%,transparent);border-color:var(--acc)}
+.cab.done{background:var(--done-bg)}
+.cab.done .cab-num,.cab.done .cab-route b{color:var(--done-tx)}
 .cab-tick{
-  width:20px;height:20px;flex:0 0 20px;border-radius:6px;display:grid;place-items:center;
-  border:1.5px solid var(--line-2);background:var(--bg);font-size:13px;font-weight:800;color:var(--done-tx)
+  width:17px;height:17px;flex:0 0 17px;border-radius:5px;display:grid;place-items:center;
+  border:1.5px solid var(--line-2);background:var(--bg);font-size:11px;font-weight:800;color:#fff
 }
-.cab.done .cab-tick{background:var(--ok);border-color:var(--ok);color:#fff}
+.cab.done .cab-tick{background:var(--ok);border-color:var(--ok)}
 .cab-sw{
-  width:22px;height:22px;flex:0 0 22px;border-radius:6px;border:1px solid var(--sw-bd);
+  width:14px;height:14px;flex:0 0 14px;border-radius:4px;border:1px solid var(--sw-bd);
   box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)
 }
-.cab-txt{flex:1;min-width:0}
-.cab-t1{font-family:var(--mono);font-size:14.5px;font-weight:650;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cab-t2{
-  display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12.5px;
-  color:var(--tx-2);min-width:0
+.cab-num{
+  font-family:var(--mono);font-size:13px;font-weight:700;flex:0 0 auto;min-width:34px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px
 }
-.cab-t2 span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
-.cab-t2 i{font-style:normal;color:var(--acc);flex:0 0 auto;font-weight:700}
+.cab-route{
+  display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11.5px;
+  color:var(--tx-2);flex:1;min-width:0
+}
+.cab-route b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+.cab-route i{font-style:normal;color:var(--acc);flex:0 0 auto}
 .cab-n{
-  font-family:var(--mono);font-size:11px;color:var(--tx-3);flex:0 0 auto;
-  border:1px solid var(--line);border-radius:20px;padding:1px 7px
+  font-family:var(--mono);font-size:10.5px;color:var(--tx-3);flex:0 0 auto;
+  border:1px solid var(--line);border-radius:20px;padding:0 6px
 }
 .cab-n.vide{color:var(--warn);border-color:var(--note-bd);background:var(--note-bg)}
 .cab-more{
-  width:24px;height:24px;flex:0 0 24px;margin-left:2px;border:0;border-radius:6px;
-  background:none;color:var(--tx-3);cursor:pointer;font-size:15px;line-height:1;
-  opacity:0;transition:opacity .12s,background .12s
+  width:20px;height:20px;flex:0 0 20px;border:0;border-radius:5px;
+  background:none;color:var(--tx-3);cursor:pointer;opacity:0;transition:opacity .12s,background .12s
 }
 .cab:hover .cab-more,.cab.on .cab-more{opacity:1}
-.cab-more:hover{background:var(--hov);color:var(--tx)}
-.cab-more svg{width:15px;height:15px;display:block;margin:0 auto}
-.cabs-head{
-  display:flex;align-items:center;margin:14px 0 7px;font-size:10.5px;text-transform:uppercase;
-  letter-spacing:.9px;color:var(--tx-3);font-weight:650
-}
-.cabs-head button{margin-left:auto}
-.dots{display:flex;gap:3px;flex:0 0 auto}
+.cab-more:hover{background:var(--line);color:var(--tx)}
+.cab-more svg{width:14px;height:14px;display:block;margin:0 auto}
 
-/* ------------------------------------------------------------ menu contextuel */
+/* le fil ouvert : ses champs, juste en dessous de sa ligne */
+.cab-edit{
+  margin:2px 0 6px;padding:9px;border:1px solid var(--acc);border-radius:8px;
+  background:var(--bg-3)
+}
+.cab-edit .row{gap:6px}
+.cab-edit .field{margin-bottom:6px}
+.cab-edit .inp{height:29px}
+.cab-edit .acts{display:flex;gap:6px;align-items:center;margin-top:2px}
+.cab-edit .acts .sp{flex:1}
+
+/* ------------------------------------------------------------ menu contextuel *//* ------------------------------------------------------------ menu contextuel */
 .ctx{
   position:fixed;z-index:90;background:var(--bg-2);border:1px solid var(--line-2);
   border-radius:9px;box-shadow:var(--sh);padding:4px;min-width:170px
@@ -409,7 +483,7 @@ select.inp{cursor:pointer}
 .modal header{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:650;display:flex;align-items:center;gap:8px}
 .modal .mbody{padding:16px;overflow:auto}
 .modal footer{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
-.toasts{position:fixed;top:64px;left:302px;z-index:80;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.toasts{position:fixed;right:14px;bottom:14px;z-index:80;display:flex;flex-direction:column;align-items:flex-end;gap:7px;pointer-events:none}
 .toast{
   position:relative;
   background:var(--bg-3);border:1px solid var(--line-2);border-left:3px solid var(--ok);
@@ -423,7 +497,7 @@ select.inp{cursor:pointer}
   border:2px solid var(--line-2);border-top-color:var(--acc);animation:spin .7s linear infinite
 }
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes pop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .tag{
   display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;
   background:var(--bg-3);border:1px solid var(--line-2);color:var(--tx-2)
@@ -433,7 +507,7 @@ select.inp{cursor:pointer}
 
 /* -------------------------------------------------------------- viewer */
 body.viewer .editor-only{display:none !important}
-body.viewer .left{width:300px;flex-basis:300px}
+
 
 /* ------------------------------------------------------------ impression */
 #print-head{display:none}
@@ -442,11 +516,13 @@ body.viewer .left{width:300px;flex-basis:300px}
   #print-head h1{margin:0;font-size:17px}
   #print-head div{font-size:11.5px;color:#333;font-family:var(--mono)}
   body{overflow:visible;background:#fff;color:#000}
-  .topbar,.stage-bar,.left,.hint,.stepper,.editor-only{display:none !important}
+  .topbar,.stage-bar,.col-steps,.hint,.stepper,.editor-only,#left-foot{display:none !important}
   .app,.body{display:block;height:auto}
-  .right{width:auto;border:0;background:#fff}
-  .cell,.node,.wire-head{background:#fff;border-color:#bbb}
-  .stage-wrap{height:60vh;page-break-inside:avoid}
+  .col,.col-main{width:auto;flex:none;border:0;background:#fff;display:block}
+  .panel-head{background:#fff;border-color:#bbb}
+  .cab,.rq-box{background:#fff;border-color:#bbb;break-inside:avoid}
+  .stage-wrap{height:52vh;page-break-inside:avoid}
+  .col-photo img{max-height:38vh}
 }
 </style>
 </head>
@@ -539,7 +615,7 @@ function emptyCable(){
 /* Une étape rassemble les câbles à brancher d'un même tenant, typiquement
    un connecteur. */
 function emptyStep(n){
-  return { id:uid(), group:'', name:'Étape '+n, note:'', img:'', cables:[emptyCable()] };
+  return { id:uid(), group:'', name:'Étape '+n, note:'', checks:[], img:'', photo:'', cables:[emptyCable()] };
 }
 function curStep(S){ return S.project.steps[S.current]||null; }
 function curCable(S){
@@ -595,29 +671,44 @@ function buildLayout(root){
     '</header>'+
     '<div id="print-head"></div>'+
     '<div class="body">'+
-      '<aside class="left">'+
-        '<div class="panel-head"><span>Connecteurs / étapes</span><span class="count" id="step-count"></span></div>'+
+
+      '<aside class="col col-steps">'+
+        '<div class="panel-head"><span>Étapes</span><span class="count" id="step-count"></span></div>'+
         '<div class="scroll" id="step-list"></div>'+
         '<div id="left-foot"></div>'+
       '</aside>'+
-      '<section class="stage">'+
-        '<div class="stage-wrap" id="stage-wrap">'+
-          '<svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>'+
-          '<div class="stepper">'+
-            '<button class="btn icon sm" id="nav-prev" title="Étape précédente (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>'+
-            '<div class="pos" id="nav-pos">—</div>'+
-            '<button class="btn icon sm" id="nav-next" title="Étape suivante (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>'+
+
+      '<section class="col-main">'+
+        '<div id="rq"></div>'+
+        '<div class="stage">'+
+          '<div class="stage-wrap" id="stage-wrap">'+
+            '<svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>'+
+            '<div class="stepper">'+
+              '<button class="btn icon sm" id="nav-prev" title="Étape précédente (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>'+
+              '<div class="pos" id="nav-pos">—</div>'+
+              '<button class="btn icon sm" id="nav-next" title="Étape suivante (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>'+
+            '</div>'+
+            '<div class="hint" id="hint" style="display:none"></div>'+
           '</div>'+
-          '<div class="hint" id="hint" style="display:none"></div>'+
+          '<div class="stage-bar" id="stage-bar"></div>'+
         '</div>'+
-        '<div class="stage-bar" id="stage-bar"></div>'+
       '</section>'+
-      '<aside class="right"><div class="scroll" id="fiche"></div></aside>'+
+
+      '<aside class="col col-photo">'+
+        '<div class="panel-head"><span>Photo du réel</span><span class="count" id="photo-act"></span></div>'+
+        '<div class="scroll" id="photo"></div>'+
+      '</aside>'+
+
+      '<aside class="col col-cables">'+
+        '<div class="panel-head"><span>Fils</span><span class="count" id="cab-count"></span></div>'+
+        '<div class="scroll" id="fiche"></div>'+
+        '<div id="right-foot"></div>'+
+      '</aside>'+
+
     '</div>'+
   '</div>';
 }
 
-/* ------------------------------------------------------------- rendu SVG */
 /* ---------------------------------------------------------------- rendu ---
    Le dessin est réparti en trois couches indépendantes :
      #g-bg    le plan, reconstruit seulement quand on change de plan ;
@@ -628,8 +719,19 @@ function buildLayout(root){
    redécoder, ce qui saccadait tout. Le fond reste donc en place, et comme
    plus aucune cote ne dépend du zoom, déplacer ou zoomer ne touche même
    que l'attribut viewBox. */
+/* Le plan doit rester attrapable : on borne le cadrage pour qu'au moins un
+   tiers de la vue reste sur l'image, quel que soit le déplacement. */
+function clampView(S){
+  var d=imgDims(curImage(S)), v=S.view; if(!v) return;
+  var mx=v.w*.34, my=v.h*.34;
+  var lox=-mx, hix=d.w-v.w+mx;
+  var loy=-my, hiy=d.h-v.h+my;
+  v.x = (lox>hix) ? (d.w-v.w)/2 : clamp(v.x,lox,hix);
+  v.y = (loy>hiy) ? (d.h-v.h)/2 : clamp(v.y,loy,hiy);
+}
 function applyView(S){
   var svg=q('#svg'), v=S.view; if(!svg||!v) return;
+  clampView(S);
   svg.setAttribute('viewBox', fmt(v.x,2)+' '+fmt(v.y,2)+' '+fmt(v.w,2)+' '+fmt(v.h,2));
 }
 /* Les plans déjà affichés restent en place, simplement masqués : revenir sur
@@ -806,18 +908,75 @@ function renderSteps(S){
 }
 
 /* ------------------------------------------------------- fiche de droite */
+/* ------------------------------------------------ bandeau haut : remarque
+   et points à vérifier, cochables au poste. */
+function stepTitle(S){
+  var P=S.project, st=P.steps[S.current];
+  if(!st) return '';
+  var bits=[];
+  if(st.group) bits.push(esc(st.group));
+  if((P.images||[]).length>1) bits.push('plan '+esc((stepImage(P,st)||{}).name||'—'));
+  return '<div class="wk-head"><h2>'+esc(st.name||('Étape '+(S.current+1)))+'</h2>'+
+    '<span class="wk-sub">Étape '+(S.current+1)+' / '+P.steps.length+
+    (bits.length?' · '+bits.join(' · '):'')+'</span></div>';
+}
+function renderRq(S){
+  if(S.edit && window.editorRq) return window.editorRq(S);
+  var st=S.project.steps[S.current], host=q('#rq');
+  if(!st){ host.innerHTML=''; return; }
+  if(!st.note && !(st.checks||[]).length){ host.innerHTML=stepTitle(S); return; }
+  host.innerHTML=stepTitle(S)+'<div class="rq-in">'+
+    (st.note?'<div class="rq-box"><div class="rq-k">Remarque</div>'+esc(st.note)+'</div>':'')+
+    ((st.checks||[]).length?'<div class="chk-list">'+st.checks.map(function(k){
+      return '<span class="chk'+(S.done[k.id]?' on':'')+'" data-chk="'+k.id+'">'+
+        '<span class="b">'+(S.done[k.id]?'✓':'')+'</span>'+esc(k.text)+'</span>';
+    }).join('')+'</div>':'')+
+  '</div>';
+  qa('[data-chk]',host).forEach(function(el){
+    el.addEventListener('click',function(){
+      S.done[el.dataset.chk]=!S.done[el.dataset.chk];
+      renderRq(S); renderProgress(S);
+    });
+  });
+}
+
+/* ------------------------------------------------------ photo du réel */
+function renderPhoto(S){
+  var P=S.project, st=P.steps[S.current], host=q('#photo');
+  var im=st?imageById(P,st.photo):null;
+  var act=q('#photo-act'); if(act && !S.edit) act.textContent='';
+  if(!im){
+    host.innerHTML='<div class="empty">'+(S.edit
+      ? 'Aucune photo pour cette étape.<br>Utilisez <b>Ajouter</b> ci-dessus.'
+      : 'Aucune photo.')+'</div>';
+    if(S.edit && window.editorPhotoBar) window.editorPhotoBar(S);
+    return;
+  }
+  host.innerHTML='<div class="photo-wrap">'+
+    '<img src="'+im.data+'" alt="'+esc(im.name)+'" id="photo-img">'+
+    '<div class="photo-cap">'+esc(im.name)+'</div></div>';
+  q('#photo-img').addEventListener('click',function(){ lightbox(im.data); });
+  if(S.edit && window.editorPhotoBar) window.editorPhotoBar(S);
+}
+function lightbox(src){
+  var b=document.createElement('div');
+  b.className='lightbox';
+  b.innerHTML='<img src="'+src+'" alt="">';
+  b.addEventListener('click',function(){ b.remove(); });
+  document.body.appendChild(b);
+}
+
+/* ------------------------------------------------------ liste des fils */
 function renderFiche(S){
   if(S.edit && window.editorFiche) return window.editorFiche(S);
   var P=S.project, st=P.steps[S.current], host=q('#fiche');
-  if(!st){ host.innerHTML='<div class="empty">Sélectionnez une étape à gauche.</div>'; return; }
-  var h='<div class="fiche">'+
-    '<h2>'+esc(st.name||('Étape '+(S.current+1)))+'</h2>'+
-    '<div class="sub">Étape '+(S.current+1)+' / '+P.steps.length+(st.group?' · '+esc(st.group):'')+
-      ((P.images||[]).length>1 ? ' · plan '+esc((stepImage(P,st)||{}).name||'—') : '')+'</div>'+
-    (st.note ? '<div class="note"><div class="k">À noter</div>'+esc(st.note)+'</div>' : '')+
-    st.cables.map(function(c,i){ return cableCard(c,i,{done:!!S.done[c.id],check:true}); }).join('')+
+  var cnt=q('#cab-count');
+  if(!st){ host.innerHTML='<div class="empty">Sélectionnez une étape.</div>'; if(cnt) cnt.textContent=''; return; }
+  var fait=st.cables.filter(function(c){ return S.done[c.id]; }).length;
+  if(cnt) cnt.textContent=fait+' / '+st.cables.length;
+  host.innerHTML='<div class="cabs">'+
+    st.cables.map(function(c,i){ return cableRow(c,i,{done:!!S.done[c.id],check:true}); }).join('')+
   '</div>';
-  host.innerHTML=h;
   qa('.cab',host).forEach(function(el){
     el.addEventListener('click',function(){
       var c=st.cables[parseInt(el.dataset.ci,10)];
@@ -826,20 +985,19 @@ function renderFiche(S){
     });
   });
 }
-/* Carte d'un câble : repère, couleur, origine et extrémité. Volontairement
-   compacte et de hauteur constante, pour qu'une étape puisse en aligner
-   plusieurs sans que la fiche devienne illisible. */
-function cableCard(c,i,o){
+/* Une ligne par fil, d'une seule hauteur de texte : une étape peut en
+   compter beaucoup, et chaque ligne gagnée est une ligne visible sans
+   défiler. */
+function cableRow(c,i,o){
   o=o||{};
   var k=colorOf(c.color);
   var sw = k.hex2 ? 'background:linear-gradient(135deg,'+k.hex+' 50%,'+k.hex2+' 50%)' : 'background:'+k.hex;
-  return '<div class="cab'+(o.done?' done':'')+(o.sel?' on':'')+'" data-ci="'+i+'">'+
+  return '<div class="cab'+(o.done?' done':'')+(o.sel?' on':'')+'" data-ci="'+i+'" title="'+
+      esc((c.num?c.num+' · ':'')+(c.from||'—')+' → '+(c.to||'—'))+'">'+
     (o.check?'<span class="cab-tick">'+(o.done?'✓':'')+'</span>':'')+
     '<span class="cab-sw" style="'+sw+'" title="'+esc(k.name)+'"></span>'+
-    '<div class="cab-txt">'+
-      '<div class="cab-t1">'+esc(cableLabel(c,i))+'</div>'+
-      '<div class="cab-t2"><span>'+esc(c.from||'—')+'</span><i>→</i><span>'+esc(c.to||'—')+'</span></div>'+
-    '</div>'+
+    '<span class="cab-num">'+esc(c.num||'—')+'</span>'+
+    '<span class="cab-route"><b>'+esc(c.from||'—')+'</b><i>→</i><b>'+esc(c.to||'—')+'</b></span>'+
     (o.right||'')+
   '</div>';
 }
@@ -850,22 +1008,23 @@ function bindAcc(det,key,S){
 }
 /* --------------------------------------------------- navigation / clavier */
 function makeState(project, edit){
-  var S={ project:project, current:0, cable:0, editCable:-1, edit:!!edit,
+  var S={ project:project, current:0, cable:0, openCable:false, edit:!!edit,
           collapsed:{}, done:{}, open:{det:false,etp:false}, view:null, overlay:null };
   S.go=function(i){
     if(!S.project.steps.length){ S.current=0; }
     else S.current=clamp(i,0,S.project.steps.length-1);
-    S.cable=0; S.editCable=-1; S.sel=-1;
+    S.cable=0; S.openCable=false; S.sel=-1;
     S.render();
   };
   S.render=function(){
-    renderSteps(S); renderFiche(S); renderCanvas(S); renderNav(S); renderProgress(S);
+    renderSteps(S); renderRq(S); renderPhoto(S); renderFiche(S);
+    renderCanvas(S); renderNav(S); renderProgress(S);
     if(S.afterRender) S.afterRender(S);
   };
   return S;
 }
 function renderProgress(S){
-  var host=q('#left-foot'); if(!host||S.edit) return;
+  var host=q('#right-foot'); if(!host||S.edit) return;
   var tot=0, fait=0;
   S.project.steps.forEach(function(st){
     st.cables.forEach(function(c){ tot++; if(S.done[c.id]) fait++; });
@@ -913,7 +1072,7 @@ function bindViewport(S){
   svg.addEventListener('wheel',function(e){
     e.preventDefault();
     var p=toImg(e), f=e.deltaY>0?1.15:1/1.15;
-    var nw=clamp(S.view.w*f, 40, imgDims(curImage(S)).w*6);
+    var nw=clamp(S.view.w*f, 40, imgDims(curImage(S)).w*2.2);
     var ratio=nw/S.view.w;
     S.view={ x:p.x-(p.x-S.view.x)*ratio, y:p.y-(p.y-S.view.y)*ratio, w:nw, h:S.view.h*ratio };
     applyView(S);
@@ -952,7 +1111,7 @@ function bindViewport(S){
 }
 function zoomBy(S,f){
   var cx=S.view.x+S.view.w/2, cy=S.view.y+S.view.h/2;
-  var nw=clamp(S.view.w*f,40,imgDims(curImage(S)).w*6), r=nw/S.view.w;
+  var nw=clamp(S.view.w*f,40,imgDims(curImage(S)).w*2.2), r=nw/S.view.w;
   S.view={x:cx-S.view.w*r/2, y:cy-S.view.h*r/2, w:nw, h:S.view.h*r};
   applyView(S);
 }
@@ -1065,15 +1224,19 @@ function bootViewer(project){
     var p=emptyProject();
     S=makeState(p,true);
     window.S=S;
-    S.tool='view'; S.sel=-1; S.cable=0; S.editCable=-1;
+    S.tool='view'; S.sel=-1; S.cable=0; S.openCable=false;
     S.elbow='h'; S.snap=10; S.magnet=true;   /* aimantation et grille toujours actives */
     applyTheme(S.project);
     buildLayout(q('#root'));
     topbar(); stagebar(); leftfoot();
+    var head=q('.col-cables .panel-head');
+    head.innerHTML='<span>Fils</span><span class="count" id="cab-count"></span>'+
+      '<button class="btn sm" id="c-add" style="margin-left:8px">+ Fil</button>';
+    q('#c-add').addEventListener('click',addCable);
     bindGhostSeg(S); bindZoomBtns(S); bindViewport(S); bindStage();
     S.overlay=overlay;
     S.onStepsRendered=bindDnd;
-    S.afterRender=function(){ hint(); };
+    S.afterRender=function(){ hint(); stepProps(); };
     fitView(S);
     if(!S.project.steps.length) addStep();
     else S.render();
@@ -1091,6 +1254,9 @@ function bootViewer(project){
     var first=o.images[0]?o.images[0].id:'';
     o.steps.forEach(function(st){
       st.id=st.id||uid(); st.group=st.group||''; st.note=st.note||'';
+      st.checks=st.checks||[]; st.photo=st.photo||'';
+      st.checks.forEach(function(k){ k.id=k.id||uid(); k.text=k.text||''; });
+      if(!imageById(o,st.photo)) st.photo='';
       /* projets antérieurs : une étape portait un seul fil */
       if(!st.cables){
         var w=st.wire||{};
@@ -1195,17 +1361,76 @@ function bootViewer(project){
   /* --------------------------------------------------------- bas de liste */
   function leftfoot(){
     q('#left-foot').innerHTML=
-      '<div style="padding:9px;border-top:1px solid var(--line);display:flex;gap:6px">'+
-        '<button class="btn primary sm" id="s-add" style="flex:1">+ Étape</button>'+
-        '<button class="btn sm icon" id="s-dup" title="Dupliquer l\'étape">'+
-          '<svg '+ICO+'><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>'+
-        '<button class="btn sm icon danger" id="s-del" title="Supprimer l\'étape">'+
-          '<svg '+ICO+'><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>'+
+      '<div class="foot">'+
+        '<div class="foot-row">'+
+          '<button class="btn primary sm" id="s-add" style="flex:1">+ Étape</button>'+
+          '<button class="btn sm icon" id="s-dup" title="Dupliquer l\'étape">'+
+            '<svg '+ICO+'><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>'+
+          '<button class="btn sm icon danger" id="s-del" title="Supprimer l\'étape">'+
+            '<svg '+ICO+'><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>'+
+        '</div>'+
+        '<div id="step-props"></div>'+
       '</div>';
     q('#s-add').addEventListener('click',function(){ addStep(); });
     q('#s-dup').addEventListener('click',dupStep);
     q('#s-del').addEventListener('click',delStep);
+    stepProps();
   }
+
+  /* Propriétés de l'étape sélectionnée : son groupe et le plan sur lequel
+     ses fils sont tracés. */
+  function stepProps(){
+    var host=q('#step-props'); if(!host) return;
+    var P=S.project, st=curStep(S);
+    if(!st){ host.innerHTML=''; return; }
+    host.innerHTML=
+      '<div class="prop"><label>Connecteur / groupe</label>'+
+        '<input class="inp sm" id="e-group" list="grp-list" value="'+esc(st.group)+'" placeholder="X1 — Flexisoft">'+
+        '<datalist id="grp-list">'+groupOpts()+'</datalist></div>'+
+      '<div class="prop"><label>Plan</label><div class="sw-row">'+
+        '<select class="inp sm" id="e-img">'+(P.images||[]).map(function(im){
+          return '<option value="'+im.id+'"'+(im.id===st.img?' selected':'')+'>'+esc(im.name)+'</option>';
+        }).join('')+(P.images.length?'':'<option value="">aucun plan</option>')+'</select>'+
+        '<button class="btn sm icon" id="e-img-add" title="Importer un plan pour cette étape">+</button>'+
+        (P.steps.length>1?'<button class="btn sm icon" id="e-img-more" title="Appliquer ce plan à d\'autres étapes">'+
+          '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>':'')+
+      '</div></div>';
+
+    q('#e-group').addEventListener('input',function(){
+      st.group=this.value; touch(); renderSteps(S);
+    });
+    var ei=q('#e-img');
+    if(ei) ei.addEventListener('change',function(){
+      if(st.img===this.value) return;
+      var n=st.cables.filter(function(c){ return c.path.length; }).length;
+      if(n && !confirm('Changer de plan efface le tracé de '+n+' fil(s). Continuer ?')){ this.value=st.img; return; }
+      st.img=this.value; st.cables.forEach(function(c){ c.path=[]; });
+      touch(); S.viewImg=null; S.render();
+    });
+    var ea=q('#e-img-add');
+    if(ea) ea.addEventListener('click',function(){ pickImage({assign:true}); });
+    var em=q('#e-img-more');
+    if(em) em.addEventListener('click',function(){
+      var r=em.getBoundingClientRect();
+      var items=[];
+      if(st.group) items.push({ t:'Appliquer à « '+st.group+' »', f:function(){ applyPlan(function(o){ return o.group===st.group; }); } });
+      items.push({ t:'Appliquer à toutes les étapes', f:function(){ applyPlan(function(){ return true; }); } });
+      menu(r.right-6,r.bottom+4,items);
+    });
+
+    function applyPlan(match){
+      var cibles=P.steps.filter(function(o){ return o!==st && match(o) && o.img!==st.img; });
+      if(!cibles.length){ toast('Ces étapes utilisent déjà ce plan.'); return; }
+      var perdus=0;
+      cibles.forEach(function(o){ o.cables.forEach(function(c){ if(c.path.length) perdus++; }); });
+      if(!confirm(cibles.length+' étape(s) passeront sur ce plan.'+
+          (perdus?'\n\n'+perdus+' tracé(s) seront effacés.':''))) return;
+      cibles.forEach(function(o){ o.img=st.img; o.cables.forEach(function(c){ c.path=[]; }); });
+      touch(); S.render();
+      toast(cibles.length+' étape(s) rattachées à ce plan');
+    }
+  }
+
   function addStep(){
     var P=S.project, prev=P.steps[P.steps.length-1];
     var st=emptyStep(P.steps.length+1);
@@ -1235,7 +1460,7 @@ function bootViewer(project){
     function finish(keep){
       if(done) return; done=true;
       if(keep){ st.name=inp.value.trim()||old; touch(); }
-      renderSteps(S); renderFiche(S);
+      renderSteps(S); renderRq(S);   /* le titre au-dessus du plan suit */
     }
     inp.addEventListener('keydown',function(e){
       e.stopPropagation();
@@ -1294,56 +1519,32 @@ function bootViewer(project){
   /* ----------------------------------------------------- fiche éditable */
   window.editorFiche=function(S){
     var P=S.project, st=P.steps[S.current], host=q('#fiche');
-    if(!st){ host.innerHTML='<div class="empty">Aucune étape.<br>Cliquez sur <b>+ Étape</b>.</div>'; return; }
+    var cnt=q('#cab-count');
+    if(!st){ host.innerHTML='<div class="empty">Aucune étape.</div>'; if(cnt) cnt.textContent=''; return; }
     if(!(S.cable>=0)) S.cable=0;
     S.cable=clamp(S.cable,0,Math.max(0,st.cables.length-1));
+    var tracés=st.cables.filter(function(c){ return c.path.length>1; }).length;
+    if(cnt) cnt.textContent=tracés+' / '+st.cables.length+' tracés';
 
-    var cards = st.cables.map(function(c,i){
-      if(i===S.editCable) return cableForm(c,i);
-      return cableCard(c,i,{ sel:i===S.cable,
-        right:'<span class="cab-n'+(c.path.length<2?' vide':'')+'">'+
-              (c.path.length<2?'à tracer':c.path.length+' pts')+'</span>'+
-              '<button class="cab-more" data-more="'+i+'" title="Actions sur ce câble">'+
-              '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/>'+
-              '<circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>' });
-    }).join('');
-
-    host.innerHTML=
-    '<div class="fiche">'+
-      '<textarea class="note-in" id="e-note" rows="1" placeholder="Note pour l\'opérateur (facultatif)">'+esc(st.note)+'</textarea>'+
-      '<div class="cabs-head"><span>Câbles de l\'étape</span>'+
-        '<button class="btn sm" id="c-add">+ Câble</button></div>'+
-      cards+
-      '<div class="tip">Clic = sélectionner · clic droit ou <b>⋯</b> = modifier, retracer, supprimer</div>'+
-
-      '<details class="acc" data-acc="etp"'+(S.open.etp?' open':'')+' style="margin-top:14px"><summary>Étape'+
-        '<span class="peek">'+esc(st.name||'—')+'</span></summary><div class="accb">'+
-        '<div class="field"><label>Intitulé</label><input class="inp" id="e-name" value="'+esc(st.name)+'"></div>'+
-        '<div class="field"><label>Connecteur / groupe</label><input class="inp" id="e-group" list="grp-list" value="'+esc(st.group)+'" placeholder="X1 — Flexisoft"><datalist id="grp-list">'+groupOpts()+'</datalist></div>'+
-        '<div class="field"><label>Plan</label><div class="sw-row">'+
-          '<select class="inp" id="e-img">'+(P.images||[]).map(function(im){
-            return '<option value="'+im.id+'"'+(im.id===st.img?' selected':'')+'>'+esc(im.name)+'</option>';
-          }).join('')+(P.images.length?'':'<option value="">aucun plan</option>')+'</select>'+
-          '<button class="btn" id="e-img-add" title="Importer un plan et l\'affecter à cette étape">+</button>'+
-        '</div>'+
-        (P.steps.length>1 ? '<div class="sw-row" style="margin-top:6px;gap:6px">'+
-          '<span style="font-size:11.5px;color:var(--tx-3)">Appliquer à</span>'+
-          (st.group?'<button class="btn sm" id="e-img-grp">ce groupe</button>':'')+
-          '<button class="btn sm" id="e-img-all">toutes les étapes</button>'+
-        '</div>' : '')+
-        '</div>'+
-      '</div></details>'+
+    host.innerHTML='<div class="cabs">'+
+      st.cables.map(function(c,i){
+        return cableRow(c,i,{ sel:i===S.cable,
+          right:'<span class="cab-n'+(c.path.length<2?' vide':'')+'">'+
+                (c.path.length<2?'à tracer':c.path.length+' pts')+'</span>'+
+                '<button class="cab-more" data-more="'+i+'" title="Autres actions">'+
+                '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/>'+
+                '<circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>' })
+             + (i===S.cable && S.openCable ? cableForm(c,i) : '');
+      }).join('')+
     '</div>';
 
-    qa('.acc[data-acc]',host).forEach(function(a){ bindAcc(a,a.dataset.acc,S); });
-
-    /* --- cartes : sélection, clic droit, édition en place --- */
+    /* clic sur la ligne : ouvrir ses champs ; re-clic : refermer */
     qa('.cab',host).forEach(function(el){
-      if(el.dataset.form!==undefined) return;   /* carte en cours d'édition */
       var i=parseInt(el.dataset.ci,10);
-      el.addEventListener('click',function(){ S.cable=i; S.editCable=-1; renderFiche(S); renderCanvas(S); });
-      el.addEventListener('contextmenu',function(e){
-        e.preventDefault(); S.cable=i; cableMenu(e.clientX,e.clientY,i);
+      el.addEventListener('click',function(){
+        if(i===S.cable) S.openCable=!S.openCable;
+        else { S.cable=i; S.openCable=true; }
+        renderFiche(S); renderCanvas(S);
       });
     });
     qa('[data-more]',host).forEach(function(b){
@@ -1354,84 +1555,103 @@ function bootViewer(project){
         cableMenu(r.right-6, r.bottom+4, i);
       });
     });
-    var nt=q('#e-note');
-    if(nt){
-      autoGrow(nt);
-      nt.addEventListener('input',function(){ st.note=nt.value; autoGrow(nt); touch(); });
-    }
-    qa('[data-editdone]',host).forEach(function(b){
-      b.addEventListener('click',function(){ S.editCable=-1; renderFiche(S); });
+    qa('.cab-edit',host).forEach(function(el){
+      el.addEventListener('click',function(e){ e.stopPropagation(); });
     });
     bindCableForm(st);
-
-    q('#c-add').addEventListener('click',function(){
-      var c=emptyCable(), prev=st.cables[st.cables.length-1];
-      if(prev) c.color=prev.color;
-      st.cables.push(c); S.cable=st.cables.length-1; S.editCable=S.cable;
-      touch(); renderFiche(S); renderSteps(S);
-    });
-
-    function bindF(id,fn){
-      var e=q(id); if(!e) return;
-      e.addEventListener('input',function(){ fn(e.value); touch(); renderSteps(S); renderCanvas(S); });
-    }
-    bindF('#e-name',function(v){ st.name=v; });
-    bindF('#e-group',function(v){ st.group=v; });
-    var ei=q('#e-img');
-    if(ei) ei.addEventListener('change',function(){
-      if(st.img===this.value) return;
-      var traces=st.cables.filter(function(c){ return c.path.length; }).length;
-      if(traces && !confirm('Changer de plan efface le tracé de '+traces+' câble(s). Continuer ?')){
-        this.value=st.img; return;
-      }
-      st.img=this.value; st.cables.forEach(function(c){ c.path=[]; });
-      touch(); S.viewImg=null; S.render();
-    });
-    var ea=q('#e-img-add');
-    if(ea) ea.addEventListener('click',function(){ pickImage({assign:true}); });
-    bindApply('#e-img-grp',function(o){ return o.group===st.group; });
-    bindApply('#e-img-all',function(){ return true; });
-
-    /* Affecte le plan de l'étape courante à un ensemble d'étapes. Seules
-       celles qui changent effectivement de plan perdent leurs tracés. */
-    function bindApply(sel,match){
-      var b=q(sel); if(!b) return;
-      b.addEventListener('click',function(){
-        var cibles=P.steps.filter(function(o){ return o!==st && match(o) && o.img!==st.img; });
-        if(!cibles.length){ toast('Ces étapes utilisent déjà ce plan.'); return; }
-        var perdus=0;
-        cibles.forEach(function(o){ o.cables.forEach(function(c){ if(c.path.length) perdus++; }); });
-        if(!confirm(cibles.length+' étape(s) passeront sur le plan « '+
-            ((imageById(P,st.img)||{}).name||'—')+' ».'+
-            (perdus?'\n\n'+perdus+' tracé(s) seront effacés.':''))) return;
-        cibles.forEach(function(o){ o.img=st.img; o.cables.forEach(function(c){ c.path=[]; }); });
-        touch(); S.render();
-        toast(cibles.length+' étape(s) rattachées à ce plan');
-      });
-    }
   };
+
+  function addCable(){
+    var st=curStep(S); if(!st) return;
+    var c=emptyCable(), prev=st.cables[st.cables.length-1];
+    if(prev) c.color=prev.color;
+    st.cables.push(c); S.cable=st.cables.length-1; S.openCable=true;
+    touch(); renderFiche(S); renderSteps(S);
+    var f=q('#f-num'); if(f) f.focus();
+  }
+  function delCable(i){
+    var st=curStep(S); if(!st) return;
+    if(st.cables.length<2){ toast('Une étape garde au moins un fil.',true); return; }
+    if(!confirm('Supprimer ce fil ?')) return;
+    st.cables.splice(i,1); S.cable=Math.max(0,i-1); S.openCable=false;
+    touch(); S.render();
+  }
 
   function autoGrow(t){ t.style.height='auto'; t.style.height=(t.scrollHeight+2)+'px'; }
 
-  /* Carte dépliée en formulaire : repère, couleur, origine, extrémité. */
+  /* Bandeau du haut : la remarque libre et les points à vérifier. */
+  window.editorRq=function(S){
+    var st=curStep(S), host=q('#rq');
+    if(!st){ host.innerHTML=''; return; }
+    st.checks=st.checks||[];
+    host.innerHTML=stepTitle(S)+'<div class="rq-in">'+
+      '<textarea class="note-in" id="e-note" rows="1" placeholder="Remarque affichée en tête de l\'étape (facultatif)">'+esc(st.note)+'</textarea>'+
+      '<div class="chk-list">'+
+        st.checks.map(function(k,i){
+          return '<span class="chk" data-k="'+i+'"><span class="b"></span>'+
+            '<input value="'+esc(k.text)+'" data-kt="'+i+'" placeholder="à vérifier…">'+
+            '<span class="x" data-kx="'+i+'" title="Retirer">×</span></span>';
+        }).join('')+
+        '<button class="btn sm" id="k-add">+ Point à vérifier</button>'+
+      '</div>'+
+    '</div>';
+    var nt=q('#e-note');
+    autoGrow(nt);
+    nt.addEventListener('input',function(){ st.note=nt.value; autoGrow(nt); touch(); });
+    qa('[data-kt]',host).forEach(function(inp){
+      inp.addEventListener('input',function(){
+        st.checks[parseInt(inp.dataset.kt,10)].text=inp.value; touch();
+      });
+      inp.addEventListener('keydown',function(e){ e.stopPropagation(); });
+    });
+    qa('[data-kx]',host).forEach(function(b){
+      b.addEventListener('click',function(){
+        st.checks.splice(parseInt(b.dataset.kx,10),1); touch(); renderRq(S);
+      });
+    });
+    q('#k-add').addEventListener('click',function(){
+      st.checks.push({ id:uid(), text:'' }); touch(); renderRq(S);
+      var l=qa('[data-kt]'); if(l.length) l[l.length-1].focus();
+    });
+  };
+
+  /* Colonne photo : import et retrait, dans son en-tête. */
+  window.editorPhotoBar=function(S){
+    var host=q('#photo-act'), st=curStep(S);
+    if(!host) return;
+    if(!st){ host.innerHTML=''; return; }
+    var has=!!imageById(S.project,st.photo);
+    host.innerHTML='<button class="btn sm" id="ph-add">'+(has?'Changer':'+ Ajouter')+'</button>'+
+      (has?'<button class="btn sm icon danger" id="ph-del" title="Retirer la photo">'+
+        '<svg '+ICO+'><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></button>':'');
+    q('#ph-add').addEventListener('click',function(){ pickImage({photo:true}); });
+    var d=q('#ph-del');
+    if(d) d.addEventListener('click',function(){ st.photo=''; touch(); S.render(); });
+  };
+
+  /* Les champs du fil, dépliés sous sa ligne. */
   function cableForm(c,i){
     var opts=WIRE_COLORS.map(function(o){
       return '<option value="'+o.id+'"'+(o.id===c.color?' selected':'')+'>'+o.name+'</option>';
     }).join('');
-    return '<div class="cab on" style="display:block;cursor:default" data-form="'+i+'">'+
-      '<div class="row" style="margin-bottom:8px">'+
-        '<div class="field" style="margin:0"><label>N° de fil</label><input class="inp" id="f-num" value="'+esc(c.num)+'" placeholder="142"></div>'+
-        '<div class="field" style="margin:0"><label>Couleur</label><select class="inp" id="f-col">'+opts+'</select></div>'+
+    return '<div class="cab-edit" data-form="'+i+'">'+
+      '<div class="row">'+
+        '<div class="field" style="flex:0 0 76px"><label>N° fil</label><input class="inp" id="f-num" value="'+esc(c.num)+'" placeholder="142"></div>'+
+        '<div class="field"><label>Couleur</label><select class="inp" id="f-col">'+opts+'</select></div>'+
       '</div>'+
-      '<div class="row" style="margin-bottom:8px">'+
-        '<div class="field" style="margin:0"><label>Origine</label><input class="inp" id="f-from" value="'+esc(c.from)+'" placeholder="X1:3"></div>'+
-        '<div class="field" style="margin:0"><label>Extrémité</label><input class="inp" id="f-to" value="'+esc(c.to)+'" placeholder="Wago A:2"></div>'+
+      '<div class="field"><label>Origine</label><input class="inp" id="f-from" value="'+esc(c.from)+'" placeholder="X1:3"></div>'+
+      '<div class="field"><label>Extrémité</label><input class="inp" id="f-to" value="'+esc(c.to)+'" placeholder="Wago A:2"></div>'+
+      '<div class="acts">'+
+        '<button class="btn sm primary" id="f-draw">'+(c.path.length?'Retracer':'Tracer')+'</button>'+
+        (c.path.length?'<button class="btn sm" id="f-adj">Ajuster</button>':'')+
+        '<span class="sp"></span>'+
+        '<button class="btn sm danger icon" id="f-del" title="Supprimer ce fil">'+
+          '<svg '+ICO+'><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></button>'+
       '</div>'+
-      '<div class="sw-row" style="justify-content:flex-end"><button class="btn sm primary" data-editdone="1">Terminé</button></div>'+
     '</div>';
   }
   function bindCableForm(st){
-    var c=st.cables[S.editCable]; if(!c) return;
+    var c=st.cables[S.cable]; if(!c) return;
     function bind(id,fn){
       var e=q(id); if(!e) return;
       e.addEventListener('input',function(){ fn(e.value); touch(); renderSteps(S); renderCanvas(S); });
@@ -1443,6 +1663,12 @@ function bootViewer(project){
     if(col) col.addEventListener('change',function(){
       c.color=this.value; touch(); renderSteps(S); renderCanvas(S); renderFiche(S);
     });
+    var d=q('#f-draw');
+    if(d) d.addEventListener('click',function(){ c.path=[]; touch(); renderFiche(S); setTool('draw'); });
+    var a=q('#f-adj');
+    if(a) a.addEventListener('click',function(){ setTool('edit'); });
+    var x=q('#f-del');
+    if(x) x.addEventListener('click',function(){ delCable(S.cable); });
   }
 
   /* Menu contextuel d'un câble. */
@@ -1450,20 +1676,15 @@ function bootViewer(project){
     var st=curStep(S); if(!st) return;
     var c=st.cables[i];
     menu(x,y,[
-      { t:'Modifier', f:function(){ S.editCable=i; renderFiche(S); } },
       { t:(c.path.length?'Retracer':'Tracer'), f:function(){
-          c.path=[]; S.cable=i; S.editCable=-1; touch(); renderFiche(S); setTool('draw'); } },
-      { t:'Ajuster les points', f:function(){
-          S.cable=i; S.editCable=-1; renderFiche(S); setTool('edit'); } },
+          c.path=[]; S.cable=i; touch(); renderFiche(S); setTool('draw'); } },
+      { t:'Ajuster les points', f:function(){ S.cable=i; renderFiche(S); setTool('edit'); } },
       { t:'Dupliquer', f:function(){
           var d=JSON.parse(JSON.stringify(c)); d.id=uid(); d.path=[];
-          st.cables.splice(i+1,0,d); S.cable=i+1; S.editCable=i+1;
+          st.cables.splice(i+1,0,d); S.cable=i+1; S.openCable=true;
           touch(); renderFiche(S); renderSteps(S); } },
       null,
-      { t:'Supprimer', danger:true, f:function(){
-          if(st.cables.length<2){ toast('Une étape garde au moins un câble.',true); return; }
-          st.cables.splice(i,1); S.cable=Math.max(0,i-1); S.editCable=-1;
-          touch(); S.render(); } }
+      { t:'Supprimer le fil', danger:true, f:function(){ delCable(i); } }
     ]);
   }
   function menu(x,y,items){
@@ -1652,8 +1873,9 @@ function bootViewer(project){
      import, les étapes encore sans plan l'adoptent. */
   function onImage(e){
     var files=Array.prototype.slice.call(e.target.files||[]);
-    var assign = e.target.dataset.assign==='1', back = e.target.dataset.back==='1';
-    e.target.dataset.assign=''; e.target.dataset.back=''; e.target.value='';
+    var assign = e.target.dataset.assign==='1', back = e.target.dataset.back==='1',
+        photo = e.target.dataset.photo==='1';
+    e.target.dataset.assign=''; e.target.dataset.back=''; e.target.dataset.photo=''; e.target.value='';
     if(!files.length) return;
     var busy=working('Chargement '+(files.length>1?'de '+files.length+' plans':'du plan')+'…');
     var added=[];
@@ -1668,8 +1890,9 @@ function bootViewer(project){
            la valeur par défaut serait un cheveu. On la cale sur la taille du
            premier plan, tant que l'utilisateur n'y a pas touché. */
         if(first && P.settings.thickAuto) P.settings.thickness=Math.max(3,Math.round(im.w/200));
-        if(assign && P.steps[S.current]) P.steps[S.current].img=im.id;
-        if(first) P.steps.forEach(function(st){ if(!st.img) st.img=im.id; });
+        if(photo && P.steps[S.current]) P.steps[S.current].photo=im.id;
+        else if(assign && P.steps[S.current]) P.steps[S.current].img=im.id;
+        if(first && !photo) P.steps.forEach(function(st){ if(!st.img) st.img=im.id; });
         next();
       });
     })();
@@ -1713,6 +1936,7 @@ function bootViewer(project){
     var i=q('#f-img');
     i.dataset.assign = (opt&&opt.assign)?'1':'';
     i.dataset.back   = (opt&&opt.back)?'1':'';
+    i.dataset.photo  = (opt&&opt.photo)?'1':'';
     i.click();
   }
   function imageUsage(P,id){
