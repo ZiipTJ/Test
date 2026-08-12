@@ -21,7 +21,7 @@ Quatre colonnes, de gauche à droite :
 |---|---|
 | **Étapes** | L'ordre de câblage. Glisser-déposer pour le changer, double-clic pour renommer. En pied : le groupe et le plan de l'étape sélectionnée. |
 | **Zone de travail** | En haut la remarque et les points à vérifier, en dessous le plan avec les fils. |
-| **Photo du réel** | Une seconde image propre à l'étape — une photo de l'armoire, un détail de bornier. Un clic l'agrandit. |
+| **Photo du réel** | L'album de l'étape : photos de l'armoire, détails de bornier. Un clic ouvre la visionneuse. |
 | **Fils** | Une ligne par fil. Un clic ouvre ses champs. |
 
 Le plan ne peut pas être perdu : le cadrage est borné, un tiers de la vue reste
@@ -65,6 +65,7 @@ s'affiche en tête de l'étape chez l'opérateur, dans un encadré.
 | **Tracer** | Poser les points du câble sélectionné. |
 | **Modifier** | Déplacer, retirer les points, inverser un coude. |
 | **Repère** | Poser une étiquette sur le plan (X1, Wago A…). |
+| **Fond** | Déplacer et redimensionner les images de fond. |
 
 `Échap` quitte l'outil en cours et revient à **Vue** — le tracé est conservé.
 Rien ne se supprime au clavier : la suppression d'un câble se fait dans le
@@ -134,13 +135,32 @@ En haut de la zone de travail, l'étape porte une **remarque** libre et une
 comme il coche ses fils. Les deux sont facultatifs : sans eux, seul le titre
 de l'étape reste affiché.
 
-## Photo du réel
+## Album de photos
 
-Chaque étape peut porter une **seconde image** dans sa propre colonne : une
-photo de l'armoire réelle, un gros plan de bornier, ce que le plan ne montre
-pas. Elle se charge depuis l'en-tête de la colonne, se retire de la même
-façon, et un clic l'ouvre en grand. Elle est indépendante du plan : c'est une
-illustration, on n'y trace rien.
+Chaque étape porte un **album** dans sa colonne : photos de l'armoire réelle,
+gros plans de bornier, ce que le plan ne montre pas. *Ajouter* en empile
+autant qu'on veut, la croix au survol d'une vignette la retire.
+
+Un clic ouvre la **visionneuse** : l'image est cadrée à l'ouverture, la
+molette zoome autour du pointeur, le glisser fait défiler, le double-clic
+bascule entre cadré et ×2. Les flèches `←` `→` — ou les chevrons — passent
+d'une photo à l'autre, `0` recadre, `Échap` referme. Le compteur en bas
+rappelle où l'on en est dans l'album.
+
+Ces images sont indépendantes des fonds de plan : ce sont des illustrations,
+on n'y trace rien.
+
+## Plusieurs fonds de plan par étape
+
+Une étape peut poser **plusieurs images de fond** côte à côte — l'armoire et
+le détail du bornier, deux platines qui se répondent — et les fils se tracent
+librement au travers. Les fonds s'ajoutent en pied de la colonne des étapes,
+soit par import, soit en reprenant un plan déjà chargé.
+
+L'outil **Fond** les manipule : glisser le cadre pour déplacer une image,
+tirer une **poignée d'angle** pour la redimensionner. Les proportions sont
+toujours conservées — un plan déformé ne veut plus rien dire. Le repère de
+travail suit l'emprise de l'ensemble, et le cadrage s'y ajuste.
 
 ## Collection de plans
 
