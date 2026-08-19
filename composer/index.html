@@ -15,14 +15,28 @@
     --accent-soft: #e6f0f4;
     --warn: #b26a00;
     --warn-soft: #fdf4e3;
+    /* Couleurs de la vue 3D : lues par le moteur de rendu au chargement et à
+       chaque changement de thème. */
+    --vue-fond: #eceef2;
+    --vue-arete: #2e3238;
+    --vue-grille: #c6cad2;
     --radius: 8px;
   }
+  /* Thème sombre : appliqué quand le système le demande, sauf si la page est
+     explicitement forcée en clair, et quand la page est forcée en sombre. */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #14161a; --panel: #1c1f25; --fg: #e8eaee; --muted: #9aa2b1;
       --line: #2e333c; --accent: #4aa3c0; --accent-soft: #1d2c33;
       --warn: #d99a2b; --warn-soft: #2a2318;
+      --vue-fond: #15171b; --vue-arete: #c3c8d2; --vue-grille: #333944;
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --panel: #1c1f25; --fg: #e8eaee; --muted: #9aa2b1;
+    --line: #2e333c; --accent: #4aa3c0; --accent-soft: #1d2c33;
+    --warn: #d99a2b; --warn-soft: #2a2318;
+    --vue-fond: #15171b; --vue-arete: #c3c8d2; --vue-grille: #333944;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -66,7 +80,7 @@
   }
   aside h2:first-child { margin-top: 0; }
   .zone-vue { position: relative; min-width: 0; }
-  canvas { width: 100%; height: 100%; display: block; background: #eceef2; touch-action: none; }
+  canvas { width: 100%; height: 100%; display: block; background: var(--vue-fond); touch-action: none; }
   canvas.survol { outline: 3px dashed var(--accent); outline-offset: -6px; }
 
   /* ---------- Arborescence ---------- */

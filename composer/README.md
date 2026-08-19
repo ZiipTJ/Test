@@ -11,6 +11,23 @@ calcul, y compris la lecture du STEP, se fait sur votre poste.
 
 ![capture](capture.png)
 
+## Tester en ligne
+
+`composer-autonome.html` est l'application entière en un seul fichier (scripts
+intégrés, environ 115 Ko). Elle se régénère avec `node composer/build.mjs` après
+toute modification et se prête à trois usages :
+
+- **hors ligne** : double-cliquer le fichier, il fonctionne sans serveur ;
+- **hébergement statique** : le déposer sur n'importe quel serveur — il n'a
+  besoin d'aucun moteur côté serveur ;
+- **GitHub Pages** : dans *Settings → Pages*, choisir la branche à publier ; le
+  dossier étant servi tel quel, l'outil est alors accessible à l'adresse
+  `https://<compte>.github.io/<dépôt>/composer/`.
+
+L'enregistrement d'une vue s'adapte à l'hébergement : téléchargement direct sur
+un serveur classique, passage par l'hôte sur une page publiée en bac à sable, et
+copie dans le presse-papiers en dernier recours.
+
 ## Ce que fait cette première version
 
 | | |
@@ -83,6 +100,7 @@ hiérarchique de l'assemblage (les acteurs sont pour l'instant une liste à plat
 | `js/scene.js` | acteurs, positions neutres, lignes, sélection au lancer de rayon |
 | `js/gizmo.js` | manipulateur de translation et de rotation |
 | `js/app.js` | interface, import, arborescence, raccourcis |
+| `build.mjs` | assemble le tout en un fichier HTML autonome |
 
 ## Tests
 

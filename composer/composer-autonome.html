@@ -1,0 +1,2824 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Composeur 3D — acteurs, positions neutres et vues éclatées</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --fg: #16181d;
+    --muted: #646b78;
+    --line: #d8dce3;
+    --accent: #1f6f8b;
+    --accent-soft: #e6f0f4;
+    --warn: #b26a00;
+    --warn-soft: #fdf4e3;
+    /* Couleurs de la vue 3D : lues par le moteur de rendu au chargement et à
+       chaque changement de thème. */
+    --vue-fond: #eceef2;
+    --vue-arete: #2e3238;
+    --vue-grille: #c6cad2;
+    --radius: 8px;
+  }
+  /* Thème sombre : appliqué quand le système le demande, sauf si la page est
+     explicitement forcée en clair, et quand la page est forcée en sombre. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161a; --panel: #1c1f25; --fg: #e8eaee; --muted: #9aa2b1;
+      --line: #2e333c; --accent: #4aa3c0; --accent-soft: #1d2c33;
+      --warn: #d99a2b; --warn-soft: #2a2318;
+      --vue-fond: #15171b; --vue-arete: #c3c8d2; --vue-grille: #333944;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --panel: #1c1f25; --fg: #e8eaee; --muted: #9aa2b1;
+    --line: #2e333c; --accent: #4aa3c0; --accent-soft: #1d2c33;
+    --warn: #d99a2b; --warn-soft: #2a2318;
+    --vue-fond: #15171b; --vue-arete: #c3c8d2; --vue-grille: #333944;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+    display: grid; grid-template-rows: auto 1fr auto; height: 100vh;
+  }
+
+  /* ---------- Barre d'outils ---------- */
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0 8px 0 0; white-space: nowrap; }
+  header h1 small { font-weight: 400; color: var(--muted); }
+  .groupe { display: flex; gap: 4px; align-items: center; }
+  .groupe + .groupe { border-left: 1px solid var(--line); padding-left: 14px; }
+  button, select, input[type="number"], input[type="text"] {
+    font: inherit; color: inherit; background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 5px 10px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.actif { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  button.primaire { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input[type="number"] { cursor: text; width: 84px; }
+  input[type="color"] { width: 34px; height: 28px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+  label { display: flex; align-items: center; gap: 6px; }
+
+  /* ---------- Disposition ---------- */
+  main { display: grid; grid-template-columns: 250px 1fr 268px; min-height: 0; }
+  aside {
+    background: var(--panel); border-right: 1px solid var(--line);
+    overflow-y: auto; padding: 10px 12px;
+  }
+  aside.droite { border-right: 0; border-left: 1px solid var(--line); }
+  aside h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin: 14px 0 6px; font-weight: 600;
+  }
+  aside h2:first-child { margin-top: 0; }
+  .zone-vue { position: relative; min-width: 0; }
+  canvas { width: 100%; height: 100%; display: block; background: var(--vue-fond); touch-action: none; }
+  canvas.survol { outline: 3px dashed var(--accent); outline-offset: -6px; }
+
+  /* ---------- Arborescence ---------- */
+  .acteur {
+    display: flex; align-items: center; gap: 7px; padding: 4px 6px;
+    border-radius: 6px; cursor: default; user-select: none;
+  }
+  .acteur:hover { background: var(--accent-soft); }
+  .acteur.sel { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+  .acteur .nom { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acteur .badge { font-size: 10px; color: var(--accent); }
+  .oeil { padding: 0 3px; border: 0; background: none; line-height: 1; font-size: 13px; color: var(--muted); }
+  .pastille { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); flex: none; }
+
+  /* ---------- Propriétés ---------- */
+  .grille-xyz { display: grid; grid-template-columns: 18px 1fr; gap: 5px 8px; align-items: center; }
+  .grille-xyz span { color: var(--muted); font-size: 12px; }
+  .grille-xyz input { width: 100%; }
+  .rangee { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .rangee button { flex: 1; white-space: nowrap; }
+  .option { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .option label { flex: 1; }
+  .aide { color: var(--muted); font-size: 12px; }
+  .aide kbd {
+    font: inherit; font-size: 11px; border: 1px solid var(--line);
+    border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--bg);
+  }
+  input[type="range"] { width: 100%; }
+
+  /* ---------- Pied de page ---------- */
+  footer {
+    display: flex; gap: 16px; align-items: center; padding: 6px 14px;
+    background: var(--panel); border-top: 1px solid var(--line); font-size: 12px; color: var(--muted);
+  }
+  #avertissements {
+    position: absolute; left: 12px; bottom: 12px; right: 12px; max-height: 40%; overflow-y: auto;
+    background: var(--warn-soft); border: 1px solid var(--warn); border-radius: var(--radius);
+    padding: 8px 12px; font-size: 12px; color: var(--fg);
+  }
+  #avertissements p { margin: 4px 0; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    aside { max-height: 34vh; border: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Composeur 3D <small>— acteurs et positions neutres</small></h1>
+
+  <div class="groupe">
+    <button id="btn-ouvrir" class="primaire">Ouvrir un 3D…</button>
+    <button id="btn-demo" title="Charger un assemblage d'exemple">Exemple</button>
+    <input type="file" id="fichier" accept=".stl,.obj,.3mf,.step,.stp" multiple hidden>
+  </div>
+
+  <div class="groupe">
+    <button id="m-select" title="Sélection seule (Q)">Sélection</button>
+    <button id="m-move" title="Déplacer les acteurs (G)">Déplacer</button>
+    <button id="m-rot" title="Faire tourner les acteurs (R)">Tourner</button>
+  </div>
+
+  <div class="groupe">
+    <button id="v-ajuster" title="Ajuster la vue (F)">Ajuster</button>
+    <button id="v-iso">Iso</button>
+    <button id="v-face">Face</button>
+    <button id="v-droite">Droite</button>
+    <button id="v-dessus">Dessus</button>
+    <button id="v-projection">Perspective</button>
+  </div>
+
+  <div class="groupe">
+    <button id="btn-enregistrer" title="Enregistrer les positions et les réglages">Enregistrer la vue</button>
+    <button id="btn-charger">Charger une vue</button>
+    <input type="file" id="fichier-vue" accept=".json" hidden>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <h2>Acteurs <span id="compte" class="aide"></span></h2>
+    <div id="arbre"></div>
+    <div class="rangee">
+      <button id="btn-tout-afficher">Tout afficher</button>
+      <button id="btn-tout-neutre">Tout au neutre</button>
+    </div>
+
+    <h2>Éclatement radial</h2>
+    <input type="range" id="eclate" min="0" max="150" value="0" step="1">
+    <div class="aide">Écartement : <span id="eclate-val">0 %</span> — un point de départ, à retoucher acteur par acteur.</div>
+  </aside>
+
+  <div class="zone-vue">
+    <canvas id="vue"></canvas>
+    <div id="avertissements" hidden></div>
+  </div>
+
+  <aside class="droite">
+    <h2>Sélection</h2>
+    <p id="aide-selection" class="aide">
+      Cliquez un acteur dans la vue ou dans la liste.<br>
+      <kbd>Ctrl</kbd> + clic pour en ajouter, <kbd>Échap</kbd> pour désélectionner.
+    </p>
+
+    <div id="props" hidden>
+      <p id="props-titre" style="font-weight:600;margin:0 0 8px"></p>
+
+      <h2>Déplacement depuis le neutre (mm)</h2>
+      <div class="grille-xyz">
+        <span>X</span><input type="number" id="tx" step="1">
+        <span>Y</span><input type="number" id="ty" step="1">
+        <span>Z</span><input type="number" id="tz" step="1">
+      </div>
+
+      <h2>Rotation (°)</h2>
+      <div class="grille-xyz">
+        <span>X</span><input type="number" id="rx" step="1">
+        <span>Y</span><input type="number" id="ry" step="1">
+        <span>Z</span><input type="number" id="rz" step="1">
+      </div>
+
+      <div class="rangee">
+        <button id="btn-neutre" title="Remettre à la position d'origine (N)">Position neutre</button>
+        <button id="btn-masquer" title="Masquer (H)">Masquer</button>
+        <button id="btn-isoler">Isoler</button>
+      </div>
+
+      <div class="option">
+        <label for="couleur">Couleur</label>
+        <input type="color" id="couleur">
+      </div>
+      <div class="option">
+        <label for="ligne-acteur">Ligne de position neutre</label>
+        <input type="checkbox" id="ligne-acteur" checked>
+      </div>
+    </div>
+
+    <h2>Lignes de position neutre</h2>
+    <div class="option"><label for="opt-lignes">Afficher les lignes</label><input type="checkbox" id="opt-lignes" checked></div>
+    <div class="option">
+      <label for="opt-style">Tracé</label>
+      <select id="opt-style">
+        <option value="coude">En coude</option>
+        <option value="droite">Direct</option>
+      </select>
+    </div>
+    <div class="option"><label for="opt-tiret">Tiret (px)</label><input type="number" id="opt-tiret" min="1" max="40" step="1" value="6"></div>
+    <div class="option"><label for="opt-couleur-ligne">Couleur</label><input type="color" id="opt-couleur-ligne" value="#1a5999"></div>
+    <div class="option"><label for="opt-fantomes">Fantôme à la position neutre</label><input type="checkbox" id="opt-fantomes"></div>
+
+    <h2>Affichage</h2>
+    <div class="option"><label for="opt-aretes">Arêtes techniques</label><input type="checkbox" id="opt-aretes" checked></div>
+    <div class="option"><label for="opt-grille">Grille au sol</label><input type="checkbox" id="opt-grille" checked></div>
+
+    <h2>Raccourcis</h2>
+    <p class="aide">
+      <kbd>G</kbd> déplacer · <kbd>R</kbd> tourner · <kbd>Q</kbd> sélection<br>
+      <kbd>F</kbd> ajuster · <kbd>N</kbd> neutre · <kbd>H</kbd> masquer<br>
+      <kbd>Ctrl</kbd>+<kbd>Z</kbd> annuler · <kbd>Ctrl</kbd>+<kbd>A</kbd> tout sélectionner<br>
+      <kbd>Maj</kbd> pendant un déplacement : pas fixe (10° et sous-multiple de la grille)<br>
+      Clic milieu ou <kbd>Alt</kbd> : translater la vue · molette : zoom
+    </p>
+  </aside>
+</main>
+
+<footer>
+  <span id="etat">Chargement…</span>
+</footer>
+
+<script>
+/* ===== js/m3d.js ===== */
+/* Algèbre 3D minimale : vecteurs, quaternions, matrices 4x4 colonne-major (WebGL).
+   Aucune dépendance : le fichier est chargé tel quel par le navigateur et par Node. */
+(function (root) {
+  'use strict';
+
+  /* ================= Vec3 ================= */
+  const V = {
+    add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+    sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+    mul: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+    dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+    cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+    len: (a) => Math.hypot(a[0], a[1], a[2]),
+    dist: (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]),
+    unit(a) { const n = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / n, a[1] / n, a[2] / n]; },
+    lerp: (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t],
+    /* Un vecteur unitaire quelconque orthogonal à n. */
+    perp(n) {
+      const r = Math.abs(n[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+      return V.unit(V.cross(r, n));
+    }
+  };
+
+  /* ================= Quaternions [x,y,z,w] ================= */
+  const Q = {
+    id: () => [0, 0, 0, 1],
+    fromAxisAngle(axis, ang) {
+      const a = V.unit(axis), s = Math.sin(ang / 2);
+      return [a[0] * s, a[1] * s, a[2] * s, Math.cos(ang / 2)];
+    },
+    mul(a, b) {
+      return [
+        a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+        a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+        a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+        a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+    },
+    unit(q) { const n = Math.hypot(q[0], q[1], q[2], q[3]) || 1; return [q[0] / n, q[1] / n, q[2] / n, q[3] / n]; },
+    rotate(q, v) {
+      const t = V.mul(V.cross([q[0], q[1], q[2]], v), 2);
+      return V.add(V.add(v, V.mul(t, q[3])), V.cross([q[0], q[1], q[2]], t));
+    },
+    /* Angles de rotation extrinsèques XYZ, en degrés — pour l'affichage. */
+    toEulerDeg(q) {
+      const [x, y, z, w] = q;
+      const sy = 2 * (w * y - z * x);
+      const p = Math.abs(sy) >= 1 ? Math.sign(sy) * Math.PI / 2 : Math.asin(sy);
+      const r = Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y));
+      const yaw = Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
+      const d = 180 / Math.PI;
+      return [r * d, p * d, yaw * d];
+    },
+    fromEulerDeg(e) {
+      const r = e.map(a => a * Math.PI / 180);
+      let q = Q.fromAxisAngle([0, 0, 1], r[2]);
+      q = Q.mul(q, Q.fromAxisAngle([0, 1, 0], r[1]));
+      q = Q.mul(q, Q.fromAxisAngle([1, 0, 0], r[0]));
+      return Q.unit(q);
+    }
+  };
+
+  /* ================= Mat4 (colonne-major) ================= */
+  const M = {
+    identity: () => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+    mul(a, b) {
+      const o = new Float32Array(16);
+      for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+        let s = 0;
+        for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+        o[c * 4 + r] = s;
+      }
+      return o;
+    },
+    translation(t) {
+      const m = M.identity();
+      m[12] = t[0]; m[13] = t[1]; m[14] = t[2];
+      return m;
+    },
+    scaling(s) {
+      const m = M.identity();
+      m[0] = s; m[5] = s; m[10] = s;
+      return m;
+    },
+    fromQuat(q) {
+      const [x, y, z, w] = Q.unit(q);
+      return new Float32Array([
+        1 - 2 * (y * y + z * z), 2 * (x * y + z * w), 2 * (x * z - y * w), 0,
+        2 * (x * y - z * w), 1 - 2 * (x * x + z * z), 2 * (y * z + x * w), 0,
+        2 * (x * z + y * w), 2 * (y * z - x * w), 1 - 2 * (x * x + y * y), 0,
+        0, 0, 0, 1]);
+    },
+    /* Composition d'un acteur : translation, puis rotation autour du pivot. */
+    compose(offset, quat, pivot) {
+      const R = M.fromQuat(quat);
+      const T1 = M.translation([offset[0] + pivot[0], offset[1] + pivot[1], offset[2] + pivot[2]]);
+      const T0 = M.translation([-pivot[0], -pivot[1], -pivot[2]]);
+      return M.mul(M.mul(T1, R), T0);
+    },
+    apply(m, p) {
+      const w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15] || 1;
+      return [
+        (m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12]) / w,
+        (m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / w,
+        (m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]) / w];
+    },
+    applyDir(m, p) {
+      return [
+        m[0] * p[0] + m[4] * p[1] + m[8] * p[2],
+        m[1] * p[0] + m[5] * p[1] + m[9] * p[2],
+        m[2] * p[0] + m[6] * p[1] + m[10] * p[2]];
+    },
+    perspective(fovyRad, aspect, near, far) {
+      const f = 1 / Math.tan(fovyRad / 2);
+      const m = new Float32Array(16);
+      m[0] = f / aspect; m[5] = f; m[11] = -1;
+      m[10] = (far + near) / (near - far);
+      m[14] = 2 * far * near / (near - far);
+      return m;
+    },
+    ortho(l, r, b, t, n, f) {
+      const m = M.identity();
+      m[0] = 2 / (r - l); m[5] = 2 / (t - b); m[10] = -2 / (f - n);
+      m[12] = -(r + l) / (r - l); m[13] = -(t + b) / (t - b); m[14] = -(f + n) / (f - n);
+      return m;
+    },
+    lookAt(eye, target, up) {
+      const z = V.unit(V.sub(eye, target));
+      let x = V.cross(up, z);
+      if (V.len(x) < 1e-8) x = V.cross([0, 0, 1], z);
+      x = V.unit(x);
+      const y = V.cross(z, x);
+      return new Float32Array([
+        x[0], y[0], z[0], 0,
+        x[1], y[1], z[1], 0,
+        x[2], y[2], z[2], 0,
+        -V.dot(x, eye), -V.dot(y, eye), -V.dot(z, eye), 1]);
+    },
+    invert(a) {
+      const m = a, o = new Float32Array(16);
+      const b00 = m[0] * m[5] - m[1] * m[4], b01 = m[0] * m[6] - m[2] * m[4];
+      const b02 = m[0] * m[7] - m[3] * m[4], b03 = m[1] * m[6] - m[2] * m[5];
+      const b04 = m[1] * m[7] - m[3] * m[5], b05 = m[2] * m[7] - m[3] * m[6];
+      const b06 = m[8] * m[13] - m[9] * m[12], b07 = m[8] * m[14] - m[10] * m[12];
+      const b08 = m[8] * m[15] - m[11] * m[12], b09 = m[9] * m[14] - m[10] * m[13];
+      const b10 = m[9] * m[15] - m[11] * m[13], b11 = m[10] * m[15] - m[11] * m[14];
+      let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+      if (!det) return M.identity();
+      det = 1 / det;
+      o[0] = (m[5] * b11 - m[6] * b10 + m[7] * b09) * det;
+      o[1] = (m[2] * b10 - m[1] * b11 - m[3] * b09) * det;
+      o[2] = (m[13] * b05 - m[14] * b04 + m[15] * b03) * det;
+      o[3] = (m[10] * b04 - m[9] * b05 - m[11] * b03) * det;
+      o[4] = (m[6] * b08 - m[4] * b11 - m[7] * b07) * det;
+      o[5] = (m[0] * b11 - m[2] * b08 + m[3] * b07) * det;
+      o[6] = (m[14] * b02 - m[12] * b05 - m[15] * b01) * det;
+      o[7] = (m[8] * b05 - m[10] * b02 + m[11] * b01) * det;
+      o[8] = (m[4] * b10 - m[5] * b08 + m[7] * b06) * det;
+      o[9] = (m[1] * b08 - m[0] * b10 - m[3] * b06) * det;
+      o[10] = (m[12] * b04 - m[13] * b02 + m[15] * b00) * det;
+      o[11] = (m[9] * b02 - m[8] * b04 - m[11] * b00) * det;
+      o[12] = (m[5] * b07 - m[4] * b09 - m[6] * b06) * det;
+      o[13] = (m[0] * b09 - m[1] * b07 + m[2] * b06) * det;
+      o[14] = (m[13] * b01 - m[12] * b03 - m[14] * b00) * det;
+      o[15] = (m[8] * b03 - m[9] * b01 + m[10] * b00) * det;
+      return o;
+    },
+    transpose(a) {
+      const o = new Float32Array(16);
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) o[c * 4 + r] = a[r * 4 + c];
+      return o;
+    },
+    /* Matrice des normales = transposée de l'inverse (bloc 3x3, ici en 4x4). */
+    normalMatrix: (m) => M.transpose(M.invert(m))
+  };
+
+  /* ================= Géométrie de picking ================= */
+  /* Point de la droite (o,d) le plus proche de la droite (o2,d2). Retourne les
+     paramètres (t, s) ; null si les droites sont parallèles. */
+  function closestBetweenLines(o1, d1, o2, d2) {
+    const a = V.dot(d1, d1), b = V.dot(d1, d2), c = V.dot(d2, d2);
+    const w = V.sub(o1, o2);
+    const d = V.dot(d1, w), e = V.dot(d2, w);
+    const den = a * c - b * b;
+    if (Math.abs(den) < 1e-12) return null;
+    return { t: (b * e - c * d) / den, s: (a * e - b * d) / den };
+  }
+
+  /* Intersection rayon / plan (point p, normale n). */
+  function rayPlane(o, d, p, n) {
+    const den = V.dot(d, n);
+    if (Math.abs(den) < 1e-12) return null;
+    const t = V.dot(V.sub(p, o), n) / den;
+    return t < 0 ? null : V.add(o, V.mul(d, t));
+  }
+
+  /* Intersection rayon / triangle (Möller–Trumbore). Retourne t ou null. */
+  function rayTriangle(o, d, a, b, c) {
+    const e1 = V.sub(b, a), e2 = V.sub(c, a);
+    const h = V.cross(d, e2), det = V.dot(e1, h);
+    if (Math.abs(det) < 1e-12) return null;
+    const f = 1 / det, s = V.sub(o, a);
+    const u = f * V.dot(s, h);
+    if (u < -1e-9 || u > 1 + 1e-9) return null;
+    const q = V.cross(s, e1);
+    const v = f * V.dot(d, q);
+    if (v < -1e-9 || u + v > 1 + 1e-9) return null;
+    const t = f * V.dot(e2, q);
+    return t > 1e-9 ? t : null;
+  }
+
+  root.M3D = { V, Q, M, closestBetweenLines, rayPlane, rayTriangle };
+})(typeof window !== 'undefined' ? (window.SWC = window.SWC || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/mesh.js ===== */
+/* Préparation d'un maillage pour l'affichage :
+   - normales lissées par recouvrement, avec conservation des arêtes vives ;
+   - arêtes caractéristiques (silhouette et plis) pour le rendu « technique » ;
+   - boîte englobante et centre, qui servent de pivot et d'ancrage aux lignes. */
+(function (root) {
+  'use strict';
+  const { V } = root.M3D || require('./m3d.js').M3D;
+
+  const SMOOTH_COS = Math.cos(40 * Math.PI / 180);   // au-delà, l'arête reste vive
+  const FEATURE_COS = Math.cos(24 * Math.PI / 180);  // en-deçà, l'arête est tracée
+
+  function build(tris) {
+    const nTri = tris.length / 9;
+    const bb = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+    for (let i = 0; i < tris.length; i += 3) for (let k = 0; k < 3; k++) {
+      if (tris[i + k] < bb.min[k]) bb.min[k] = tris[i + k];
+      if (tris[i + k] > bb.max[k]) bb.max[k] = tris[i + k];
+    }
+    const diag = V.dist(bb.min, bb.max) || 1;
+    const q = diag * 1e-6;                            // pas de fusion des sommets
+    const key = (x, y, z) => `${Math.round(x / q)},${Math.round(y / q)},${Math.round(z / q)}`;
+
+    /* Normales de face. */
+    const fn = new Float32Array(nTri * 3);
+    for (let t = 0; t < nTri; t++) {
+      const o = t * 9;
+      const a = [tris[o], tris[o + 1], tris[o + 2]];
+      const b = [tris[o + 3], tris[o + 4], tris[o + 5]];
+      const c = [tris[o + 6], tris[o + 7], tris[o + 8]];
+      const n = V.unit(V.cross(V.sub(b, a), V.sub(c, a)));
+      fn[t * 3] = n[0]; fn[t * 3 + 1] = n[1]; fn[t * 3 + 2] = n[2];
+    }
+
+    /* Sommets fusionnés : liste des faces incidentes. */
+    const vmap = new Map();
+    const vidx = new Int32Array(nTri * 3);
+    for (let t = 0; t < nTri; t++) for (let k = 0; k < 3; k++) {
+      const o = t * 9 + k * 3;
+      const kk = key(tris[o], tris[o + 1], tris[o + 2]);
+      let e = vmap.get(kk);
+      if (!e) { e = { faces: [] }; vmap.set(kk, e); }
+      e.faces.push(t);
+      vidx[t * 3 + k] = 0;
+      e.id = e.id === undefined ? vmap.size - 1 : e.id;
+      vidx[t * 3 + k] = e.id;
+    }
+    const vfaces = [];
+    for (const e of vmap.values()) vfaces[e.id] = e.faces;
+
+    /* Normales lissées : on ne moyenne que les faces proches en orientation. */
+    const normals = new Float32Array(nTri * 9);
+    for (let t = 0; t < nTri; t++) {
+      const nf = [fn[t * 3], fn[t * 3 + 1], fn[t * 3 + 2]];
+      for (let k = 0; k < 3; k++) {
+        let acc = [0, 0, 0];
+        for (const f of vfaces[vidx[t * 3 + k]]) {
+          const nn = [fn[f * 3], fn[f * 3 + 1], fn[f * 3 + 2]];
+          if (V.dot(nn, nf) >= SMOOTH_COS) acc = V.add(acc, nn);
+        }
+        const n = V.len(acc) > 1e-9 ? V.unit(acc) : nf;
+        normals[t * 9 + k * 3] = n[0];
+        normals[t * 9 + k * 3 + 1] = n[1];
+        normals[t * 9 + k * 3 + 2] = n[2];
+      }
+    }
+
+    /* Arêtes caractéristiques : bord libre, ou pli marqué entre deux faces. */
+    const edges = new Map();
+    for (let t = 0; t < nTri; t++) for (let k = 0; k < 3; k++) {
+      const a = vidx[t * 3 + k], b = vidx[t * 3 + (k + 1) % 3];
+      if (a === b) continue;
+      const kk = a < b ? `${a}_${b}` : `${b}_${a}`;
+      const cur = edges.get(kk);
+      if (cur) cur.f.push(t);
+      else edges.set(kk, { f: [t], o: t * 9 + k * 3, o2: t * 9 + ((k + 1) % 3) * 3 });
+    }
+    const lines = [];
+    for (const e of edges.values()) {
+      let draw = e.f.length !== 2;
+      if (!draw) {
+        const n1 = [fn[e.f[0] * 3], fn[e.f[0] * 3 + 1], fn[e.f[0] * 3 + 2]];
+        const n2 = [fn[e.f[1] * 3], fn[e.f[1] * 3 + 1], fn[e.f[1] * 3 + 2]];
+        draw = V.dot(n1, n2) < FEATURE_COS;
+      }
+      if (!draw) continue;
+      lines.push(tris[e.o], tris[e.o + 1], tris[e.o + 2], tris[e.o2], tris[e.o2 + 1], tris[e.o2 + 2]);
+    }
+
+    const center = [(bb.min[0] + bb.max[0]) / 2, (bb.min[1] + bb.max[1]) / 2, (bb.min[2] + bb.max[2]) / 2];
+    return {
+      position: tris, normal: normals, edges: Float32Array.from(lines),
+      bbox: bb, center, diag, nTri
+    };
+  }
+
+  root.Mesh = { build };
+})(typeof window !== 'undefined' ? (window.SWC = window.SWC || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/import.js ===== */
+/* Import de géométrie : STL (binaire + ASCII), OBJ, 3MF et STEP.
+   Chaque importateur produit la même structure :
+     { actors: [{ name, tris: Float32Array (9 flottants par triangle), color? }],
+       source, warnings: [] }
+   Les longueurs sont ramenées au millimètre. */
+(function (root) {
+  'use strict';
+
+  /* ================= Utilitaires ================= */
+  const dec = (buf, enc) => new TextDecoder(enc || 'utf-8').decode(buf);
+
+  function looksBinarySTL(buf) {
+    if (buf.byteLength < 84) return false;
+    const head = dec(new Uint8Array(buf, 0, Math.min(512, buf.byteLength))).toLowerCase();
+    if (head.trimStart().startsWith('solid') && /facet\s+normal|endsolid/.test(head)) return false;
+    const n = new DataView(buf).getUint32(80, true);
+    return 84 + n * 50 === buf.byteLength;
+  }
+
+  /* ================= STL ================= */
+  function parseSTLBinary(buf) {
+    const dv = new DataView(buf);
+    const n = dv.getUint32(80, true);
+    const tris = new Float32Array(n * 9);
+    let o = 84;
+    for (let i = 0; i < n; i++) {
+      o += 12;                                   // normale du fichier : recalculée au maillage
+      for (let k = 0; k < 9; k++) { tris[i * 9 + k] = dv.getFloat32(o, true); o += 4; }
+      o += 2;                                    // attribute byte count
+    }
+    return [{ name: 'Corps 1', tris }];
+  }
+
+  function parseSTLAscii(text) {
+    const groups = [];
+    let cur = null;
+    const num = /[-+0-9.eE]+/g;
+    for (const line of text.split(/\r?\n/)) {
+      const s = line.trim();
+      if (!s) continue;
+      if (/^solid\b/i.test(s)) { cur = { name: s.slice(5).trim() || `Corps ${groups.length + 1}`, v: [] }; groups.push(cur); continue; }
+      if (/^vertex\b/i.test(s)) {
+        if (!cur) { cur = { name: 'Corps 1', v: [] }; groups.push(cur); }
+        const m = s.slice(6).match(num);
+        if (m && m.length >= 3) cur.v.push(+m[0], +m[1], +m[2]);
+      }
+    }
+    return groups.filter(g => g.v.length >= 9)
+      .map((g, i) => ({ name: g.name || `Corps ${i + 1}`, tris: Float32Array.from(g.v) }));
+  }
+
+  function importSTL(buf) {
+    const actors = looksBinarySTL(buf) ? parseSTLBinary(buf) : parseSTLAscii(dec(new Uint8Array(buf)));
+    if (!actors.length || !actors[0].tris.length) throw new Error('Fichier STL vide ou illisible.');
+    return { actors, source: 'STL', warnings: [] };
+  }
+
+  /* ================= OBJ ================= */
+  function importOBJ(text) {
+    const verts = [];
+    const groups = [];
+    let cur = null;
+    const push = (name) => { cur = { name: name || `Corps ${groups.length + 1}`, idx: [] }; groups.push(cur); };
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line[0] === '#') continue;
+      const sp = line.indexOf(' ');
+      const key = sp < 0 ? line : line.slice(0, sp);
+      const rest = sp < 0 ? '' : line.slice(sp + 1).trim();
+      if (key === 'v') {
+        const p = rest.split(/\s+/).map(Number);
+        verts.push(p[0] || 0, p[1] || 0, p[2] || 0);
+      } else if (key === 'o' || key === 'g') {
+        push(rest);
+      } else if (key === 'f') {
+        if (!cur) push(null);
+        const ids = rest.split(/\s+/).map(t => {
+          let i = parseInt(t.split('/')[0], 10);
+          if (i < 0) i = verts.length / 3 + i; else i -= 1;
+          return i;
+        }).filter(i => i >= 0 && i < verts.length / 3);
+        for (let k = 1; k + 1 < ids.length; k++) cur.idx.push(ids[0], ids[k], ids[k + 1]);   // éventail
+      }
+    }
+    const actors = groups.filter(g => g.idx.length).map((g, i) => {
+      const tris = new Float32Array(g.idx.length * 3);
+      g.idx.forEach((vi, k) => {
+        tris[k * 3] = verts[vi * 3];
+        tris[k * 3 + 1] = verts[vi * 3 + 1];
+        tris[k * 3 + 2] = verts[vi * 3 + 2];
+      });
+      return { name: g.name || `Corps ${i + 1}`, tris };
+    });
+    if (!actors.length) throw new Error('Fichier OBJ sans face exploitable.');
+    return { actors, source: 'OBJ', warnings: [] };
+  }
+
+  /* ================= ZIP (lecture seule, pour le 3MF) ================= */
+  async function inflateRaw(bytes) {
+    if (typeof DecompressionStream !== 'function')
+      throw new Error("Ce navigateur ne sait pas décompresser le 3MF (DecompressionStream absent).");
+    const ds = new DecompressionStream('deflate-raw');
+    const stream = new Blob([bytes]).stream().pipeThrough(ds);
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+
+  async function readZip(buf) {
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    let eocd = -1;
+    for (let i = buf.byteLength - 22; i >= 0 && i > buf.byteLength - 66000; i--)
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error('Archive 3MF invalide (fin de catalogue introuvable).');
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    const files = new Map();
+    for (let i = 0; i < count; i++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true);
+      const csize = dv.getUint32(p + 20, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen = dv.getUint16(p + 30, true);
+      const commLen = dv.getUint16(p + 32, true);
+      const lho = dv.getUint32(p + 42, true);
+      const name = dec(u8.subarray(p + 46, p + 46 + nameLen));
+      const lNameLen = dv.getUint16(lho + 26, true);
+      const lExtraLen = dv.getUint16(lho + 28, true);
+      const start = lho + 30 + lNameLen + lExtraLen;
+      files.set(name, { method, data: u8.subarray(start, start + csize) });
+      p += 46 + nameLen + extraLen + commLen;
+    }
+    return {
+      names: [...files.keys()],
+      async text(name) {
+        const f = files.get(name);
+        if (!f) return null;
+        if (f.method === 0) return dec(f.data);
+        if (f.method === 8) return dec(await inflateRaw(f.data));
+        throw new Error(`Compression ZIP non gérée (méthode ${f.method}).`);
+      }
+    };
+  }
+
+  /* ================= 3MF ================= */
+  const UNIT_MM = { micron: 0.001, millimeter: 1, centimeter: 10, inch: 25.4, foot: 304.8, meter: 1000 };
+
+  function mat3mf(str) {
+    const v = String(str).trim().split(/\s+/).map(Number);
+    if (v.length < 12 || v.some(x => !isFinite(x))) return null;
+    /* 3MF : ligne par ligne, p' = p·R + t */
+    return (p) => [
+      p[0] * v[0] + p[1] * v[3] + p[2] * v[6] + v[9],
+      p[0] * v[1] + p[1] * v[4] + p[2] * v[7] + v[10],
+      p[0] * v[2] + p[1] * v[5] + p[2] * v[8] + v[11]];
+  }
+  const composeT = (a, b) => (a && b) ? (p => a(b(p))) : (a || b || null);
+
+  async function import3MF(buf) {
+    const zip = await readZip(buf);
+    let path = zip.names.find(n => /^3D\/.*\.model$/i.test(n)) || zip.names.find(n => /\.model$/i.test(n));
+    if (!path) throw new Error('Archive 3MF sans fichier modèle (3D/3dmodel.model).');
+    const xml = await zip.text(path);
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error('Modèle 3MF illisible (XML invalide).');
+    const model = doc.documentElement;
+    const scale = UNIT_MM[(model.getAttribute('unit') || 'millimeter').toLowerCase()] || 1;
+
+    const objects = new Map();
+    for (const o of doc.getElementsByTagName('object')) objects.set(o.getAttribute('id'), o);
+
+    const warnings = [];
+    const meshOf = (obj) => {
+      const mesh = obj.getElementsByTagName('mesh')[0];
+      if (!mesh) return null;
+      const vs = mesh.getElementsByTagName('vertex');
+      const V = new Float64Array(vs.length * 3);
+      for (let i = 0; i < vs.length; i++) {
+        V[i * 3] = +vs[i].getAttribute('x') || 0;
+        V[i * 3 + 1] = +vs[i].getAttribute('y') || 0;
+        V[i * 3 + 2] = +vs[i].getAttribute('z') || 0;
+      }
+      const ts = mesh.getElementsByTagName('triangle');
+      const out = new Float32Array(ts.length * 9);
+      for (let i = 0; i < ts.length; i++) {
+        const a = +ts[i].getAttribute('v1'), b = +ts[i].getAttribute('v2'), c = +ts[i].getAttribute('v3');
+        [a, b, c].forEach((vi, k) => {
+          out[i * 9 + k * 3] = V[vi * 3];
+          out[i * 9 + k * 3 + 1] = V[vi * 3 + 1];
+          out[i * 9 + k * 3 + 2] = V[vi * 3 + 2];
+        });
+      }
+      return out.length ? out : null;
+    };
+
+    const actors = [];
+    const emit = (objId, xf, depth, nameHint) => {
+      if (depth > 12) { warnings.push('Hiérarchie 3MF trop profonde : une branche a été ignorée.'); return; }
+      const obj = objects.get(String(objId));
+      if (!obj) return;
+      const name = obj.getAttribute('name') || nameHint || `Corps ${actors.length + 1}`;
+      const tris = meshOf(obj);
+      if (tris) {
+        const out = new Float32Array(tris.length);
+        for (let i = 0; i < tris.length; i += 3) {
+          const p = xf ? xf([tris[i], tris[i + 1], tris[i + 2]]) : [tris[i], tris[i + 1], tris[i + 2]];
+          out[i] = p[0] * scale; out[i + 1] = p[1] * scale; out[i + 2] = p[2] * scale;
+        }
+        actors.push({ name, tris: out });
+      }
+      for (const c of obj.getElementsByTagName('component')) {
+        emit(c.getAttribute('objectid'), composeT(xf, mat3mf(c.getAttribute('transform') || '')), depth + 1, name);
+      }
+    };
+
+    const items = doc.getElementsByTagName('item');
+    if (items.length) {
+      for (const it of items) emit(it.getAttribute('objectid'), mat3mf(it.getAttribute('transform') || ''), 0, null);
+    } else {
+      for (const id of objects.keys()) emit(id, null, 0, null);
+    }
+    if (!actors.length) throw new Error('Aucun maillage exploitable dans ce 3MF.');
+    return { actors, source: '3MF', warnings };
+  }
+
+  /* ================= Séparation en corps ================= */
+  /* Un STL ou un OBJ livre souvent l'assemblage entier en un seul bloc. On le
+     redécoupe en composantes connexes par arête partagée : deux pièces qui ne
+     se touchent que par une face ou un sommet restent distinctes. Deux pièces
+     collées le long d'une arête commune, elles, resteront confondues — c'est
+     une limite du format, que le STEP et le 3MF ne présentent pas. */
+  function splitConnected(tris, maxTris) {
+    const n = tris.length / 9;
+    if (n < 2 || n > (maxTris || 400000)) return null;
+    let size = 0;
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < tris.length; i += 3) for (let k = 0; k < 3; k++) {
+      if (tris[i + k] < min[k]) min[k] = tris[i + k];
+      if (tris[i + k] > max[k]) max[k] = tris[i + k];
+    }
+    for (let k = 0; k < 3; k++) size = Math.max(size, max[k] - min[k]);
+    const q = (size || 1) * 1e-6;
+    const vid = new Map();
+    const idOf = (o) => {
+      const k = `${Math.round(tris[o] / q)},${Math.round(tris[o + 1] / q)},${Math.round(tris[o + 2] / q)}`;
+      let i = vid.get(k);
+      if (i === undefined) { i = vid.size; vid.set(k, i); }
+      return i;
+    };
+    const parent = new Int32Array(n);
+    for (let i = 0; i < n; i++) parent[i] = i;
+    const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+    const union = (x, y) => { const a = find(x), b = find(y); if (a !== b) parent[a] = b; };
+    const owner = new Map();
+    for (let t = 0; t < n; t++) {
+      const v = [idOf(t * 9), idOf(t * 9 + 3), idOf(t * 9 + 6)];
+      for (let k = 0; k < 3; k++) {
+        const a = v[k], b = v[(k + 1) % 3];
+        const key = a < b ? a * 1e7 + b : b * 1e7 + a;
+        const prev = owner.get(key);
+        if (prev === undefined) owner.set(key, t); else union(prev, t);
+      }
+    }
+    const groups = new Map();
+    for (let t = 0; t < n; t++) {
+      const r = find(t);
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r).push(t);
+    }
+    if (groups.size < 2) return null;
+    return [...groups.values()]
+      .filter(g => g.length >= 4)
+      .sort((a, b) => b.length - a.length)
+      .map((g) => {
+        const out = new Float32Array(g.length * 9);
+        g.forEach((t, i) => out.set(tris.subarray(t * 9, t * 9 + 9), i * 9));
+        return out;
+      });
+  }
+
+  function withSplit(res) {
+    if (res.actors.length > 1) return res;
+    const parts = splitConnected(res.actors[0].tris);
+    if (!parts || parts.length < 2) return res;
+    const base = res.actors[0].name;
+    res.actors = parts.map((tris, i) => ({ name: `${base} — corps ${i + 1}`, tris }));
+    res.warnings = (res.warnings || []).concat(
+      `Le fichier ne décrivait qu'un bloc : il a été découpé en ${parts.length} corps distincts (composantes connexes).`);
+    return res;
+  }
+
+  /* ================= Aiguillage ================= */
+  async function load(file) {
+    const name = (file.name || '').toLowerCase();
+    const ext = name.slice(name.lastIndexOf('.') + 1);
+    if (ext === 'stl') return withSplit(importSTL(await file.arrayBuffer()));
+    if (ext === 'obj') return withSplit(importOBJ(await file.text()));
+    if (ext === '3mf') return import3MF(await file.arrayBuffer());
+    if (ext === 'step' || ext === 'stp') return root.Step.importSTEP(await file.text());
+    throw new Error(`Format « .${ext} » non géré. Formats acceptés : STL, OBJ, 3MF, STEP.`);
+  }
+
+  root.Import = { load, importSTL, importOBJ, import3MF, readZip, looksBinarySTL, splitConnected };
+})(typeof window !== 'undefined' ? (window.SWC = window.SWC || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/step.js ===== */
+/* Tessellation STEP (AP203/AP214/AP242).
+
+   Le fichier décrit des surfaces exactes : on les facettise pour l'affichage.
+   Surfaces traitées : plan, cylindre, cône, sphère, tore. Les surfaces gauches
+   (B-splines) sont signalées et ignorées — pour une pièce entièrement gauche,
+   l'export STL ou 3MF reste la voie sûre.
+
+   Méthode : les arêtes sont discrétisées en 3D, projetées dans l'espace des
+   paramètres (u,v) de la surface porteuse, triangulées par découpe d'oreilles,
+   puis chaque triangle est raffiné tant que la corde s'écarte trop de la
+   surface réelle. */
+(function (root) {
+  'use strict';
+  const { V } = root.M3D || require('./m3d.js').M3D;
+
+  /* ================= Analyse lexicale ================= */
+  function splitArgs(s) {
+    const out = [];
+    let depth = 0, cur = '', inStr = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (inStr) { cur += c; if (c === "'") inStr = false; continue; }
+      if (c === "'") { inStr = true; cur += c; continue; }
+      if (c === '(') { depth++; cur += c; continue; }
+      if (c === ')') { depth--; cur += c; continue; }
+      if (c === ',' && depth === 0) { out.push(cur.trim()); cur = ''; continue; }
+      cur += c;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+
+  function parseEntities(text) {
+    const ents = new Map();
+    text = text.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const re = /#(\d+)\s*=\s*([A-Z_0-9]+)\s*\(([\s\S]*?)\)\s*;/g;
+    let m;
+    while ((m = re.exec(text))) ents.set(+m[1], { type: m[2], args: splitArgs(m[3]) });
+    const re2 = /#(\d+)\s*=\s*\(([\s\S]*?)\)\s*;/g;
+    while ((m = re2.exec(text))) {
+      if (!ents.has(+m[1])) ents.set(+m[1], { type: 'COMPLEX', args: [], raw: m[2] });
+    }
+    return ents;
+  }
+
+  /* ================= Découpe d'oreilles avec trous (2D) ================= */
+  const area2 = (poly) => {
+    let a = 0;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+      a += (poly[j][0] - poly[i][0]) * (poly[j][1] + poly[i][1]);
+    return a / 2;
+  };
+
+  /* Qualité d'un triangle : 4*sqrt(3)*aire / somme des carrés des côtés.
+     Vaut 1 pour l'équilatéral, tend vers 0 pour un triangle dégénéré. */
+  function earQuality(a, b, c) {
+    const ab = (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2;
+    const bc = (c[0] - b[0]) ** 2 + (c[1] - b[1]) ** 2;
+    const ca = (a[0] - c[0]) ** 2 + (a[1] - c[1]) ** 2;
+    const cr = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    const s = ab + bc + ca;
+    return s > 0 ? 2 * Math.sqrt(3) * cr / s : 0;
+  }
+
+  const same2 = (p, q) => Math.abs(p[0] - q[0]) < 1e-12 && Math.abs(p[1] - q[1]) < 1e-12;
+
+  function pointInTriangle(p, a, b, c) {
+    const d1 = (p[0] - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (p[1] - b[1]);
+    const d2 = (p[0] - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (p[1] - c[1]);
+    const d3 = (p[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (p[1] - a[1]);
+    const neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    const pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+    return !(neg && pos);
+  }
+
+  /* Raccorde chaque trou au contour extérieur par un pont, comme le fait un
+     mailleur classique : le polygone devient simplement connexe. */
+  function bridgeHoles(outer, holes) {
+    let poly = outer.slice();
+    const sorted = holes.slice().sort((h1, h2) => Math.max(...h2.map(p => p[0])) - Math.max(...h1.map(p => p[0])));
+    for (const holeRaw of sorted) {
+      const hole = holeRaw.slice();
+      let hi = 0;
+      for (let i = 1; i < hole.length; i++) if (hole[i][0] > hole[hi][0]) hi = i;
+      const H = hole[hi];
+      /* Sommet du contour visible depuis H : le plus proche vers la droite. */
+      let best = -1, bestD = Infinity;
+      for (let i = 0; i < poly.length; i++) {
+        const d = (poly[i][0] - H[0]) ** 2 + (poly[i][1] - H[1]) ** 2;
+        if (poly[i][0] < H[0] - 1e-12) continue;
+        let blocked = false;
+        for (let k = 0, j = poly.length - 1; k < poly.length && !blocked; j = k++) {
+          if (k === i || j === i) continue;
+          blocked = segmentsCross(H, poly[i], poly[j], poly[k]);
+        }
+        if (!blocked && d < bestD) { bestD = d; best = i; }
+      }
+      if (best < 0) {
+        best = 0; bestD = Infinity;
+        for (let i = 0; i < poly.length; i++) {
+          const d = (poly[i][0] - H[0]) ** 2 + (poly[i][1] - H[1]) ** 2;
+          if (d < bestD) { bestD = d; best = i; }
+        }
+      }
+      const rotated = hole.slice(hi).concat(hole.slice(0, hi));
+      poly = poly.slice(0, best + 1)
+        .concat(rotated, [rotated[0]], poly.slice(best));
+    }
+    return poly;
+  }
+
+  function segmentsCross(a, b, c, d) {
+    const o = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+    const o1 = o(a, b, c), o2 = o(a, b, d), o3 = o(c, d, a), o4 = o(c, d, b);
+    return o1 !== o2 && o3 !== o4 && o1 !== 0 && o2 !== 0 && o3 !== 0 && o4 !== 0;
+  }
+
+  /* Triangule un contour (+ trous) en 2D. Retourne des triplets d'indices dans
+     le tableau de points renvoyé. */
+  function triangulate(outer, holes) {
+    if (outer.length < 3) return { pts: [], tris: [] };
+    let ring = outer.slice();
+    if (area2(ring) < 0) ring.reverse();
+    const hs = (holes || []).map(h => { const c = h.slice(); if (area2(c) > 0) c.reverse(); return c; })
+      .filter(h => h.length >= 3);
+    const pts = hs.length ? bridgeHoles(ring, hs) : ring;
+    const n = pts.length;
+    const idx = [...Array(n).keys()];
+    const tris = [];
+    let guard = 0;
+    while (idx.length > 3 && guard++ < n * n + 100) {
+      /* On coupe l'oreille la plus « ronde » et non la première venue : sur un
+         contour riche en points alignés (un cylindre déplié, par exemple), cela
+         évite les éventails de triangles très allongés, dont la corde s'écarte
+         beaucoup de la surface réelle. */
+      let bestI = -1, bestQ = -Infinity;
+      for (let i = 0; i < idx.length; i++) {
+        const ia = idx[(i + idx.length - 1) % idx.length], ib = idx[i], ic = idx[(i + 1) % idx.length];
+        const a = pts[ia], b = pts[ib], c = pts[ic];
+        const cr = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        if (cr <= 1e-14) continue;                       // sommet réflexe ou plat
+        let ok = true;
+        for (const j of idx) {
+          if (j === ia || j === ib || j === ic) continue;
+          const p = pts[j];
+          /* Les ponts vers les trous dupliquent des sommets : un point confondu
+             avec un coin de l'oreille ne doit pas la bloquer. */
+          if (same2(p, a) || same2(p, b) || same2(p, c)) continue;
+          if (pointInTriangle(p, a, b, c)) { ok = false; break; }
+        }
+        if (!ok) continue;
+        const q = earQuality(a, b, c);
+        if (q > bestQ) { bestQ = q; bestI = i; }
+      }
+      if (bestI < 0) break;                               // contour dégénéré : on s'arrête
+      const ia = idx[(bestI + idx.length - 1) % idx.length], ib = idx[bestI], ic = idx[(bestI + 1) % idx.length];
+      tris.push([ia, ib, ic]);
+      idx.splice(bestI, 1);
+    }
+    if (idx.length === 3) tris.push([idx[0], idx[1], idx[2]]);
+    return { pts, tris };
+  }
+
+  /* ================= Importateur ================= */
+  function importSTEP(text, opts) {
+    opts = opts || {};
+    const ents = parseEntities(text);
+    const warnings = [];
+    const refId = (s) => +String(s).slice(1);
+    const refs = (s) => String(s).replace(/^\(|\)$/g, '').split(',').map(x => x.trim()).filter(x => x[0] === '#');
+    const nums = (s) => String(s).replace(/[()]/g, '').split(',').map(parseFloat).filter(x => isFinite(x));
+    const label = (s) => (String(s).match(/^'(.*)'$/) || [, ''])[1];
+    const get = (id) => ents.get(id);
+
+    /* --- Unités --- */
+    let scale = 1;
+    for (const [, e] of ents) {
+      if (e.type === 'CONVERSION_BASED_UNIT' && /INCH/i.test(e.args.join(','))) { scale = 25.4; break; }
+      if (/LENGTH_UNIT|SI_UNIT/.test(e.type)) {
+        const a = e.args.join(',');
+        if (/METRE/.test(a)) {
+          if (/MILLI/.test(a)) scale = 1;
+          else if (/CENTI/.test(a)) scale = 10;
+          else scale = 1000;
+        }
+      }
+    }
+
+    /* --- Primitives --- */
+    const ptCache = new Map();
+    function point(id) {
+      if (ptCache.has(id)) return ptCache.get(id);
+      const e = get(id);
+      let p = null;
+      if (e && e.type === 'CARTESIAN_POINT') { const n = nums(e.args[1]); p = [(n[0] || 0) * scale, (n[1] || 0) * scale, (n[2] || 0) * scale]; }
+      else if (e && e.type === 'VERTEX_POINT') p = point(refId(e.args[1]));
+      ptCache.set(id, p);
+      return p;
+    }
+    function direction(id) {
+      const e = get(id);
+      if (!e || e.type !== 'DIRECTION') return null;
+      const n = nums(e.args[1]);
+      return V.unit([n[0] || 0, n[1] || 0, n[2] || 0]);
+    }
+    /* Repère local d'un AXIS2_PLACEMENT_3D : origine O, axe Z=N, axes X=U, Y=W. */
+    function frame(id) {
+      const e = get(id);
+      if (!e || !/AXIS2_PLACEMENT_3D/.test(e.type)) return null;
+      const O = point(refId(e.args[1])) || [0, 0, 0];
+      const N = (e.args[2] && e.args[2] !== '$' && direction(refId(e.args[2]))) || [0, 0, 1];
+      let U = (e.args[3] && e.args[3] !== '$' && direction(refId(e.args[3]))) || V.perp(N);
+      U = V.unit(V.sub(U, V.mul(N, V.dot(U, N))));
+      return { O, N, U, W: V.cross(N, U) };
+    }
+
+    /* --- Courbes --- */
+    const TWO_PI = Math.PI * 2;
+    function circlePoints(fr, R, p1, p2, sense, sag) {
+      const ang = (p) => { const d = V.sub(p, fr.O); return Math.atan2(V.dot(d, fr.W), V.dot(d, fr.U)); };
+      const a1 = ang(p1);
+      let sweep = ang(p2) - a1;
+      if (sense) { while (sweep <= 1e-9) sweep += TWO_PI; } else { while (sweep >= -1e-9) sweep -= TWO_PI; }
+      if (V.dist(p1, p2) < 1e-7 * Math.max(1, R)) sweep = sense ? TWO_PI : -TWO_PI;
+      const s = sag || Math.max(R / 60, 1e-3);
+      const dTheta = 2 * Math.acos(Math.max(-1, Math.min(1, 1 - Math.min(s / Math.max(R, 1e-9), 1))));
+      const n = Math.max(2, Math.min(360, Math.ceil(Math.abs(sweep) / Math.max(dTheta, 0.02))));
+      const out = [];
+      for (let i = 1; i < n; i++) {
+        const a = a1 + sweep * i / n;
+        out.push(V.add(fr.O, V.add(V.mul(fr.U, R * Math.cos(a)), V.mul(fr.W, R * Math.sin(a)))));
+      }
+      return out;
+    }
+
+    /* Évaluation B-spline (de Boor), rationnelle ou non. */
+    function bsplineSampler(curve) {
+      let deg = parseInt(curve.args[1], 10);
+      let cps = refs(curve.args[2]).map(s => point(refId(s)));
+      let knots = null, mult = null, weights = null;
+      if (curve.type === 'B_SPLINE_CURVE_WITH_KNOTS') {
+        mult = nums(curve.args[6]); knots = nums(curve.args[7]);
+      } else if (/RATIONAL/.test(curve.type) || curve.type === 'COMPLEX') {
+        return null;
+      }
+      if (!cps.length || cps.some(p => !p)) return null;
+      if (!knots || !mult) {                                   // Bézier ou uniforme : approximation par le polygone
+        return { poly: cps };
+      }
+      const U = [];
+      for (let i = 0; i < knots.length; i++) for (let k = 0; k < mult[i]; k++) U.push(knots[i]);
+      if (U.length !== cps.length + deg + 1) return { poly: cps };
+      const evalAt = (u) => {
+        let k = deg;
+        while (k < cps.length - 1 && u >= U[k + 1]) k++;
+        const d = [];
+        for (let j = 0; j <= deg; j++) d.push(cps[k - deg + j].slice());
+        for (let r = 1; r <= deg; r++) {
+          for (let j = deg; j >= r; j--) {
+            const i = k - deg + j;
+            const den = U[i + deg - r + 1] - U[i];
+            const a = den > 1e-12 ? (u - U[i]) / den : 0;
+            d[j] = V.add(V.mul(d[j - 1], 1 - a), V.mul(d[j], a));
+          }
+        }
+        return d[deg];
+      };
+      return { evalAt, u0: U[deg], u1: U[U.length - deg - 1] };
+    }
+
+    let nSplineCurves = 0;
+    function edgePoints(edgeId, sense, sag) {
+      const e = get(edgeId);
+      if (!e || e.type !== 'EDGE_CURVE') return null;
+      const p1 = point(refId(e.args[1])), p2 = point(refId(e.args[2]));
+      if (!p1 || !p2) return null;
+      const curve = get(refId(e.args[3]));
+      const same = /\.T\./.test(e.args[4] || '.T.');
+      const pts = [p1];
+      if (curve && curve.type === 'CIRCLE') {
+        const fr = frame(refId(curve.args[1]));
+        if (fr) pts.push(...circlePoints(fr, parseFloat(curve.args[2]) * scale, p1, p2, same, sag));
+      } else if (curve && curve.type === 'ELLIPSE') {
+        const fr = frame(refId(curve.args[1]));
+        const a = parseFloat(curve.args[2]) * scale, b = parseFloat(curve.args[3]) * scale;
+        if (fr) {
+          const ang = (p) => { const d = V.sub(p, fr.O); return Math.atan2(V.dot(d, fr.W) / b, V.dot(d, fr.U) / a); };
+          const a1 = ang(p1);
+          let sweep = ang(p2) - a1;
+          if (same) { while (sweep <= 1e-9) sweep += TWO_PI; } else { while (sweep >= -1e-9) sweep -= TWO_PI; }
+          if (V.dist(p1, p2) < 1e-7) sweep = same ? TWO_PI : -TWO_PI;
+          const n = Math.max(8, Math.ceil(Math.abs(sweep) / 0.15));
+          for (let i = 1; i < n; i++) {
+            const t = a1 + sweep * i / n;
+            pts.push(V.add(fr.O, V.add(V.mul(fr.U, a * Math.cos(t)), V.mul(fr.W, b * Math.sin(t)))));
+          }
+        }
+      } else if (curve && /B_SPLINE_CURVE/.test(curve.type)) {
+        nSplineCurves++;
+        const s = bsplineSampler(curve);
+        if (s && s.evalAt) {
+          const n = Math.max(8, Math.min(64, Math.ceil(V.dist(p1, p2) / Math.max(sag || 0.5, 1e-3))));
+          for (let i = 1; i < n; i++) pts.push(s.evalAt(s.u0 + (s.u1 - s.u0) * i / n));
+        } else if (s && s.poly) {
+          for (let i = 1; i < s.poly.length - 1; i++) pts.push(s.poly[i]);
+        }
+      }
+      pts.push(p2);
+      if (!same) pts.reverse();
+      if (!sense) pts.reverse();
+      return pts;
+    }
+
+    function loopPoints(boundId, sag) {
+      const b = get(boundId);
+      if (!b || !/FACE_(OUTER_)?BOUND/.test(b.type)) return null;
+      const lp = get(refId(b.args[1]));
+      if (!lp || lp.type !== 'EDGE_LOOP') return null;
+      const orient = /\.T\./.test(b.args[2] || '.T.');
+      const pts = [];
+      for (const oe of refs(lp.args[1])) {
+        const o = get(refId(oe));
+        if (!o || o.type !== 'ORIENTED_EDGE') continue;
+        const ep = edgePoints(refId(o.args[3]), /\.T\./.test(o.args[4] || '.T.'), sag);
+        if (!ep) continue;
+        for (const p of ep) if (!pts.length || V.dist(p, pts[pts.length - 1]) > 1e-7) pts.push(p);
+      }
+      while (pts.length > 2 && V.dist(pts[0], pts[pts.length - 1]) < 1e-7) pts.pop();
+      if (pts.length < 3) return null;
+      return orient ? pts : pts.reverse();
+    }
+
+    /* --- Surfaces : paramétrage (u,v) <-> 3D --- */
+    function surfaceOf(id) {
+      const s = get(id);
+      if (!s) return null;
+      if (s.type === 'PLANE') {
+        const fr = frame(refId(s.args[1]));
+        if (!fr) return null;
+        return {
+          kind: 'plane', normalAt: () => fr.N, periodU: 0,
+          toUV: (p) => { const d = V.sub(p, fr.O); return [V.dot(d, fr.U), V.dot(d, fr.W)]; },
+          toXYZ: (u, v) => V.add(fr.O, V.add(V.mul(fr.U, u), V.mul(fr.W, v)))
+        };
+      }
+      if (s.type === 'CYLINDRICAL_SURFACE') {
+        const fr = frame(refId(s.args[1]));
+        const R = parseFloat(s.args[2]) * scale;
+        if (!fr) return null;
+        return {
+          kind: 'cylinder', periodU: TWO_PI * R,
+          normalAt: (p) => { const d = V.sub(p, fr.O); return V.unit(V.sub(d, V.mul(fr.N, V.dot(d, fr.N)))); },
+          toUV: (p) => {
+            const d = V.sub(p, fr.O);
+            return [Math.atan2(V.dot(d, fr.W), V.dot(d, fr.U)) * R, V.dot(d, fr.N)];
+          },
+          toXYZ: (u, v) => {
+            const a = u / (R || 1);
+            return V.add(fr.O, V.add(V.add(V.mul(fr.U, R * Math.cos(a)), V.mul(fr.W, R * Math.sin(a))), V.mul(fr.N, v)));
+          }
+        };
+      }
+      if (s.type === 'CONICAL_SURFACE') {
+        const fr = frame(refId(s.args[1]));
+        const R = parseFloat(s.args[2]) * scale, half = parseFloat(s.args[3]);
+        if (!fr) return null;
+        const k = Math.tan(half);
+        const Rref = Math.max(R, 1e-6);
+        return {
+          kind: 'cone', periodU: TWO_PI * Rref,
+          normalAt: (p) => {
+            const d = V.sub(p, fr.O);
+            const rad = V.unit(V.sub(d, V.mul(fr.N, V.dot(d, fr.N))));
+            return V.unit(V.sub(rad, V.mul(fr.N, k)));
+          },
+          toUV: (p) => {
+            const d = V.sub(p, fr.O);
+            return [Math.atan2(V.dot(d, fr.W), V.dot(d, fr.U)) * Rref, V.dot(d, fr.N)];
+          },
+          toXYZ: (u, v) => {
+            const a = u / Rref, r = R + v * k;
+            return V.add(fr.O, V.add(V.add(V.mul(fr.U, r * Math.cos(a)), V.mul(fr.W, r * Math.sin(a))), V.mul(fr.N, v)));
+          }
+        };
+      }
+      if (s.type === 'SPHERICAL_SURFACE') {
+        const fr = frame(refId(s.args[1]));
+        const R = parseFloat(s.args[2]) * scale;
+        if (!fr) return null;
+        return {
+          kind: 'sphere', periodU: TWO_PI * R, rangeV: [-Math.PI * R / 2, Math.PI * R / 2],
+          normalAt: (p) => V.unit(V.sub(p, fr.O)),
+          toUV: (p) => {
+            const d = V.sub(p, fr.O);
+            const z = V.dot(d, fr.N);
+            return [Math.atan2(V.dot(d, fr.W), V.dot(d, fr.U)) * R, Math.asin(Math.max(-1, Math.min(1, z / (R || 1)))) * R];
+          },
+          toXYZ: (u, v) => {
+            const a = u / (R || 1), ph = v / (R || 1);
+            const r = R * Math.cos(ph);
+            return V.add(fr.O, V.add(V.add(V.mul(fr.U, r * Math.cos(a)), V.mul(fr.W, r * Math.sin(a))), V.mul(fr.N, R * Math.sin(ph))));
+          }
+        };
+      }
+      if (s.type === 'TOROIDAL_SURFACE') {
+        const fr = frame(refId(s.args[1]));
+        const R1 = parseFloat(s.args[2]) * scale, R2 = parseFloat(s.args[3]) * scale;
+        if (!fr) return null;
+        return {
+          kind: 'torus', periodU: TWO_PI * Math.max(R1, 1e-6), rangeV: [-Math.PI * R2, Math.PI * R2],
+          normalAt: (p) => {
+            const d = V.sub(p, fr.O);
+            const rad = V.sub(d, V.mul(fr.N, V.dot(d, fr.N)));
+            const c = V.add(fr.O, V.mul(V.unit(rad), R1));
+            return V.unit(V.sub(p, c));
+          },
+          toUV: (p) => {
+            const d = V.sub(p, fr.O);
+            const x = V.dot(d, fr.U), y = V.dot(d, fr.W), z = V.dot(d, fr.N);
+            const a = Math.atan2(y, x);
+            return [a * Math.max(R1, 1e-6), Math.atan2(z, Math.hypot(x, y) - R1) * Math.max(R2, 1e-6)];
+          },
+          toXYZ: (u, v) => {
+            const a = u / Math.max(R1, 1e-6), b = v / Math.max(R2, 1e-6);
+            const r = R1 + R2 * Math.cos(b);
+            return V.add(fr.O, V.add(V.add(V.mul(fr.U, r * Math.cos(a)), V.mul(fr.W, r * Math.sin(a))), V.mul(fr.N, R2 * Math.sin(b))));
+          }
+        };
+      }
+      return null;                                   // B-spline & co.
+    }
+
+    /* Déroule la coordonnée périodique le long du contour pour éviter le saut
+       de couture (±π) qui replierait le polygone sur lui-même. */
+    function unwrap(uv, period) {
+      if (!period) return uv;
+      const out = [uv[0].slice()];
+      for (let i = 1; i < uv.length; i++) {
+        let u = uv[i][0];
+        const prev = out[i - 1][0];
+        while (u - prev > period / 2) u -= period;
+        while (prev - u > period / 2) u += period;
+        out.push([u, uv[i][1]]);
+      }
+      /* Contour fermé : le retour au point de départ doit boucler proprement. */
+      const closeGap = out[0][0] - out[out.length - 1][0];
+      if (Math.abs(Math.abs(closeGap) - period) < period * 0.02) {
+        // La couture est franchie une fois : c'est le cas normal d'une face pleine.
+      }
+      return out;
+    }
+
+    const tol = opts.tolerance || 0.15;              // écart de corde admis, en mm
+
+    /* Densifie un contour dans l'espace des paramètres : tant qu'un segment
+       s'écarte de la surface de plus que la tolérance, on le coupe en deux. */
+    function densifyRing(surf, ring, tol) {
+      const out = [];
+      const split = (P, Q, depth) => {
+        if (depth >= 6) return;
+        const m = [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2];
+        const p3 = surf.toXYZ(P[0], P[1]), q3 = surf.toXYZ(Q[0], Q[1]);
+        if (V.dist(surf.toXYZ(m[0], m[1]), V.lerp(p3, q3, 0.5)) <= tol) return;
+        split(P, m, depth + 1);
+        out.push(m);
+        split(m, Q, depth + 1);
+      };
+      for (let i = 0; i < ring.length; i++) {
+        const A = ring[i], B = ring[(i + 1) % ring.length];
+        out.push(A);
+        split(A, B, 0);
+      }
+      return out;
+    }
+
+    /* Filet de sécurité : un triangle dont la corde s'écarte encore trop de la
+       surface est découpé en quatre (pas de sommet en T ainsi introduit). */
+    function refine(surf, tri, out, depth) {
+      const [A, B, C] = tri;
+      if (depth < 3 && surf.kind !== 'plane') {
+        const mid = (P, Q) => [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2];
+        const err = (P, Q) => {
+          const m = mid(P, Q);
+          return V.dist(surf.toXYZ(m[0], m[1]), V.lerp(surf.toXYZ(P[0], P[1]), surf.toXYZ(Q[0], Q[1]), 0.5));
+        };
+        if (Math.max(err(A, B), err(B, C), err(C, A)) > tol) {
+          const ab = mid(A, B), bc = mid(B, C), ca = mid(C, A);
+          refine(surf, [A, ab, ca], out, depth + 1);
+          refine(surf, [ab, B, bc], out, depth + 1);
+          refine(surf, [ca, bc, C], out, depth + 1);
+          refine(surf, [ab, bc, ca], out, depth + 1);
+          return;
+        }
+      }
+      out.push(tri);
+    }
+
+    /* Face fermée sur elle-même : son contour ne contient que des coutures ou
+       des pôles et se réduit, dans l'espace des paramètres, à un segment. On
+       reconstruit alors la surface entière (tube, sphère, tore) par une grille. */
+    function closedPatch(surf, vmin, vmax) {
+      const per = surf.periodU;
+      if (!per) return null;
+      const Rc = per / TWO_PI;
+      const step = Math.max(per / 512, Math.min(per / 12, Math.sqrt(Math.max(8 * Rc * tol, 1e-9))));
+      if (surf.rangeV) { vmin = surf.rangeV[0]; vmax = surf.rangeV[1]; }
+      if (!(vmax - vmin > 1e-9)) return null;
+      const nu = Math.max(12, Math.min(512, Math.ceil(per / step)));
+      const curvedV = surf.kind === 'sphere' || surf.kind === 'torus';
+      const nv = curvedV ? Math.max(6, Math.min(256, Math.ceil((vmax - vmin) / step))) : 1;
+      const out = [];
+      for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+        const u0 = per * i / nu, u1 = per * (i + 1) / nu;
+        const v0 = vmin + (vmax - vmin) * j / nv, v1 = vmin + (vmax - vmin) * (j + 1) / nv;
+        out.push([[u0, v0], [u1, v0], [u1, v1]], [[u0, v0], [u1, v1], [u0, v1]]);
+      }
+      return out;
+    }
+
+    let nSkipped = 0, nClosed = 0;
+    function faceTriangles(faceId) {
+      const e = get(faceId);
+      if (!e || (e.type !== 'ADVANCED_FACE' && e.type !== 'FACE_SURFACE')) return null;
+      const surf = surfaceOf(refId(e.args[2]));
+      if (!surf) { nSkipped++; return null; }
+      const sameSense = /\.T\./.test(e.args[3] || '.T.');
+      const bounds = [];
+      for (const bId of refs(e.args[1])) {
+        const pts = loopPoints(refId(bId), Math.min(tol, 0.5));
+        if (!pts) continue;
+        const b = get(refId(bId));
+        bounds.push({ pts, outer: /OUTER/.test(b.type) });
+      }
+      if (!bounds.length) return null;
+      /* Le contour extérieur est celui de plus grande étendue si rien ne le dit. */
+      if (!bounds.some(b => b.outer)) {
+        let bi = 0, bs = -1;
+        bounds.forEach((b, i) => {
+          const uv = b.pts.map(p => surf.toUV(p));
+          const s = Math.abs(area2(unwrap(uv, surf.periodU)));
+          if (s > bs) { bs = s; bi = i; }
+        });
+        bounds[bi].outer = true;
+      }
+      const outerB = bounds.find(b => b.outer);
+      const outerUV = unwrap(outerB.pts.map(p => surf.toUV(p)), surf.periodU);
+      let closed = null;
+      if (Math.abs(area2(outerUV)) < 1e-9) {
+        const vs = outerUV.map(p => p[1]);
+        closed = closedPatch(surf, Math.min(...vs), Math.max(...vs));
+        if (!closed) { nSkipped++; return null; }
+        nClosed++;
+      }
+      /* Les trous sont recalés dans la même période que le contour. */
+      const uCenter = outerUV.reduce((s, p) => s + p[0], 0) / outerUV.length;
+      const holes = bounds.filter(b => b !== outerB).map(b => {
+        let uv = unwrap(b.pts.map(p => surf.toUV(p)), surf.periodU);
+        if (surf.periodU) {
+          const c = uv.reduce((s, p) => s + p[0], 0) / uv.length;
+          const shift = Math.round((uCenter - c) / surf.periodU) * surf.periodU;
+          if (shift) uv = uv.map(p => [p[0] + shift, p[1]]);
+        }
+        return uv;
+      });
+
+      const densify = (ring) => surf.kind === 'plane' ? ring : densifyRing(surf, ring, tol);
+      const refined = [];
+      if (closed) {
+        for (const t of closed) refined.push(t);
+      } else {
+        const { pts, tris } = triangulate(densify(outerUV), holes.map(densify));
+        if (!tris.length) { nSkipped++; return null; }
+        for (const t of tris) refine(surf, [pts[t[0]], pts[t[1]], pts[t[2]]], refined, 0);
+      }
+
+      const buf = [];
+      for (const t of refined) {
+        let P = t.map(uv => surf.toXYZ(uv[0], uv[1]));
+        const n = V.cross(V.sub(P[1], P[0]), V.sub(P[2], P[0]));
+        if (V.len(n) < 1e-12) continue;                 // triangle dégénéré (pôle)
+        /* Orientation cohérente avec la normale de la face. */
+        const ref = surf.normalAt(P[0]);
+        const want = sameSense ? 1 : -1;
+        if (V.dot(n, ref) * want < 0) P = [P[0], P[2], P[1]];
+        for (const q of P) buf.push(q[0], q[1], q[2]);
+      }
+      return buf.length ? Float32Array.from(buf) : null;
+    }
+
+    /* --- Transformations d'assemblage --- */
+    const IDENT = { r: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], t: [0, 0, 0] };
+    const applyM = (M, p) => [
+      M.r[0][0] * p[0] + M.r[0][1] * p[1] + M.r[0][2] * p[2] + M.t[0],
+      M.r[1][0] * p[0] + M.r[1][1] * p[1] + M.r[1][2] * p[2] + M.t[1],
+      M.r[2][0] * p[0] + M.r[2][1] * p[1] + M.r[2][2] * p[2] + M.t[2]];
+    function mulM(A, B) {
+      const r = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++)
+        r[i][j] = A.r[i][0] * B.r[0][j] + A.r[i][1] * B.r[1][j] + A.r[i][2] * B.r[2][j];
+      return { r, t: applyM(A, B.t) };
+    }
+    function invM(A) {
+      const r = [[A.r[0][0], A.r[1][0], A.r[2][0]], [A.r[0][1], A.r[1][1], A.r[2][1]], [A.r[0][2], A.r[1][2], A.r[2][2]]];
+      const t = [0, 1, 2].map(i => -(r[i][0] * A.t[0] + r[i][1] * A.t[1] + r[i][2] * A.t[2]));
+      return { r, t };
+    }
+    const isIdentity = (M) => Math.abs(M.t[0]) + Math.abs(M.t[1]) + Math.abs(M.t[2]) < 1e-9 &&
+      Math.abs(M.r[0][0] - 1) + Math.abs(M.r[1][1] - 1) + Math.abs(M.r[2][2] - 1) < 1e-9;
+    function frameMatrix(id) {
+      const fr = frame(id);
+      if (!fr) return IDENT;
+      return { r: [[fr.U[0], fr.W[0], fr.N[0]], [fr.U[1], fr.W[1], fr.N[1]], [fr.U[2], fr.W[2], fr.N[2]]], t: fr.O };
+    }
+
+    const repOfItem = new Map();
+    for (const [id, e] of ents) {
+      if (!/SHAPE_REPRESENTATION|REPRESENTATION$/.test(e.type)) continue;
+      for (const it of refs(e.args[1] || '()')) repOfItem.set(refId(it), id);
+    }
+    const parentOf = new Map();
+    let nTransforms = 0;
+    for (const [, e] of ents) {
+      if (e.type !== 'COMPLEX' || !/REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION/.test(e.raw || '')) continue;
+      const rr = (e.raw.match(/REPRESENTATION_RELATIONSHIP\s*\(([^)]*)\)/) || [])[1];
+      const tr = (e.raw.match(/REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION\s*\(([^)]*)\)/) || [])[1];
+      if (!rr || !tr) continue;
+      const a = splitArgs(rr), b = splitArgs(tr)[0];
+      const child = refId(a[2]), parent = refId(a[3]);
+      const idt = get(refId(b));
+      let M = IDENT;
+      if (idt && idt.type === 'ITEM_DEFINED_TRANSFORMATION') {
+        M = mulM(frameMatrix(refId(idt.args[3])), invM(frameMatrix(refId(idt.args[2]))));
+        if (!isIdentity(M)) nTransforms++;
+      }
+      parentOf.set(child, { parent, M });
+    }
+    function absoluteMatrix(repId) {
+      let M = IDENT, cur = repId, guard = 0;
+      while (parentOf.has(cur) && guard++ < 50) {
+        const p = parentOf.get(cur);
+        M = mulM(p.M, M);
+        cur = p.parent;
+      }
+      return M;
+    }
+
+    /* --- Noms de pièces : PRODUCT -> SHAPE_REPRESENTATION --- */
+    const nameOfRep = new Map();
+    for (const [, e] of ents) {
+      if (e.type !== 'SHAPE_DEFINITION_REPRESENTATION') continue;
+      const pds = get(refId(e.args[0])), rep = refId(e.args[1]);
+      if (!pds) continue;
+      let n = '';
+      const pd = get(refId(pds.args[2] !== undefined ? pds.args[2] : pds.args[1]));
+      const pdf = pd && get(refId(pd.args[2] || pd.args[1] || '#0'));
+      const prod = pdf && pdf.args ? get(refId(pdf.args[2] || pdf.args[0] || '#0')) : null;
+      if (prod && prod.type === 'PRODUCT') n = label(prod.args[1]) || label(prod.args[0]);
+      if (n) nameOfRep.set(rep, n);
+    }
+
+    /* --- Corps --- */
+    const shells = [];
+    for (const [id, e] of ents) {
+      if (e.type === 'MANIFOLD_SOLID_BREP' || e.type === 'BREP_WITH_VOIDS')
+        shells.push({ id, name: label(e.args[0]), shellIds: [refId(e.args[1])] });
+      else if (e.type === 'SHELL_BASED_SURFACE_MODEL')
+        shells.push({ id, name: label(e.args[0]), shellIds: refs(e.args[1]).map(refId) });
+    }
+
+    const actors = [];
+    const addActor = (name, chunks, M) => {
+      const total = chunks.reduce((s, c) => s + c.length, 0);
+      if (!total) return;
+      const tris = new Float32Array(total);
+      let o = 0;
+      for (const c of chunks) { tris.set(c, o); o += c.length; }
+      if (M && !isIdentity(M)) {
+        for (let i = 0; i < tris.length; i += 3) {
+          const p = applyM(M, [tris[i], tris[i + 1], tris[i + 2]]);
+          tris[i] = p[0]; tris[i + 1] = p[1]; tris[i + 2] = p[2];
+        }
+      }
+      actors.push({ name: name || `Corps ${actors.length + 1}`, tris });
+    };
+
+    if (shells.length) {
+      for (const sh of shells) {
+        const chunks = [];
+        for (const sid of sh.shellIds) {
+          const shell = get(sid);
+          if (!shell || !/SHELL/.test(shell.type)) continue;
+          for (const f of refs(shell.args[1])) {
+            const t = faceTriangles(refId(f));
+            if (t) chunks.push(t);
+          }
+        }
+        const repId = repOfItem.get(sh.id);
+        addActor(sh.name || nameOfRep.get(repId) || null, chunks, absoluteMatrix(repId));
+      }
+    } else {
+      const chunks = [];
+      for (const [id, e] of ents) {
+        if (e.type !== 'ADVANCED_FACE' && e.type !== 'FACE_SURFACE') continue;
+        const t = faceTriangles(id);
+        if (t) chunks.push(t);
+      }
+      addActor('Corps 1', chunks, null);
+    }
+
+    if (!actors.length)
+      throw new Error("Aucune face exploitable dans ce STEP (surfaces gauches uniquement ?). Essayez un export STL ou 3MF.");
+    if (nSkipped)
+      warnings.push(`${nSkipped} face(s) non facettisées : surfaces gauches (B-splines) ou contours dégénérés. ` +
+        `La forme reste lisible, mais des zones peuvent manquer. Un export STL/3MF les inclurait.`);
+    if (nTransforms)
+      warnings.push(`${nTransforms} transformation(s) d'assemblage appliquées. Vérifiez visuellement le positionnement relatif des pièces.`);
+    if (nClosed)
+      warnings.push(`${nClosed} face(s) fermées (tube, sphère, tore) reconstruites en entier : leur contour ne portait que des coutures.`);
+    if (nSplineCurves)
+      warnings.push(`${nSplineCurves} arête(s) B-spline approchées par segments.`);
+
+    return { actors, source: 'STEP', warnings, unitScale: scale };
+  }
+
+  root.Step = { importSTEP, parseEntities, triangulate, splitArgs };
+})(typeof window !== 'undefined' ? (window.SWC = window.SWC || {}) : (module.exports = {}));
+
+</script>
+<script>
+/* ===== js/view.js ===== */
+/* Rendu WebGL et caméra orbitale.
+   Deux programmes seulement : les faces (éclairage à trois sources fixes,
+   rendu « atelier ») et les traits (arêtes, lignes de repère, grille). */
+(function (root) {
+  'use strict';
+  const { M, V } = root.M3D;
+
+  const VS_MESH = `
+    attribute vec3 aPos; attribute vec3 aNor;
+    uniform mat4 uMVP, uModel, uNrm;
+    varying vec3 vN, vP;
+    void main() {
+      vN = mat3(uNrm) * aNor;
+      vP = (uModel * vec4(aPos, 1.0)).xyz;
+      gl_Position = uMVP * vec4(aPos, 1.0);
+    }`;
+  const FS_MESH = `
+    precision mediump float;
+    uniform vec3 uColor, uEye; uniform float uAlpha;
+    varying vec3 vN, vP;
+    void main() {
+      vec3 n = normalize(vN);
+      if (!gl_FrontFacing) n = -n;
+      vec3 v = normalize(uEye - vP);
+      float key  = max(dot(n, normalize(vec3(0.35, 0.45, 0.82))), 0.0);
+      float fill = max(dot(n, normalize(vec3(-0.7, -0.2, 0.35))), 0.0) * 0.30;
+      float back = max(dot(n, normalize(vec3(0.1, -0.8, -0.4))), 0.0) * 0.12;
+      float rim  = pow(1.0 - max(dot(n, v), 0.0), 3.0) * 0.18;
+      vec3 c = uColor * (0.34 + 0.66 * key + fill + back) + vec3(rim);
+      gl_FragColor = vec4(c, uAlpha);
+    }`;
+  const VS_LINE = `
+    attribute vec3 aPos;
+    uniform mat4 uMVP;
+    void main() { gl_Position = uMVP * vec4(aPos, 1.0); }`;
+  const FS_LINE = `
+    precision mediump float;
+    uniform vec3 uColor; uniform float uAlpha;
+    void main() { gl_FragColor = vec4(uColor, uAlpha); }`;
+
+  function compile(gl, vsSrc, fsSrc) {
+    const mk = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, mk(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  }
+
+  function createView(canvas) {
+    const gl = canvas.getContext('webgl', { antialias: true, alpha: false, preserveDrawingBuffer: true })
+      || canvas.getContext('experimental-webgl');
+    if (!gl) throw new Error("WebGL n'est pas disponible dans ce navigateur.");
+
+    const progMesh = compile(gl, VS_MESH, FS_MESH);
+    const progLine = compile(gl, VS_LINE, FS_LINE);
+    const loc = {
+      mesh: {
+        aPos: gl.getAttribLocation(progMesh, 'aPos'), aNor: gl.getAttribLocation(progMesh, 'aNor'),
+        uMVP: gl.getUniformLocation(progMesh, 'uMVP'), uModel: gl.getUniformLocation(progMesh, 'uModel'),
+        uNrm: gl.getUniformLocation(progMesh, 'uNrm'), uColor: gl.getUniformLocation(progMesh, 'uColor'),
+        uAlpha: gl.getUniformLocation(progMesh, 'uAlpha'), uEye: gl.getUniformLocation(progMesh, 'uEye')
+      },
+      line: {
+        aPos: gl.getAttribLocation(progLine, 'aPos'), uMVP: gl.getUniformLocation(progLine, 'uMVP'),
+        uColor: gl.getUniformLocation(progLine, 'uColor'), uAlpha: gl.getUniformLocation(progLine, 'uAlpha')
+      }
+    };
+
+    const cam = {
+      target: [0, 0, 0], dist: 500, yaw: -0.9, pitch: 0.55,
+      fov: 35 * Math.PI / 180, ortho: false, near: 1, far: 10000
+    };
+
+    const view = {
+      gl, cam, canvas,
+      background: [0.925, 0.933, 0.945],
+
+      /* --- Ressources GPU --- */
+      buffer(data) {
+        const b = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, b);
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+        return { buf: b, count: data.length / 3 };
+      },
+      dynamicBuffer() {
+        return { buf: gl.createBuffer(), count: 0, dynamic: true };
+      },
+      update(bo, data) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, bo.buf);
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+        bo.count = data.length / 3;
+      },
+      dispose(bo) { if (bo && bo.buf) gl.deleteBuffer(bo.buf); },
+
+      /* --- Caméra --- */
+      eye() {
+        const cp = Math.cos(cam.pitch);
+        return V.add(cam.target, V.mul([cp * Math.cos(cam.yaw), cp * Math.sin(cam.yaw), Math.sin(cam.pitch)], cam.dist));
+      },
+      aspect() { return canvas.width / Math.max(1, canvas.height); },
+      viewMatrix() { return M.lookAt(view.eye(), cam.target, [0, 0, 1]); },
+      projMatrix() {
+        if (cam.ortho) {
+          const h = cam.dist * Math.tan(cam.fov / 2), w = h * view.aspect();
+          return M.ortho(-w, w, -h, h, -cam.far, cam.far);
+        }
+        /* Plans de coupe serrés autour de la distance d'observation : une plage
+           trop large épuise la précision du tampon de profondeur et fait
+           « transparaître » les arêtes de la face arrière des pièces. */
+        const near = Math.max(cam.dist * 0.02, 1e-4);
+        return M.perspective(cam.fov, view.aspect(), near, near + cam.dist * 20);
+      },
+      viewProj() { return M.mul(view.projMatrix(), view.viewMatrix()); },
+
+      /* Rayon issu d'un point écran (coordonnées CSS). */
+      ray(px, py) {
+        const r = canvas.getBoundingClientRect();
+        const x = (px / r.width) * 2 - 1, y = 1 - (py / r.height) * 2;
+        const inv = M.invert(view.viewProj());
+        const a = M.apply(inv, [x, y, -1]), b = M.apply(inv, [x, y, 1]);
+        const o = cam.ortho ? a : view.eye();
+        return { o, d: V.unit(V.sub(b, a)) };
+      },
+      /* Projection d'un point du monde vers l'écran (coordonnées CSS). */
+      project(p) {
+        const r = canvas.getBoundingClientRect();
+        const c = M.apply(view.viewProj(), p);
+        return [(c[0] * 0.5 + 0.5) * r.width, (0.5 - c[1] * 0.5) * r.height, c[2]];
+      },
+      /* Taille monde correspondant à 1 pixel, à la profondeur du point donné. */
+      pixelSize(p) {
+        const r = canvas.getBoundingClientRect();
+        const d = cam.ortho ? cam.dist : Math.max(V.dist(view.eye(), p), 1e-3);
+        return 2 * d * Math.tan(cam.fov / 2) / Math.max(r.height, 1);
+      },
+
+      frame(bbox, margin) {
+        const c = [(bbox.min[0] + bbox.max[0]) / 2, (bbox.min[1] + bbox.max[1]) / 2, (bbox.min[2] + bbox.max[2]) / 2];
+        const diag = V.dist(bbox.min, bbox.max) || 100;
+        cam.target = c;
+        cam.dist = (diag / 2) / Math.tan(cam.fov / 2) * (margin || 1.35);
+      },
+
+      resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+        const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+        if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      },
+
+      /* --- Dessin --- */
+      begin() {
+        view.resize();
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clearColor(view.background[0], view.background[1], view.background[2], 1);
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
+        gl.disable(gl.CULL_FACE);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      },
+
+      drawMesh(pos, nor, model, color, alpha) {
+        const vp = view.viewProj();
+        gl.useProgram(progMesh);
+        gl.enable(gl.POLYGON_OFFSET_FILL);
+        gl.polygonOffset(1.2, 1.5);          // laisse la place aux arêtes
+        if (alpha < 1) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); }
+        gl.uniformMatrix4fv(loc.mesh.uMVP, false, M.mul(vp, model));
+        gl.uniformMatrix4fv(loc.mesh.uModel, false, model);
+        gl.uniformMatrix4fv(loc.mesh.uNrm, false, M.normalMatrix(model));
+        gl.uniform3fv(loc.mesh.uColor, color);
+        gl.uniform1f(loc.mesh.uAlpha, alpha);
+        gl.uniform3fv(loc.mesh.uEye, view.eye());
+        gl.bindBuffer(gl.ARRAY_BUFFER, pos.buf);
+        gl.enableVertexAttribArray(loc.mesh.aPos);
+        gl.vertexAttribPointer(loc.mesh.aPos, 3, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, nor.buf);
+        gl.enableVertexAttribArray(loc.mesh.aNor);
+        gl.vertexAttribPointer(loc.mesh.aNor, 3, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, pos.count);
+        gl.disable(gl.POLYGON_OFFSET_FILL);
+        if (alpha < 1) { gl.disable(gl.BLEND); gl.depthMask(true); }
+      },
+
+      drawLines(bo, model, color, alpha, onTop) {
+        if (!bo || !bo.count) return;
+        gl.useProgram(progLine);
+        if (onTop) gl.disable(gl.DEPTH_TEST);
+        if (alpha < 1) { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
+        gl.uniformMatrix4fv(loc.line.uMVP, false, M.mul(view.viewProj(), model));
+        gl.uniform3fv(loc.line.uColor, color);
+        gl.uniform1f(loc.line.uAlpha, alpha === undefined ? 1 : alpha);
+        gl.bindBuffer(gl.ARRAY_BUFFER, bo.buf);
+        gl.enableVertexAttribArray(loc.line.aPos);
+        gl.vertexAttribPointer(loc.line.aPos, 3, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.LINES, 0, bo.count);
+        if (alpha < 1) gl.disable(gl.BLEND);
+        if (onTop) gl.enable(gl.DEPTH_TEST);
+      }
+    };
+    return view;
+  }
+
+  root.View = { createView };
+})(window.SWC = window.SWC || {});
+
+</script>
+<script>
+/* ===== js/scene.js ===== */
+/* La scène : les acteurs, leur position neutre, les lignes de repère et la
+   sélection au clic.
+
+   Vocabulaire repris de SolidWorks Composer :
+   - « acteur » : un corps importé, déplaçable indépendamment ;
+   - « position neutre » : la position d'origine, celle de l'assemblage tel
+     qu'importé. Un acteur y revient à tout moment ;
+   - « ligne de position neutre » : le trait pointillé qui relie l'acteur
+     déplacé à sa position neutre — le trait d'éclaté d'une vue technique. */
+(function (root) {
+  'use strict';
+  const { M, V, Q, rayTriangle } = root.M3D;
+
+  const PALETTE = [
+    [0.55, 0.62, 0.70], [0.72, 0.60, 0.45], [0.50, 0.66, 0.62], [0.68, 0.55, 0.60],
+    [0.58, 0.64, 0.48], [0.62, 0.58, 0.72], [0.75, 0.68, 0.45], [0.48, 0.58, 0.68]
+  ];
+
+  function createScene(view) {
+    let nextId = 1;
+    const scene = {
+      actors: [],
+      selection: [],
+      settings: {
+        showEdges: true,
+        showNeutralLines: true,
+        showNeutralGhosts: false,
+        lineStyle: 'coude',            // 'droite' | 'coude'
+        lineColor: [0.10, 0.35, 0.60],
+        dashLength: 6,                 // en pixels écran
+        showGrid: true
+      },
+      lineBuf: null,
+      gridBuf: null,
+
+      /* ---------- Acteurs ---------- */
+      addActor(name, mesh) {
+        const a = {
+          id: nextId++,
+          name: name || `Acteur ${nextId}`,
+          mesh,
+          pos: view.buffer(mesh.position),
+          nor: view.buffer(mesh.normal),
+          edge: view.buffer(mesh.edges),
+          offset: [0, 0, 0],
+          quat: Q.id(),
+          visible: true,
+          color: PALETTE[(nextId - 2) % PALETTE.length].slice(),
+          showLine: true                // ligne tracée dès que l'acteur bouge
+        };
+        scene.actors.push(a);
+        return a;
+      },
+      clear() {
+        for (const a of scene.actors) { view.dispose(a.pos); view.dispose(a.nor); view.dispose(a.edge); }
+        scene.actors.length = 0;
+        scene.selection.length = 0;
+        nextId = 1;
+      },
+      matrix: (a) => M.compose(a.offset, a.quat, a.mesh.center),
+      /* Centre de l'acteur : neutre (position d'origine) et courant. */
+      neutralCenter: (a) => a.mesh.center,
+      currentCenter: (a) => M.apply(scene.matrix(a), a.mesh.center),
+      moved: (a) => V.len(a.offset) > 1e-9 || Math.abs(a.quat[3]) < 1 - 1e-12,
+      resetActor(a) { a.offset = [0, 0, 0]; a.quat = Q.id(); },
+
+      bbox(onlyVisible) {
+        const bb = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+        for (const a of scene.actors) {
+          if (onlyVisible && !a.visible) continue;
+          const m = scene.matrix(a);
+          const b = a.mesh.bbox;
+          for (let i = 0; i < 8; i++) {
+            const p = M.apply(m, [
+              i & 1 ? b.max[0] : b.min[0], i & 2 ? b.max[1] : b.min[1], i & 4 ? b.max[2] : b.min[2]]);
+            for (let k = 0; k < 3; k++) {
+              if (p[k] < bb.min[k]) bb.min[k] = p[k];
+              if (p[k] > bb.max[k]) bb.max[k] = p[k];
+            }
+          }
+        }
+        if (!isFinite(bb.min[0])) return { min: [-50, -50, -50], max: [50, 50, 50] };
+        return bb;
+      },
+
+      /* ---------- Sélection ---------- */
+      isSelected: (a) => scene.selection.indexOf(a.id) >= 0,
+      select(a, additive) {
+        if (!a) { if (!additive) scene.selection.length = 0; return; }
+        const i = scene.selection.indexOf(a.id);
+        if (additive) {
+          if (i >= 0) scene.selection.splice(i, 1); else scene.selection.push(a.id);
+        } else {
+          scene.selection.length = 0;
+          scene.selection.push(a.id);
+        }
+      },
+      selected: () => scene.actors.filter(a => scene.selection.indexOf(a.id) >= 0),
+
+      /* Acteur visible sous le curseur, par lancer de rayon sur les triangles. */
+      pick(px, py) {
+        const { o, d } = view.ray(px, py);
+        let best = null, bestT = Infinity;
+        for (const a of scene.actors) {
+          if (!a.visible) continue;
+          const inv = M.invert(scene.matrix(a));
+          const lo = M.apply(inv, o), ld = M.applyDir(inv, d);
+          if (!rayBox(lo, ld, a.mesh.bbox)) continue;
+          const t = a.mesh.position;
+          for (let i = 0; i < t.length; i += 9) {
+            const hit = rayTriangle(lo, ld,
+              [t[i], t[i + 1], t[i + 2]], [t[i + 3], t[i + 4], t[i + 5]], [t[i + 6], t[i + 7], t[i + 8]]);
+            if (hit !== null && hit < bestT) { bestT = hit; best = a; }
+          }
+        }
+        return best ? { actor: best, point: V.add(o, V.mul(d, bestT)), t: bestT } : null;
+      },
+
+      /* ---------- Lignes de position neutre ---------- */
+      /* Tracé pointillé : les tirets sont calculés dans l'espace du monde à
+         partir d'une longueur exprimée en pixels, pour rester lisibles au zoom. */
+      buildLines() {
+        const seg = [];
+        if (scene.settings.showNeutralLines) {
+          for (const a of scene.actors) {
+            if (!a.visible || !a.showLine || !scene.moved(a)) continue;
+            const from = scene.neutralCenter(a), to = scene.currentCenter(a);
+            const pts = scene.settings.lineStyle === 'coude' ? elbow(from, to) : [from, to];
+            const dash = Math.max(scene.settings.dashLength * view.pixelSize(to), 1e-6);
+            for (let i = 0; i + 1 < pts.length; i++) dashed(seg, pts[i], pts[i + 1], dash);
+            marker(seg, from, dash * 0.8);
+          }
+        }
+        if (!scene.lineBuf) scene.lineBuf = view.dynamicBuffer();
+        view.update(scene.lineBuf, Float32Array.from(seg));
+      },
+
+      /* ---------- Éclatement radial ---------- */
+      /* Chaque acteur s'écarte du centre de l'assemblage : la façon la plus
+         directe de produire une vue éclatée, à retoucher ensuite acteur par
+         acteur. */
+      explode(factor, actors) {
+        const list = actors && actors.length ? actors : scene.actors;
+        const bb = scene.bbox(false);
+        const c = [(bb.min[0] + bb.max[0]) / 2, (bb.min[1] + bb.max[1]) / 2, (bb.min[2] + bb.max[2]) / 2];
+        for (const a of list) {
+          const d = V.sub(a.mesh.center, c);
+          const n = V.len(d);
+          a.offset = n < 1e-6 ? [0, 0, 0] : V.mul(d, factor);
+        }
+      },
+
+      /* ---------- Grille de sol ---------- */
+      buildGrid() {
+        const bb = scene.bbox(false);
+        const diag = V.dist(bb.min, bb.max) || 100;
+        const step = Math.pow(10, Math.round(Math.log10(diag / 10)));
+        const n = 12;
+        const z = bb.min[2];
+        const cx = Math.round((bb.min[0] + bb.max[0]) / 2 / step) * step;
+        const cy = Math.round((bb.min[1] + bb.max[1]) / 2 / step) * step;
+        const seg = [];
+        for (let i = -n; i <= n; i++) {
+          seg.push(cx + i * step, cy - n * step, z, cx + i * step, cy + n * step, z);
+          seg.push(cx - n * step, cy + i * step, z, cx + n * step, cy + i * step, z);
+        }
+        if (!scene.gridBuf) scene.gridBuf = view.dynamicBuffer();
+        view.update(scene.gridBuf, Float32Array.from(seg));
+        scene.gridStep = step;
+      },
+
+      /* ---------- Sauvegarde ---------- */
+      toJSON() {
+        return {
+          format: 'composer-like/1',
+          settings: scene.settings,
+          camera: { target: view.cam.target, dist: view.cam.dist, yaw: view.cam.yaw, pitch: view.cam.pitch, ortho: view.cam.ortho },
+          actors: scene.actors.map(a => ({
+            name: a.name, offset: a.offset, quat: a.quat,
+            visible: a.visible, color: a.color, showLine: a.showLine
+          }))
+        };
+      },
+      /* Les positions sont réappliquées par nom, puis par ordre d'apparition :
+         la géométrie, elle, est rechargée depuis le fichier CAO d'origine. */
+      applyJSON(data) {
+        if (!data || !Array.isArray(data.actors)) throw new Error('Fichier de vue illisible.');
+        Object.assign(scene.settings, data.settings || {});
+        if (data.camera) Object.assign(view.cam, data.camera);
+        const byName = new Map();
+        scene.actors.forEach(a => { if (!byName.has(a.name)) byName.set(a.name, []); byName.get(a.name).push(a); });
+        let missed = 0;
+        data.actors.forEach((s, i) => {
+          const pool = byName.get(s.name);
+          const a = (pool && pool.length) ? pool.shift() : scene.actors[i];
+          if (!a) { missed++; return; }
+          a.offset = s.offset || [0, 0, 0];
+          a.quat = s.quat || Q.id();
+          a.visible = s.visible !== false;
+          if (s.color) a.color = s.color;
+          a.showLine = s.showLine !== false;
+        });
+        return missed;
+      }
+    };
+    return scene;
+  }
+
+  /* Coude en L : on sort d'abord suivant l'axe dominant du déplacement. */
+  function elbow(from, to) {
+    const d = V.sub(to, from);
+    const k = Math.abs(d[0]) >= Math.abs(d[1]) && Math.abs(d[0]) >= Math.abs(d[2]) ? 0
+      : Math.abs(d[1]) >= Math.abs(d[2]) ? 1 : 2;
+    const mid = from.slice();
+    mid[k] = to[k];
+    if (V.dist(mid, from) < 1e-9 || V.dist(mid, to) < 1e-9) return [from, to];
+    return [from, mid, to];
+  }
+
+  function dashed(out, a, b, dash) {
+    const L = V.dist(a, b);
+    if (L < 1e-9) return;
+    const n = Math.max(1, Math.min(4000, Math.round(L / (dash * 2))));
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n, t1 = t0 + 0.5 / n;
+      const p = V.lerp(a, b, t0), q = V.lerp(a, b, t1);
+      out.push(p[0], p[1], p[2], q[0], q[1], q[2]);
+    }
+  }
+
+  /* Petite croix 3D marquant la position neutre. */
+  function marker(out, p, r) {
+    for (let k = 0; k < 3; k++) {
+      const a = p.slice(), b = p.slice();
+      a[k] -= r; b[k] += r;
+      out.push(a[0], a[1], a[2], b[0], b[1], b[2]);
+    }
+  }
+
+  function rayBox(o, d, bb) {
+    let t0 = -Infinity, t1 = Infinity;
+    for (let k = 0; k < 3; k++) {
+      if (Math.abs(d[k]) < 1e-12) {
+        if (o[k] < bb.min[k] || o[k] > bb.max[k]) return false;
+        continue;
+      }
+      let a = (bb.min[k] - o[k]) / d[k], b = (bb.max[k] - o[k]) / d[k];
+      if (a > b) { const t = a; a = b; b = t; }
+      t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+      if (t0 > t1) return false;
+    }
+    return t1 >= 0;
+  }
+
+  root.Scene = { createScene, PALETTE };
+})(window.SWC = window.SWC || {});
+
+</script>
+<script>
+/* ===== js/gizmo.js ===== */
+/* Manipulateur de déplacement et de rotation.
+
+   Le manipulateur est dessiné en surimpression, à taille constante à l'écran.
+   Le pointage se fait dans le plan de l'écran (distance en pixels aux traits du
+   manipulateur), ce qui reste fiable quel que soit l'angle de vue ; le calcul du
+   déplacement, lui, se fait en 3D sur l'axe ou le plan concerné. */
+(function (root) {
+  'use strict';
+  const { M, V, Q, closestBetweenLines, rayPlane } = root.M3D;
+
+  const AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  const COLORS = {
+    x: [0.85, 0.26, 0.26], y: [0.30, 0.68, 0.32], z: [0.24, 0.48, 0.86],
+    hot: [0.98, 0.76, 0.12], free: [0.45, 0.45, 0.50]
+  };
+  const PX = 92;                       // rayon du manipulateur, en pixels
+  const GRAB = 9;                      // tolérance de pointage, en pixels
+
+  function createGizmo(view, scene) {
+    const buffers = new Map();
+    const gz = {
+      mode: 'translate',               // 'translate' | 'rotate'
+      hot: null,                       // poignée survolée
+      drag: null,
+      visible: false,
+      pivot: [0, 0, 0],
+
+      scale() { return PX * view.pixelSize(gz.pivot); },
+
+      update() {
+        const sel = scene.selected();
+        gz.visible = sel.length > 0;
+        if (!gz.visible) return;
+        /* Pivot : centre des acteurs sélectionnés, dans leur position courante. */
+        const acc = [0, 0, 0];
+        for (const a of sel) {
+          const c = scene.currentCenter(a);
+          acc[0] += c[0]; acc[1] += c[1]; acc[2] += c[2];
+        }
+        gz.pivot = acc.map(v => v / sel.length);
+      },
+
+      /* ---------- Géométrie ---------- */
+      handles() {
+        const s = gz.scale();
+        const out = [];
+        if (gz.mode === 'translate') {
+          AXES.forEach((ax, i) => {
+            const key = 'xyz'[i];
+            const tip = V.add(gz.pivot, V.mul(ax, s));
+            const pts = [gz.pivot, tip];
+            /* Pointe de flèche : deux traits dans un plan de face. */
+            const u = V.mul(V.perp(ax), s * 0.06);
+            const back = V.add(gz.pivot, V.mul(ax, s * 0.86));
+            const seg = [gz.pivot, tip, V.add(back, u), tip, V.sub(back, u), tip];
+            out.push({ id: 'T' + key, color: COLORS[key], seg, path: pts });
+          });
+          AXES.forEach((ax, i) => {
+            const a1 = AXES[(i + 1) % 3], a2 = AXES[(i + 2) % 3];
+            const o = 0.30 * s, w = 0.22 * s;
+            const p = (u, v) => V.add(gz.pivot, V.add(V.mul(a1, o + u * w), V.mul(a2, o + v * w)));
+            const c = [p(0, 0), p(1, 0), p(1, 1), p(0, 1)];
+            const seg = [c[0], c[1], c[1], c[2], c[2], c[3], c[3], c[0]];
+            out.push({ id: 'P' + 'xyz'[i], color: COLORS['xyz'[i]], seg, path: c.concat([c[0]]), plane: ax });
+          });
+        } else {
+          AXES.forEach((ax, i) => {
+            const key = 'xyz'[i];
+            const u = V.perp(ax), w = V.cross(ax, u);
+            const path = [];
+            for (let k = 0; k <= 72; k++) {
+              const t = k / 72 * Math.PI * 2;
+              path.push(V.add(gz.pivot, V.add(V.mul(u, s * Math.cos(t)), V.mul(w, s * Math.sin(t)))));
+            }
+            const seg = [];
+            for (let k = 0; k + 1 < path.length; k++) seg.push(path[k], path[k + 1]);
+            out.push({ id: 'R' + key, color: COLORS[key], seg, path, axis: ax });
+          });
+        }
+        return out;
+      },
+
+      draw() {
+        if (!gz.visible) return;
+        for (const h of gz.handles()) {
+          const flat = [];
+          for (const p of h.seg) flat.push(p[0], p[1], p[2]);
+          let bo = buffers.get(h.id);
+          if (!bo) { bo = view.dynamicBuffer(); buffers.set(h.id, bo); }
+          view.update(bo, Float32Array.from(flat));
+          const hot = (gz.drag ? gz.drag.id : gz.hot) === h.id;
+          view.drawLines(bo, M.identity(), hot ? COLORS.hot : h.color, 1, true);
+        }
+      },
+
+      /* ---------- Pointage ---------- */
+      hitTest(px, py) {
+        if (!gz.visible) return null;
+        let best = null, bestD = GRAB;
+        for (const h of gz.handles()) {
+          const scr = h.path.map(p => view.project(p));
+          for (let i = 0; i + 1 < scr.length; i++) {
+            const d = distToSegment([px, py], scr[i], scr[i + 1]);
+            if (d < bestD) { bestD = d; best = h; }
+          }
+        }
+        return best;
+      },
+
+      /* ---------- Déplacement ---------- */
+      begin(handle, px, py) {
+        const sel = scene.selected();
+        if (!sel.length) return false;
+        const ray = view.ray(px, py);
+        const st = {
+          id: handle.id, kind: handle.id[0], axis: AXES['xyz'.indexOf(handle.id[1])],
+          pivot: gz.pivot.slice(),
+          start: sel.map(a => ({ a, offset: a.offset.slice(), quat: a.quat.slice() }))
+        };
+        if (st.kind === 'T') {
+          const r = closestBetweenLines(ray.o, ray.d, gz.pivot, st.axis);
+          if (!r) return false;
+          st.s0 = r.s;
+        } else if (st.kind === 'P') {
+          const p = rayPlane(ray.o, ray.d, gz.pivot, st.axis);
+          if (!p) return false;
+          st.p0 = p;
+        } else {
+          const p = rayPlane(ray.o, ray.d, gz.pivot, st.axis);
+          if (!p) return false;
+          st.u = V.perp(st.axis);
+          st.w = V.cross(st.axis, st.u);
+          const d = V.sub(p, gz.pivot);
+          st.a0 = Math.atan2(V.dot(d, st.w), V.dot(d, st.u));
+        }
+        gz.drag = st;
+        return true;
+      },
+
+      /* snap : pas de déplacement (mm) ou d'angle (degrés), 0 pour aucun. */
+      move(px, py, snapStep, snapAngle) {
+        const st = gz.drag;
+        if (!st) return null;
+        const ray = view.ray(px, py);
+        if (st.kind === 'T') {
+          const r = closestBetweenLines(ray.o, ray.d, st.pivot, st.axis);
+          if (!r) return null;
+          let d = r.s - st.s0;
+          if (snapStep) d = Math.round(d / snapStep) * snapStep;
+          const delta = V.mul(st.axis, d);
+          for (const s of st.start) s.a.offset = V.add(s.offset, delta);
+          return { type: 'translation', value: delta };
+        }
+        if (st.kind === 'P') {
+          const p = rayPlane(ray.o, ray.d, st.pivot, st.axis);
+          if (!p) return null;
+          let delta = V.sub(p, st.p0);
+          if (snapStep) delta = delta.map(v => Math.round(v / snapStep) * snapStep);
+          for (const s of st.start) s.a.offset = V.add(s.offset, delta);
+          return { type: 'translation', value: delta };
+        }
+        const p = rayPlane(ray.o, ray.d, st.pivot, st.axis);
+        if (!p) return null;
+        const d = V.sub(p, st.pivot);
+        let ang = Math.atan2(V.dot(d, st.w), V.dot(d, st.u)) - st.a0;
+        while (ang > Math.PI) ang -= 2 * Math.PI;
+        while (ang < -Math.PI) ang += 2 * Math.PI;
+        if (snapAngle) {
+          const step = snapAngle * Math.PI / 180;
+          ang = Math.round(ang / step) * step;
+        }
+        const rot = Q.fromAxisAngle(st.axis, ang);
+        for (const s of st.start) {
+          /* Rotation du monde autour du pivot, reportée sur (décalage, quaternion). */
+          s.a.quat = Q.unit(Q.mul(rot, s.quat));
+          const c = s.a.mesh.center;
+          const rel = V.sub(V.add(s.offset, c), st.pivot);
+          s.a.offset = V.sub(V.add(st.pivot, Q.rotate(rot, rel)), c);
+        }
+        return { type: 'rotation', value: ang * 180 / Math.PI, axis: st.id[1] };
+      },
+
+      end() { gz.drag = null; },
+      cancel() {
+        if (!gz.drag) return;
+        for (const s of gz.drag.start) { s.a.offset = s.offset; s.a.quat = s.quat; }
+        gz.drag = null;
+      },
+      dispose() { for (const b of buffers.values()) view.dispose(b); buffers.clear(); }
+    };
+    return gz;
+  }
+
+  function distToSegment(p, a, b) {
+    const vx = b[0] - a[0], vy = b[1] - a[1];
+    const L = vx * vx + vy * vy;
+    let t = L > 0 ? ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p[0] - (a[0] + vx * t), p[1] - (a[1] + vy * t));
+  }
+
+  root.Gizmo = { createGizmo };
+})(window.SWC = window.SWC || {});
+
+</script>
+<script>
+/* ===== js/app.js ===== */
+/* Assemblage de l'interface : import, arborescence des acteurs, navigation,
+   manipulateur, lignes de position neutre. */
+(function (root) {
+  'use strict';
+  const { M, V, Q } = root.M3D;
+
+  const $ = (sel) => document.querySelector(sel);
+  const el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+  const fmt = (v) => (Math.abs(v) < 1e-9 ? 0 : v).toFixed(1);
+  const hex = (c) => '#' + c.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
+  const unhex = (s) => [1, 3, 5].map(i => parseInt(s.substr(i, 2), 16) / 255);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const canvas = $('#vue');
+    let view, scene, gizmo;
+    try {
+      view = root.View.createView(canvas);
+      scene = root.Scene.createScene(view);
+      gizmo = root.Gizmo.createGizmo(view, scene);
+    } catch (e) {
+      $('#etat').textContent = e.message;
+      return;
+    }
+
+    /* Point d'entrée pour les tests automatisés et le débogage en console. */
+    root.debug = { view, scene, gizmo };
+
+    /* Couleurs de la vue 3D, tenues à jour depuis les variables CSS : la page
+       peut basculer en sombre après le chargement (préférence système ou
+       attribut data-theme posé par l'hébergeur). */
+    const theme = { arete: [0.18, 0.20, 0.24], grille: [0.78, 0.80, 0.84] };
+    function lireTheme() {
+      const cs = getComputedStyle(document.documentElement);
+      const lire = (nom, defaut) => {
+        const v = cs.getPropertyValue(nom).trim();
+        return /^#[0-9a-f]{6}$/i.test(v) ? unhex(v) : defaut;
+      };
+      view.background = lire('--vue-fond', [0.925, 0.933, 0.945]);
+      theme.arete = lire('--vue-arete', [0.18, 0.20, 0.24]);
+      theme.grille = lire('--vue-grille', [0.78, 0.80, 0.84]);
+      redraw();
+    }
+
+    let dirty = true;
+    const redraw = () => { dirty = true; };
+    const undoStack = [];
+
+    function snapshot() {
+      undoStack.push(scene.actors.map(a => ({ id: a.id, offset: a.offset.slice(), quat: a.quat.slice(), visible: a.visible })));
+      if (undoStack.length > 40) undoStack.shift();
+    }
+    function undo() {
+      const s = undoStack.pop();
+      if (!s) return;
+      for (const rec of s) {
+        const a = scene.actors.find(x => x.id === rec.id);
+        if (!a) continue;
+        a.offset = rec.offset; a.quat = rec.quat; a.visible = rec.visible;
+      }
+      refresh();
+    }
+
+    /* ================= Rendu ================= */
+    function draw() {
+      view.begin();
+      if (scene.settings.showGrid && scene.gridBuf) view.drawLines(scene.gridBuf, M.identity(), theme.grille, 0.55);
+      /* Fantômes de position neutre, en transparence. */
+      if (scene.settings.showNeutralGhosts) {
+        for (const a of scene.actors) {
+          if (!a.visible || !scene.moved(a)) continue;
+          view.drawMesh(a.pos, a.nor, M.identity(), [0.62, 0.66, 0.72], 0.18);
+        }
+      }
+      for (const a of scene.actors) {
+        if (!a.visible) continue;
+        const m = scene.matrix(a);
+        const sel = scene.isSelected(a);
+        const col = sel ? a.color.map((c, i) => Math.min(1, c * 0.55 + [0.45, 0.32, 0.10][i])) : a.color;
+        view.drawMesh(a.pos, a.nor, m, col, 1);
+        if (scene.settings.showEdges) view.drawLines(a.edge, m, sel ? [0.55, 0.32, 0.02] : theme.arete, 0.85);
+      }
+      scene.buildLines();
+      view.drawLines(scene.lineBuf, M.identity(), scene.settings.lineColor, 1, true);
+      gizmo.update();
+      gizmo.draw();
+    }
+    lireTheme();
+    if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', lireTheme);
+    new MutationObserver(lireTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+
+    (function loop() {
+      if (dirty) { dirty = false; draw(); }
+      requestAnimationFrame(loop);
+    })();
+    window.addEventListener('resize', redraw);
+
+    /* ================= Import ================= */
+    async function loadFiles(files) {
+      const warn = [];
+      let loaded = 0;
+      for (const f of files) {
+        status(`Lecture de ${f.name}…`);
+        try {
+          const res = await root.Import.load(f);
+          for (const act of res.actors) {
+            if (!act.tris || act.tris.length < 9) continue;
+            scene.addActor(act.name, root.Mesh.build(act.tris));
+            loaded++;
+          }
+          warn.push(...(res.warnings || []));
+        } catch (e) {
+          warn.push(`${f.name} : ${e.message}`);
+        }
+      }
+      if (loaded) {
+        view.frame(scene.bbox(false));
+        scene.buildGrid();
+      }
+      refresh();
+      const n = scene.actors.reduce((s, a) => s + a.mesh.nTri, 0);
+      status(loaded
+        ? `${scene.actors.length} acteur(s), ${n.toLocaleString('fr-FR')} triangles.`
+        : 'Aucun corps chargé.');
+      showWarnings(warn);
+    }
+
+    function showWarnings(list) {
+      const box = $('#avertissements');
+      box.innerHTML = '';
+      if (!list.length) { box.hidden = true; return; }
+      box.hidden = false;
+      for (const w of list) box.appendChild(el('p', null, w));
+    }
+    const status = (t) => { $('#etat').textContent = t; };
+
+    $('#fichier').addEventListener('change', (e) => { loadFiles([...e.target.files]); e.target.value = ''; });
+    $('#btn-ouvrir').addEventListener('click', () => $('#fichier').click());
+    ['dragenter', 'dragover'].forEach(t => canvas.addEventListener(t, (e) => { e.preventDefault(); canvas.classList.add('survol'); }));
+    ['dragleave', 'drop'].forEach(t => canvas.addEventListener(t, () => canvas.classList.remove('survol')));
+    canvas.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) loadFiles([...e.dataTransfer.files]);
+    });
+
+    /* ================= Arborescence ================= */
+    function refresh() {
+      const list = $('#arbre');
+      list.innerHTML = '';
+      for (const a of scene.actors) {
+        const row = el('div', 'acteur' + (scene.isSelected(a) ? ' sel' : ''));
+        const eye = el('button', 'oeil', a.visible ? '◉' : '○');
+        eye.title = a.visible ? 'Masquer' : 'Afficher';
+        eye.addEventListener('click', (e) => { e.stopPropagation(); snapshot(); a.visible = !a.visible; refresh(); });
+        const swatch = el('span', 'pastille');
+        swatch.style.background = hex(a.color);
+        const name = el('span', 'nom', a.name);
+        name.title = a.name;
+        const badge = el('span', 'badge', scene.moved(a) ? 'déplacé' : '');
+        row.append(eye, swatch, name, badge);
+        row.addEventListener('click', (e) => { scene.select(a, e.ctrlKey || e.metaKey || e.shiftKey); refresh(); });
+        row.addEventListener('dblclick', () => {
+          const b = a.mesh.bbox, m = scene.matrix(a);
+          const pts = [];
+          for (let i = 0; i < 8; i++) pts.push(M.apply(m, [i & 1 ? b.max[0] : b.min[0], i & 2 ? b.max[1] : b.min[1], i & 4 ? b.max[2] : b.min[2]]));
+          const bb = { min: [0, 1, 2].map(k => Math.min(...pts.map(p => p[k]))), max: [0, 1, 2].map(k => Math.max(...pts.map(p => p[k]))) };
+          view.frame(bb, 1.8);
+          redraw();
+        });
+        list.appendChild(row);
+      }
+      $('#compte').textContent = scene.actors.length ? `${scene.actors.length} acteurs` : '';
+      refreshProps();
+      redraw();
+    }
+
+    /* ================= Propriétés de la sélection ================= */
+    function refreshProps() {
+      const sel = scene.selected();
+      $('#props').hidden = sel.length === 0;
+      $('#aide-selection').hidden = sel.length !== 0;
+      if (!sel.length) return;
+      $('#props-titre').textContent = sel.length === 1 ? sel[0].name : `${sel.length} acteurs sélectionnés`;
+      const a = sel[0];
+      const e = Q.toEulerDeg(a.quat);
+      ['x', 'y', 'z'].forEach((k, i) => {
+        const t = $('#t' + k), r = $('#r' + k);
+        if (document.activeElement !== t) t.value = fmt(a.offset[i]);
+        if (document.activeElement !== r) r.value = fmt(e[i]);
+      });
+      $('#couleur').value = hex(a.color);
+      $('#ligne-acteur').checked = sel.every(s => s.showLine);
+    }
+
+    ['x', 'y', 'z'].forEach((k, i) => {
+      $('#t' + k).addEventListener('change', () => {
+        const sel = scene.selected();
+        if (!sel.length) return;
+        snapshot();
+        const v = parseFloat($('#t' + k).value) || 0;
+        for (const a of sel) a.offset[i] = v;
+        refresh();
+      });
+      $('#r' + k).addEventListener('change', () => {
+        const sel = scene.selected();
+        if (!sel.length) return;
+        snapshot();
+        const e = [0, 1, 2].map(j => parseFloat($('#r' + 'xyz'[j]).value) || 0);
+        for (const a of sel) a.quat = Q.fromEulerDeg(e);
+        refresh();
+      });
+    });
+    $('#couleur').addEventListener('input', () => {
+      const c = unhex($('#couleur').value);
+      for (const a of scene.selected()) a.color = c.slice();
+      refresh();
+    });
+    $('#ligne-acteur').addEventListener('change', () => {
+      const on = $('#ligne-acteur').checked;
+      for (const a of scene.selected()) a.showLine = on;
+      redraw();
+    });
+    $('#btn-neutre').addEventListener('click', () => {
+      const sel = scene.selected();
+      if (!sel.length) return;
+      snapshot();
+      for (const a of sel) scene.resetActor(a);
+      refresh();
+    });
+    $('#btn-masquer').addEventListener('click', () => {
+      snapshot();
+      for (const a of scene.selected()) a.visible = false;
+      refresh();
+    });
+    $('#btn-isoler').addEventListener('click', () => {
+      const sel = scene.selected();
+      if (!sel.length) return;
+      snapshot();
+      for (const a of scene.actors) a.visible = sel.indexOf(a) >= 0;
+      refresh();
+    });
+    $('#btn-tout-afficher').addEventListener('click', () => {
+      snapshot();
+      for (const a of scene.actors) a.visible = true;
+      refresh();
+    });
+    $('#btn-tout-neutre').addEventListener('click', () => {
+      snapshot();
+      for (const a of scene.actors) scene.resetActor(a);
+      $('#eclate').value = 0;
+      refresh();
+    });
+
+    /* ================= Réglages des lignes ================= */
+    const bind = (sel, key, kind) => {
+      const e = $(sel);
+      const set = () => {
+        scene.settings[key] = kind === 'bool' ? e.checked : kind === 'num' ? parseFloat(e.value) : e.value;
+        if (key === 'showGrid' && e.checked) scene.buildGrid();
+        redraw();
+      };
+      e.addEventListener('change', set);
+      if (kind === 'num') e.addEventListener('input', set);
+    };
+    bind('#opt-lignes', 'showNeutralLines', 'bool');
+    bind('#opt-fantomes', 'showNeutralGhosts', 'bool');
+    bind('#opt-aretes', 'showEdges', 'bool');
+    bind('#opt-grille', 'showGrid', 'bool');
+    bind('#opt-style', 'lineStyle', 'str');
+    bind('#opt-tiret', 'dashLength', 'num');
+    $('#opt-couleur-ligne').addEventListener('input', () => {
+      scene.settings.lineColor = unhex($('#opt-couleur-ligne').value);
+      redraw();
+    });
+
+    $('#eclate').addEventListener('input', () => {
+      const f = parseFloat($('#eclate').value) / 100;
+      scene.explode(f, null);
+      $('#eclate-val').textContent = Math.round(f * 100) + ' %';
+      refresh();
+    });
+    $('#eclate').addEventListener('pointerdown', snapshot);
+
+    /* ================= Vues normalisées ================= */
+    const setView = (yaw, pitch) => {
+      view.cam.yaw = yaw; view.cam.pitch = pitch;
+      redraw();
+    };
+    $('#v-iso').addEventListener('click', () => setView(-0.9, 0.55));
+    $('#v-face').addEventListener('click', () => setView(-Math.PI / 2, 0));
+    $('#v-droite').addEventListener('click', () => setView(0, 0));
+    $('#v-dessus').addEventListener('click', () => setView(-Math.PI / 2, Math.PI / 2 - 1e-3));
+    $('#v-ajuster').addEventListener('click', () => { view.frame(scene.bbox(true)); redraw(); });
+    $('#v-projection').addEventListener('click', (e) => {
+      view.cam.ortho = !view.cam.ortho;
+      e.target.textContent = view.cam.ortho ? 'Orthographique' : 'Perspective';
+      redraw();
+    });
+
+    /* ================= Modes ================= */
+    function setMode(m) {
+      gizmo.mode = m === 'rotate' ? 'rotate' : 'translate';
+      $('#m-select').classList.toggle('actif', m === 'select');
+      $('#m-move').classList.toggle('actif', m === 'translate');
+      $('#m-rot').classList.toggle('actif', m === 'rotate');
+      mode = m;
+      redraw();
+    }
+    let mode = 'translate';
+    $('#m-select').addEventListener('click', () => setMode('select'));
+    $('#m-move').addEventListener('click', () => setMode('translate'));
+    $('#m-rot').addEventListener('click', () => setMode('rotate'));
+    setMode('translate');
+
+    /* ================= Souris ================= */
+    let nav = null;
+    const local = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return [e.clientX - r.left, e.clientY - r.top];
+    };
+
+    canvas.addEventListener('pointerdown', (e) => {
+      const [px, py] = local(e);
+      canvas.setPointerCapture(e.pointerId);
+      if (e.button === 0 && mode !== 'select') {
+        const h = gizmo.hitTest(px, py);
+        if (h) {
+          snapshot();
+          if (gizmo.begin(h, px, py)) { redraw(); return; }
+        }
+      }
+      if (e.button === 0 && !e.altKey) {
+        nav = { type: 'pick', x: px, y: py, sx: px, sy: py, add: e.ctrlKey || e.metaKey || e.shiftKey };
+        return;
+      }
+      nav = { type: (e.button === 1 || e.altKey || e.shiftKey) ? 'pan' : 'orbit', x: px, y: py };
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      const [px, py] = local(e);
+      if (gizmo.drag) {
+        const r = gizmo.move(px, py, e.shiftKey ? snapStep() : 0, e.shiftKey ? 15 : 0);
+        if (r) {
+          status(r.type === 'rotation'
+            ? `Rotation autour de ${r.axis.toUpperCase()} : ${r.value.toFixed(1)}°`
+            : `Déplacement : ${r.value.map(fmt).join(' / ')} mm`);
+          refreshProps();
+          redraw();
+        }
+        return;
+      }
+      if (nav) {
+        const dx = px - nav.x, dy = py - nav.y;
+        if (nav.type === 'pick' && Math.hypot(px - nav.sx, py - nav.sy) > 4) nav.type = 'orbit';
+        if (nav.type === 'orbit') {
+          view.cam.yaw -= dx * 0.008;
+          view.cam.pitch = Math.max(-1.55, Math.min(1.55, view.cam.pitch + dy * 0.008));
+          redraw();
+        } else if (nav.type === 'pan') {
+          const s = view.pixelSize(view.cam.target);
+          const eye = view.eye();
+          const fwd = V.unit(V.sub(view.cam.target, eye));
+          const right = V.unit(V.cross(fwd, [0, 0, 1]));
+          const up = V.cross(right, fwd);
+          view.cam.target = V.add(view.cam.target, V.add(V.mul(right, -dx * s), V.mul(up, dy * s)));
+          redraw();
+        }
+        nav.x = px; nav.y = py;
+        return;
+      }
+      const h = gizmo.hitTest(px, py);
+      const id = h ? h.id : null;
+      if (id !== gizmo.hot) { gizmo.hot = id; redraw(); }
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      const [px, py] = local(e);
+      if (gizmo.drag) { gizmo.end(); refresh(); }
+      else if (nav && nav.type === 'pick') {
+        const hit = scene.pick(px, py);
+        scene.select(hit ? hit.actor : null, nav.add);
+        refresh();
+      }
+      nav = null;
+      canvas.releasePointerCapture(e.pointerId);
+    });
+
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      view.cam.dist *= Math.exp(Math.sign(e.deltaY) * 0.12);
+      view.cam.dist = Math.max(1e-3, view.cam.dist);
+      redraw();
+    }, { passive: false });
+
+    const snapStep = () => scene.gridStep ? scene.gridStep / 10 : 1;
+
+    /* ================= Clavier ================= */
+    window.addEventListener('keydown', (e) => {
+      if (/input|select|textarea/i.test((e.target.tagName || ''))) return;
+      const k = e.key.toLowerCase();
+      if (k === 'escape') { if (gizmo.drag) { gizmo.cancel(); refresh(); } else { scene.select(null); refresh(); } }
+      else if (k === 'g') setMode('translate');
+      else if (k === 'r') setMode('rotate');
+      else if (k === 'q') setMode('select');
+      else if (k === 'f') { view.frame(scene.bbox(true)); redraw(); }
+      else if (k === 'h') { snapshot(); for (const a of scene.selected()) a.visible = false; refresh(); }
+      else if (k === 'n') { snapshot(); for (const a of scene.selected()) scene.resetActor(a); refresh(); }
+      else if (k === 'a' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        scene.selection = scene.actors.filter(a => a.visible).map(a => a.id);
+        refresh();
+      } else if (k === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undo(); }
+    });
+
+    /* ================= Vue enregistrée ================= */
+    $('#btn-enregistrer').addEventListener('click', async () => {
+      const texte = JSON.stringify(scene.toJSON(), null, 1);
+      /* Page hébergée sur claude.ai : l'enregistrement passe par l'hôte, qui
+         demande confirmation. Partout ailleurs, téléchargement classique. */
+      const hote = (window.claude && window.claude.use)
+        ? await window.claude.use('downloads').catch(() => null) : null;
+      if (hote) {
+        try {
+          await hote.save({ filename: 'vue-composer.json', data: texte });
+          status('Vue enregistrée dans vue-composer.json.');
+        } catch (err) {
+          status(err && err.code === 'declined'
+            ? 'Enregistrement annulé.'
+            : 'Enregistrement impossible : ' + ((err && err.message) || err));
+        }
+        return;
+      }
+      const blob = new Blob([texte], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'vue-composer.json';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      /* Certaines pages hébergées en bac à sable bloquent le téléchargement :
+         on double la sauvegarde par une copie dans le presse-papiers. */
+      let copie = false;
+      try { await navigator.clipboard.writeText(texte); copie = true; } catch { /* refusé */ }
+      status(copie
+        ? 'Vue enregistrée : fichier téléchargé, et copiée dans le presse-papiers en secours.'
+        : 'Vue enregistrée dans vue-composer.json.');
+    });
+    $('#btn-charger').addEventListener('click', () => $('#fichier-vue').click());
+    $('#fichier-vue').addEventListener('change', async (e) => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      try {
+        snapshot();
+        const missed = scene.applyJSON(JSON.parse(await f.text()));
+        syncSettingsUI();
+        refresh();
+        status(missed ? `Vue appliquée ; ${missed} acteur(s) du fichier sans correspondance.` : 'Vue appliquée.');
+      } catch (err) {
+        status('Vue illisible : ' + err.message);
+      }
+    });
+
+    function syncSettingsUI() {
+      const s = scene.settings;
+      $('#opt-lignes').checked = s.showNeutralLines;
+      $('#opt-fantomes').checked = s.showNeutralGhosts;
+      $('#opt-aretes').checked = s.showEdges;
+      $('#opt-grille').checked = s.showGrid;
+      $('#opt-style').value = s.lineStyle;
+      $('#opt-tiret').value = s.dashLength;
+      $('#opt-couleur-ligne').value = hex(s.lineColor);
+    }
+    syncSettingsUI();
+
+    /* ================= Démonstration ================= */
+    $('#btn-demo').addEventListener('click', () => {
+      scene.clear();
+      for (const d of demoActors()) scene.addActor(d.name, root.Mesh.build(d.tris));
+      view.frame(scene.bbox(false));
+      scene.buildGrid();
+      refresh();
+      status('Assemblage de démonstration chargé. Sélectionnez un acteur et déplacez-le.');
+      showWarnings([]);
+    });
+
+    status('Ouvrez un fichier STL, OBJ, 3MF ou STEP — ou glissez-le dans la vue.');
+  });
+
+  /* Petit assemblage intégré : socle, entretoises, capot. Il évite d'avoir à
+     trouver un fichier CAO pour essayer l'outil. */
+  function demoActors() {
+    const box = (x0, y0, z0, dx, dy, dz) => {
+      const P = [[x0, y0, z0], [x0 + dx, y0, z0], [x0 + dx, y0 + dy, z0], [x0, y0 + dy, z0],
+      [x0, y0, z0 + dz], [x0 + dx, y0, z0 + dz], [x0 + dx, y0 + dy, z0 + dz], [x0, y0 + dy, z0 + dz]];
+      const T = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4],
+      [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+      const out = [];
+      for (const t of T) for (const i of t) out.push(...P[i]);
+      return Float32Array.from(out);
+    };
+    const tube = (cx, cy, z0, r, h, n) => {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const a0 = 2 * Math.PI * i / n, a1 = 2 * Math.PI * (i + 1) / n;
+        const p = (a, z) => [cx + r * Math.cos(a), cy + r * Math.sin(a), z];
+        const A = p(a0, z0), B = p(a1, z0), C = p(a1, z0 + h), D = p(a0, z0 + h);
+        out.push(...A, ...B, ...C, ...A, ...C, ...D);
+        out.push(cx, cy, z0 + h, ...D, ...C);
+        out.push(cx, cy, z0, ...B, ...A);
+      }
+      return Float32Array.from(out);
+    };
+    return [
+      { name: 'Socle', tris: box(0, 0, 0, 200, 120, 12) },
+      { name: 'Entretoise avant gauche', tris: tube(25, 25, 12, 8, 60, 24) },
+      { name: 'Entretoise avant droite', tris: tube(175, 25, 12, 8, 60, 24) },
+      { name: 'Entretoise arrière gauche', tris: tube(25, 95, 12, 8, 60, 24) },
+      { name: 'Entretoise arrière droite', tris: tube(175, 95, 12, 8, 60, 24) },
+      { name: 'Platine', tris: box(10, 10, 72, 180, 100, 8) },
+      { name: 'Capot', tris: box(30, 25, 80, 140, 70, 45) }
+    ];
+  }
+})(window.SWC = window.SWC || {});
+
+</script>
+</body>
+</html>

@@ -30,6 +30,22 @@
     /* Point d'entrée pour les tests automatisés et le débogage en console. */
     root.debug = { view, scene, gizmo };
 
+    /* Couleurs de la vue 3D, tenues à jour depuis les variables CSS : la page
+       peut basculer en sombre après le chargement (préférence système ou
+       attribut data-theme posé par l'hébergeur). */
+    const theme = { arete: [0.18, 0.20, 0.24], grille: [0.78, 0.80, 0.84] };
+    function lireTheme() {
+      const cs = getComputedStyle(document.documentElement);
+      const lire = (nom, defaut) => {
+        const v = cs.getPropertyValue(nom).trim();
+        return /^#[0-9a-f]{6}$/i.test(v) ? unhex(v) : defaut;
+      };
+      view.background = lire('--vue-fond', [0.925, 0.933, 0.945]);
+      theme.arete = lire('--vue-arete', [0.18, 0.20, 0.24]);
+      theme.grille = lire('--vue-grille', [0.78, 0.80, 0.84]);
+      redraw();
+    }
+
     let dirty = true;
     const redraw = () => { dirty = true; };
     const undoStack = [];
@@ -52,7 +68,7 @@
     /* ================= Rendu ================= */
     function draw() {
       view.begin();
-      if (scene.settings.showGrid && scene.gridBuf) view.drawLines(scene.gridBuf, M.identity(), [0.78, 0.80, 0.84], 0.55);
+      if (scene.settings.showGrid && scene.gridBuf) view.drawLines(scene.gridBuf, M.identity(), theme.grille, 0.55);
       /* Fantômes de position neutre, en transparence. */
       if (scene.settings.showNeutralGhosts) {
         for (const a of scene.actors) {
@@ -66,13 +82,17 @@
         const sel = scene.isSelected(a);
         const col = sel ? a.color.map((c, i) => Math.min(1, c * 0.55 + [0.45, 0.32, 0.10][i])) : a.color;
         view.drawMesh(a.pos, a.nor, m, col, 1);
-        if (scene.settings.showEdges) view.drawLines(a.edge, m, sel ? [0.55, 0.32, 0.02] : [0.18, 0.20, 0.24], 0.85);
+        if (scene.settings.showEdges) view.drawLines(a.edge, m, sel ? [0.55, 0.32, 0.02] : theme.arete, 0.85);
       }
       scene.buildLines();
       view.drawLines(scene.lineBuf, M.identity(), scene.settings.lineColor, 1, true);
       gizmo.update();
       gizmo.draw();
     }
+    lireTheme();
+    if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', lireTheme);
+    new MutationObserver(lireTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] });
+
     (function loop() {
       if (dirty) { dirty = false; draw(); }
       requestAnimationFrame(loop);
@@ -398,13 +418,36 @@
     });
 
     /* ================= Vue enregistrée ================= */
-    $('#btn-enregistrer').addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(scene.toJSON(), null, 1)], { type: 'application/json' });
+    $('#btn-enregistrer').addEventListener('click', async () => {
+      const texte = JSON.stringify(scene.toJSON(), null, 1);
+      /* Page hébergée sur claude.ai : l'enregistrement passe par l'hôte, qui
+         demande confirmation. Partout ailleurs, téléchargement classique. */
+      const hote = (window.claude && window.claude.use)
+        ? await window.claude.use('downloads').catch(() => null) : null;
+      if (hote) {
+        try {
+          await hote.save({ filename: 'vue-composer.json', data: texte });
+          status('Vue enregistrée dans vue-composer.json.');
+        } catch (err) {
+          status(err && err.code === 'declined'
+            ? 'Enregistrement annulé.'
+            : 'Enregistrement impossible : ' + ((err && err.message) || err));
+        }
+        return;
+      }
+      const blob = new Blob([texte], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'vue-composer.json';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      /* Certaines pages hébergées en bac à sable bloquent le téléchargement :
+         on double la sauvegarde par une copie dans le presse-papiers. */
+      let copie = false;
+      try { await navigator.clipboard.writeText(texte); copie = true; } catch { /* refusé */ }
+      status(copie
+        ? 'Vue enregistrée : fichier téléchargé, et copiée dans le presse-papiers en secours.'
+        : 'Vue enregistrée dans vue-composer.json.');
     });
     $('#btn-charger').addEventListener('click', () => $('#fichier-vue').click());
     $('#fichier-vue').addEventListener('change', async (e) => {
