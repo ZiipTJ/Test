@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Composeur 3D — acteurs, positions neutres et vues éclatées</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --fg: #16181d;
+    --muted: #646b78;
+    --line: #d8dce3;
+    --accent: #1f6f8b;
+    --accent-soft: #e6f0f4;
+    --warn: #b26a00;
+    --warn-soft: #fdf4e3;
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1c1f25; --fg: #e8eaee; --muted: #9aa2b1;
+      --line: #2e333c; --accent: #4aa3c0; --accent-soft: #1d2c33;
+      --warn: #d99a2b; --warn-soft: #2a2318;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+    display: grid; grid-template-rows: auto 1fr auto; height: 100vh;
+  }
+
+  /* ---------- Barre d'outils ---------- */
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0 8px 0 0; white-space: nowrap; }
+  header h1 small { font-weight: 400; color: var(--muted); }
+  .groupe { display: flex; gap: 4px; align-items: center; }
+  .groupe + .groupe { border-left: 1px solid var(--line); padding-left: 14px; }
+  button, select, input[type="number"], input[type="text"] {
+    font: inherit; color: inherit; background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 5px 10px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.actif { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  button.primaire { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input[type="number"] { cursor: text; width: 84px; }
+  input[type="color"] { width: 34px; height: 28px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+  label { display: flex; align-items: center; gap: 6px; }
+
+  /* ---------- Disposition ---------- */
+  main { display: grid; grid-template-columns: 250px 1fr 268px; min-height: 0; }
+  aside {
+    background: var(--panel); border-right: 1px solid var(--line);
+    overflow-y: auto; padding: 10px 12px;
+  }
+  aside.droite { border-right: 0; border-left: 1px solid var(--line); }
+  aside h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin: 14px 0 6px; font-weight: 600;
+  }
+  aside h2:first-child { margin-top: 0; }
+  .zone-vue { position: relative; min-width: 0; }
+  canvas { width: 100%; height: 100%; display: block; background: #eceef2; touch-action: none; }
+  canvas.survol { outline: 3px dashed var(--accent); outline-offset: -6px; }
+
+  /* ---------- Arborescence ---------- */
+  .acteur {
+    display: flex; align-items: center; gap: 7px; padding: 4px 6px;
+    border-radius: 6px; cursor: default; user-select: none;
+  }
+  .acteur:hover { background: var(--accent-soft); }
+  .acteur.sel { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
+  .acteur .nom { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acteur .badge { font-size: 10px; color: var(--accent); }
+  .oeil { padding: 0 3px; border: 0; background: none; line-height: 1; font-size: 13px; color: var(--muted); }
+  .pastille { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); flex: none; }
+
+  /* ---------- Propriétés ---------- */
+  .grille-xyz { display: grid; grid-template-columns: 18px 1fr; gap: 5px 8px; align-items: center; }
+  .grille-xyz span { color: var(--muted); font-size: 12px; }
+  .grille-xyz input { width: 100%; }
+  .rangee { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .rangee button { flex: 1; white-space: nowrap; }
+  .option { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .option label { flex: 1; }
+  .aide { color: var(--muted); font-size: 12px; }
+  .aide kbd {
+    font: inherit; font-size: 11px; border: 1px solid var(--line);
+    border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--bg);
+  }
+  input[type="range"] { width: 100%; }
+
+  /* ---------- Pied de page ---------- */
+  footer {
+    display: flex; gap: 16px; align-items: center; padding: 6px 14px;
+    background: var(--panel); border-top: 1px solid var(--line); font-size: 12px; color: var(--muted);
+  }
+  #avertissements {
+    position: absolute; left: 12px; bottom: 12px; right: 12px; max-height: 40%; overflow-y: auto;
+    background: var(--warn-soft); border: 1px solid var(--warn); border-radius: var(--radius);
+    padding: 8px 12px; font-size: 12px; color: var(--fg);
+  }
+  #avertissements p { margin: 4px 0; }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    aside { max-height: 34vh; border: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Composeur 3D <small>— acteurs et positions neutres</small></h1>
+
+  <div class="groupe">
+    <button id="btn-ouvrir" class="primaire">Ouvrir un 3D…</button>
+    <button id="btn-demo" title="Charger un assemblage d'exemple">Exemple</button>
+    <input type="file" id="fichier" accept=".stl,.obj,.3mf,.step,.stp" multiple hidden>
+  </div>
+
+  <div class="groupe">
+    <button id="m-select" title="Sélection seule (Q)">Sélection</button>
+    <button id="m-move" title="Déplacer les acteurs (G)">Déplacer</button>
+    <button id="m-rot" title="Faire tourner les acteurs (R)">Tourner</button>
+  </div>
+
+  <div class="groupe">
+    <button id="v-ajuster" title="Ajuster la vue (F)">Ajuster</button>
+    <button id="v-iso">Iso</button>
+    <button id="v-face">Face</button>
+    <button id="v-droite">Droite</button>
+    <button id="v-dessus">Dessus</button>
+    <button id="v-projection">Perspective</button>
+  </div>
+
+  <div class="groupe">
+    <button id="btn-enregistrer" title="Enregistrer les positions et les réglages">Enregistrer la vue</button>
+    <button id="btn-charger">Charger une vue</button>
+    <input type="file" id="fichier-vue" accept=".json" hidden>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <h2>Acteurs <span id="compte" class="aide"></span></h2>
+    <div id="arbre"></div>
+    <div class="rangee">
+      <button id="btn-tout-afficher">Tout afficher</button>
+      <button id="btn-tout-neutre">Tout au neutre</button>
+    </div>
+
+    <h2>Éclatement radial</h2>
+    <input type="range" id="eclate" min="0" max="150" value="0" step="1">
+    <div class="aide">Écartement : <span id="eclate-val">0 %</span> — un point de départ, à retoucher acteur par acteur.</div>
+  </aside>
+
+  <div class="zone-vue">
+    <canvas id="vue"></canvas>
+    <div id="avertissements" hidden></div>
+  </div>
+
+  <aside class="droite">
+    <h2>Sélection</h2>
+    <p id="aide-selection" class="aide">
+      Cliquez un acteur dans la vue ou dans la liste.<br>
+      <kbd>Ctrl</kbd> + clic pour en ajouter, <kbd>Échap</kbd> pour désélectionner.
+    </p>
+
+    <div id="props" hidden>
+      <p id="props-titre" style="font-weight:600;margin:0 0 8px"></p>
+
+      <h2>Déplacement depuis le neutre (mm)</h2>
+      <div class="grille-xyz">
+        <span>X</span><input type="number" id="tx" step="1">
+        <span>Y</span><input type="number" id="ty" step="1">
+        <span>Z</span><input type="number" id="tz" step="1">
+      </div>
+
+      <h2>Rotation (°)</h2>
+      <div class="grille-xyz">
+        <span>X</span><input type="number" id="rx" step="1">
+        <span>Y</span><input type="number" id="ry" step="1">
+        <span>Z</span><input type="number" id="rz" step="1">
+      </div>
+
+      <div class="rangee">
+        <button id="btn-neutre" title="Remettre à la position d'origine (N)">Position neutre</button>
+        <button id="btn-masquer" title="Masquer (H)">Masquer</button>
+        <button id="btn-isoler">Isoler</button>
+      </div>
+
+      <div class="option">
+        <label for="couleur">Couleur</label>
+        <input type="color" id="couleur">
+      </div>
+      <div class="option">
+        <label for="ligne-acteur">Ligne de position neutre</label>
+        <input type="checkbox" id="ligne-acteur" checked>
+      </div>
+    </div>
+
+    <h2>Lignes de position neutre</h2>
+    <div class="option"><label for="opt-lignes">Afficher les lignes</label><input type="checkbox" id="opt-lignes" checked></div>
+    <div class="option">
+      <label for="opt-style">Tracé</label>
+      <select id="opt-style">
+        <option value="coude">En coude</option>
+        <option value="droite">Direct</option>
+      </select>
+    </div>
+    <div class="option"><label for="opt-tiret">Tiret (px)</label><input type="number" id="opt-tiret" min="1" max="40" step="1" value="6"></div>
+    <div class="option"><label for="opt-couleur-ligne">Couleur</label><input type="color" id="opt-couleur-ligne" value="#1a5999"></div>
+    <div class="option"><label for="opt-fantomes">Fantôme à la position neutre</label><input type="checkbox" id="opt-fantomes"></div>
+
+    <h2>Affichage</h2>
+    <div class="option"><label for="opt-aretes">Arêtes techniques</label><input type="checkbox" id="opt-aretes" checked></div>
+    <div class="option"><label for="opt-grille">Grille au sol</label><input type="checkbox" id="opt-grille" checked></div>
+
+    <h2>Raccourcis</h2>
+    <p class="aide">
+      <kbd>G</kbd> déplacer · <kbd>R</kbd> tourner · <kbd>Q</kbd> sélection<br>
+      <kbd>F</kbd> ajuster · <kbd>N</kbd> neutre · <kbd>H</kbd> masquer<br>
+      <kbd>Ctrl</kbd>+<kbd>Z</kbd> annuler · <kbd>Ctrl</kbd>+<kbd>A</kbd> tout sélectionner<br>
+      <kbd>Maj</kbd> pendant un déplacement : pas fixe (10° et sous-multiple de la grille)<br>
+      Clic milieu ou <kbd>Alt</kbd> : translater la vue · molette : zoom
+    </p>
+  </aside>
+</main>
+
+<footer>
+  <span id="etat">Chargement…</span>
+</footer>
+
+<script src="js/m3d.js"></script>
+<script src="js/mesh.js"></script>
+<script src="js/import.js"></script>
+<script src="js/step.js"></script>
+<script src="js/view.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/gizmo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
