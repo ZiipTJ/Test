@@ -1,0 +1,1045 @@
+<title>Genou de l'Essuie-Glace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Petrona:ital,wght@0,300;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+:root{
+  --bg:#E6E8E3;
+  --plate:#F5F5F1;
+  --plate-2:#DCDFD9;
+  --ink:#151E26;
+  --ink-2:#4C5A66;
+  --ink-3:#7B8892;
+  --line:#C6CBC4;
+  --line-soft:#D8DCD5;
+
+  --bone:#FBF6EA;
+  --bone-line:#B9AF98;
+  --carmine:#B0443A;
+  --carmine-deep:#8C332C;
+  --ochre:#C08122;
+  --steel:#5E86A5;
+  --coral:#DE4B34;
+  --weak:#98A2AC;
+
+  --stage:#101820;
+  --stage-grid:#1C2833;
+  --stage-ink:#DCE3E4;
+
+  --f-display:"Petrona",Georgia,"Times New Roman",serif;
+  --f-body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+
+  --maxw:1120px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F161D;
+    --plate:#16202A;
+    --plate-2:#1B2731;
+    --ink:#E7EBE8;
+    --ink-2:#A3B0BA;
+    --ink-3:#7C8A95;
+    --line:#28343F;
+    --line-soft:#212C36;
+    --bone:#F0E9DA;
+    --bone-line:#8E856F;
+    --carmine:#C4544A;
+    --carmine-deep:#9C3B33;
+    --ochre:#D8952F;
+    --steel:#7BA3C0;
+    --coral:#F0604A;
+    --weak:#7C8894;
+    --stage:#0B1219;
+    --stage-grid:#18232E;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F161D;
+  --plate:#16202A;
+  --plate-2:#1B2731;
+  --ink:#E7EBE8;
+  --ink-2:#A3B0BA;
+  --ink-3:#7C8A95;
+  --line:#28343F;
+  --line-soft:#212C36;
+  --bone:#F0E9DA;
+  --bone-line:#8E856F;
+  --carmine:#C4544A;
+  --carmine-deep:#9C3B33;
+  --ochre:#D8952F;
+  --steel:#7BA3C0;
+  --coral:#F0604A;
+  --weak:#7C8894;
+  --stage:#0B1219;
+  --stage-grid:#18232E;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--f-body);
+  font-size:16px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+h1,h2,h3{font-family:var(--f-display);font-weight:500;text-wrap:balance;margin:0}
+p{margin:0}
+
+.eyebrow{
+  font-family:var(--f-mono);
+  font-size:11px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* ---------- header ---------- */
+header{
+  border-bottom:1px solid var(--line);
+  padding:56px 0 32px;
+}
+.head-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:48px;align-items:end}
+h1{font-size:clamp(38px,6vw,66px);line-height:.98;letter-spacing:-.02em}
+h1 em{font-style:italic;font-weight:400;color:var(--carmine)}
+.dek{margin-top:18px;color:var(--ink-2);font-size:17px;max-width:62ch}
+.head-meta{display:flex;flex-direction:column;gap:10px;padding-bottom:6px}
+.meta-row{display:flex;justify-content:space-between;gap:16px;font-family:var(--f-mono);font-size:12px;border-bottom:1px dotted var(--line);padding-bottom:8px}
+.meta-row span:first-child{color:var(--ink-3);letter-spacing:.04em}
+.meta-row span:last-child{color:var(--ink);text-align:right}
+
+/* ---------- section chrome ---------- */
+section{padding:56px 0}
+section+section{border-top:1px solid var(--line)}
+.sec-head{display:flex;gap:18px;align-items:baseline;margin-bottom:8px}
+.sec-head h2{font-size:clamp(24px,3vw,34px);letter-spacing:-.01em}
+.sec-intro{color:var(--ink-2);max-width:66ch;margin-top:10px}
+
+/* ---------- stage ---------- */
+.stage-shell{
+  margin-top:28px;
+  background:var(--stage);
+  border:1px solid var(--line);
+  border-radius:3px;
+  overflow:hidden;
+}
+.stage-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+}
+.fig{position:relative;padding:14px 8px 6px}
+.fig+.fig{border-left:1px solid var(--stage-grid)}
+.fig-label{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:#93A3AE;padding:0 12px 6px;
+}
+.fig-label b{font-weight:500;color:var(--stage-ink);letter-spacing:.1em}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.dot.ok{background:var(--carmine)}
+.dot.bad{background:var(--coral);box-shadow:0 0 0 3px rgba(222,75,52,.18)}
+svg.runner{display:block;width:100%;height:auto}
+
+/* ---------- controls ---------- */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+  padding:12px 16px;
+  background:var(--plate);
+  border-top:1px solid var(--line);
+}
+button{font:inherit;cursor:pointer}
+.btn{
+  font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  background:transparent;color:var(--ink);
+  border:1px solid var(--line);border-radius:2px;
+  padding:7px 14px;
+  transition:background .15s,border-color .15s,color .15s;
+}
+.btn:hover{border-color:var(--ink-2)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--plate);border-color:var(--ink)}
+.btn.play{min-width:104px}
+:focus-visible{outline:2px solid var(--carmine);outline-offset:2px}
+
+.scrub{display:flex;align-items:center;gap:10px;flex:1 1 240px;min-width:200px}
+.scrub label{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+input[type=range]{
+  flex:1;-webkit-appearance:none;appearance:none;background:transparent;height:22px;
+}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line)}
+input[type=range]::-moz-range-track{height:2px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--carmine);margin-top:-5.5px;border:none}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border:none;border-radius:50%;background:var(--carmine)}
+.toggles{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ---------- readouts ---------- */
+.ro-title{
+  font-family:var(--f-mono);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--ink-3);padding:11px 16px 0;background:var(--plate);border-top:1px solid var(--line);
+}
+.ro-title+.readouts{border-top:none}
+.readouts{
+  display:grid;grid-template-columns:repeat(5,1fr);
+  border-top:1px solid var(--line);
+  background:var(--plate);
+}
+.ro{padding:12px 16px;border-left:1px solid var(--line-soft)}
+.ro:first-child{border-left:none}
+.ro-k{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);display:block;line-height:1.4}
+.ro-v{font-family:var(--f-mono);font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin-top:4px;display:block}
+.ro-v small{font-size:11px;color:var(--ink-3);margin-left:2px}
+.ro.alert .ro-v{color:var(--coral)}
+.ro-bar{height:2px;background:var(--line);margin-top:8px;position:relative;overflow:hidden}
+.ro-bar i{position:absolute;inset:0 auto 0 0;background:var(--steel);transition:width .08s linear}
+.ro.alert .ro-bar i{background:var(--coral)}
+
+/* ---------- legend ---------- */
+.legend{
+  display:flex;flex-wrap:wrap;gap:6px 22px;
+  padding:12px 16px;border-top:1px solid var(--line);background:var(--plate-2);
+}
+.lg{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2)}
+.sw{width:16px;height:9px;border-radius:1px;flex:none;border:1px solid rgba(0,0,0,.14)}
+
+/* ---------- chain ---------- */
+.chain{display:grid;grid-template-columns:repeat(5,1fr);gap:0;margin-top:30px;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.link{padding:20px 18px;background:var(--plate);border-left:1px solid var(--line-soft);position:relative}
+.link:first-child{border-left:none}
+.link h3{font-size:17px;line-height:1.25;margin-bottom:8px}
+.link p{font-size:13.5px;color:var(--ink-2);line-height:1.5}
+.link .n{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.1em;display:block;margin-bottom:10px}
+.link:last-child{background:var(--plate-2)}
+.link:last-child h3{color:var(--coral)}
+
+/* ---------- two-col anatomy ---------- */
+.anat{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:40px;margin-top:30px;align-items:start}
+.plate{background:var(--plate);border:1px solid var(--line);border-radius:3px;padding:8px}
+.plate svg{display:block;width:100%;height:auto}
+.plate-cap{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);padding:8px 10px 4px;letter-spacing:.04em;line-height:1.5}
+.notes{display:flex;flex-direction:column;gap:22px}
+.note h3{font-size:19px;margin-bottom:6px}
+.note p{color:var(--ink-2);font-size:15px}
+.note .tag{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--carmine);display:block;margin-bottom:6px}
+
+/* ---------- table ---------- */
+.tbl-scroll{overflow-x:auto;margin-top:26px;border:1px solid var(--line);border-radius:3px;background:var(--plate)}
+table{border-collapse:collapse;width:100%;min-width:820px;font-size:14px}
+th{
+  font-family:var(--f-mono);font-weight:500;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--ink-3);text-align:left;padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:bottom;
+}
+td{padding:15px 16px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--ink-2)}
+tr:last-child td{border-bottom:none}
+td.m{color:var(--ink);font-weight:500;white-space:nowrap}
+td.m em{display:block;font-family:var(--f-mono);font-style:normal;font-size:11px;color:var(--ink-3);font-weight:400;letter-spacing:.02em;margin-top:3px;white-space:normal}
+.chip{
+  display:inline-block;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+  padding:3px 8px;border-radius:2px;white-space:nowrap;border:1px solid transparent;
+}
+.chip.weak{color:var(--weak);border-color:var(--weak)}
+.chip.over{color:var(--ochre);border-color:var(--ochre)}
+.chip.strain{color:var(--coral);border-color:var(--coral);background:rgba(222,75,52,.08)}
+
+/* ---------- protocol ---------- */
+.proto{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:30px}
+.card{background:var(--plate);border:1px solid var(--line);border-radius:3px;padding:22px}
+.card h3{font-size:20px;margin-bottom:4px}
+.card .sub{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+.card ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px}
+.card li{font-size:14px;color:var(--ink-2);padding-left:15px;position:relative;line-height:1.5}
+.card li::before{content:"";position:absolute;left:0;top:9px;width:5px;height:5px;background:var(--carmine);border-radius:50%}
+.card li b{color:var(--ink);font-weight:600}
+.card li span{display:block;font-family:var(--f-mono);font-size:11px;color:var(--ink-3);margin-top:2px}
+
+footer{border-top:1px solid var(--line);padding:32px 0 56px;color:var(--ink-3);font-size:13px}
+footer p{max-width:70ch}
+footer b{color:var(--ink-2);font-weight:600}
+
+@media (max-width:900px){
+  .head-grid,.anat{grid-template-columns:1fr;gap:28px}
+  .chain,.proto,.readouts{grid-template-columns:1fr 1fr}
+  .link{border-left:none;border-top:1px solid var(--line-soft)}
+  .ro{border-left:none;border-top:1px solid var(--line-soft)}
+}
+@media (max-width:640px){
+  .stage-grid{grid-template-columns:1fr}
+  .fig+.fig{border-left:none;border-top:1px solid var(--stage-grid)}
+  .chain,.proto{grid-template-columns:1fr}
+  .wrap{padding:0 18px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important}
+}
+</style>
+
+<header>
+  <div class="wrap head-grid">
+    <div>
+      <span class="eyebrow">Modèle biomécanique · plan frontal · course à pied</span>
+      <h1>Le genou de <em>l'essuie-glace</em></h1>
+      <p class="dek">Le syndrome de la bandelette ilio-tibiale se voit rarement au genou : il se fabrique à la hanche. Ce modèle fait courir deux squelettes côte à côte — l'un avec un moyen fessier compétent, l'autre avec le moyen fessier droit déficitaire — et montre, angle par angle, comment la faiblesse d'un muscle proximal vient frotter le condyle fémoral latéral droit.</p>
+    </div>
+    <div class="head-meta">
+      <div class="meta-row"><span>Côté atteint</span><span>Genou droit, face latérale</span></div>
+      <div class="meta-row"><span>Structure en cause</span><span>Bandelette ilio-tibiale</span></div>
+      <div class="meta-row"><span>Angle du conflit</span><span>20°–35° de flexion</span></div>
+      <div class="meta-row"><span>Vue</span><span>Frontale, coureur face à vous</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="modele">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">01</span><h2>La foulée, image par image</h2></div>
+    <p class="sec-intro">Les deux coureurs partagent la même cinématique sagittale. Seul change le contrôle frontal du bassin et du fémur pendant l'appui droit. Faites défiler le cycle avec la réglette : la bascule apparaît autour de 55&nbsp;% du cycle, quand tout le poids passe sur la jambe droite.</p>
+
+    <div class="stage-shell">
+      <div class="stage-grid">
+        <div class="fig">
+          <div class="fig-label"><span class="dot ok"></span><b>Fonctionnement normal</b><span>— hanche verrouillée</span></div>
+          <svg class="runner" id="svgA" viewBox="0 0 280 430" role="img" aria-label="Squelette courant avec un contrôle normal du bassin"></svg>
+        </div>
+        <div class="fig">
+          <div class="fig-label"><span class="dot bad"></span><b>Syndrome essuie-glace D</b><span>— moyen fessier déficitaire</span></div>
+          <svg class="runner" id="svgB" viewBox="0 0 280 430" role="img" aria-label="Squelette courant avec chute du bassin et valgus dynamique du genou droit"></svg>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn play" id="play" aria-pressed="true">Pause</button>
+        <div class="scrub">
+          <label for="scrub">Cycle</label>
+          <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position dans le cycle de course">
+          <span class="ro-v" id="pct" style="font-size:13px;min-width:44px;text-align:right">0 %</span>
+        </div>
+        <div class="toggles">
+          <button class="btn" id="tMus" aria-pressed="true">Muscles</button>
+          <button class="btn" id="tFor" aria-pressed="true">Forces</button>
+          <button class="btn" id="tLab" aria-pressed="true">Repères</button>
+          <button class="btn" id="tSlow" aria-pressed="false">Ralenti</button>
+        </div>
+      </div>
+
+      <p class="ro-title">Goniométrie en direct — coureur de droite, côté atteint</p>
+      <div class="readouts">
+        <div class="ro" id="roDrop"><span class="ro-k">Chute pelvienne G</span><span class="ro-v" id="vDrop">0<small>°</small></span><div class="ro-bar"><i style="width:0"></i></div></div>
+        <div class="ro" id="roAdd"><span class="ro-k">Adduction hanche D</span><span class="ro-v" id="vAdd">0<small>°</small></span><div class="ro-bar"><i style="width:0"></i></div></div>
+        <div class="ro" id="roVal"><span class="ro-k">Valgus genou D</span><span class="ro-v" id="vVal">0<small>°</small></span><div class="ro-bar"><i style="width:0"></i></div></div>
+        <div class="ro" id="roFlex"><span class="ro-k">Flexion genou D</span><span class="ro-v" id="vFlex">0<small>°</small></span><div class="ro-bar"><i style="width:0"></i></div></div>
+        <div class="ro" id="roTen"><span class="ro-k">Tension bandelette</span><span class="ro-v" id="vTen">0<small>%</small></span><div class="ro-bar"><i style="width:0"></i></div></div>
+      </div>
+
+      <div class="legend">
+        <span class="lg"><i class="sw" style="background:#B0443A"></i>Muscle actif, tension normale</span>
+        <span class="lg"><i class="sw" style="background:#98A2AC"></i>Muscle inhibé / déficitaire</span>
+        <span class="lg"><i class="sw" style="background:#C08122"></i>Muscle sur-sollicité en compensation</span>
+        <span class="lg"><i class="sw" style="background:#5E86A5"></i>Bandelette ilio-tibiale (fascia)</span>
+        <span class="lg"><i class="sw" style="background:#DE4B34"></i>Zone de conflit fémoro-fascial</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="chaine">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">02</span><h2>La chaîne de causalité</h2></div>
+    <p class="sec-intro">Chaque maillon est la conséquence mécanique du précédent. C'est pour cela que traiter le cinquième maillon — le genou — ne règle presque jamais le problème.</p>
+    <div class="chain">
+      <div class="link"><span class="n">ORIGINE</span><h3>Moyen fessier droit insuffisant</h3><p>L'abducteur ne tient plus le bassin à l'appui unipodal. Souvent associé à un déficit d'endurance plus que de force pure.</p></div>
+      <div class="link"><span class="n">→</span><h3>Chute du bassin à gauche</h3><p>Signe de Trendelenburg dynamique : le bassin s'incline du côté oscillant, parfois masqué par une inclinaison du tronc à droite.</p></div>
+      <div class="link"><span class="n">→</span><h3>Adduction + rotation interne du fémur</h3><p>Le fémur droit part vers l'intérieur. Le tenseur du fascia lata prend le relais de l'abduction et se raidit.</p></div>
+      <div class="link"><span class="n">→</span><h3>Valgus dynamique du genou</h3><p>Le genou plonge en dedans, le tibia part en dehors. La bandelette, tendue entre crête iliaque et tubercule de Gerdy, se met en corde.</p></div>
+      <div class="link"><span class="n">CONFLIT</span><h3>Compression du condyle latéral</h3><p>Entre 20° et 35° de flexion, la bandelette comprime le coussinet graisseux richement innervé : douleur latérale, en descente et en fin de course.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="anatomie">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">03</span><h2>Ce qui frotte, exactement</h2></div>
+    <p class="sec-intro">Vue latérale du genou droit. La bandelette ne « glisse » pas d'avant en arrière comme un essuie-glace mécanique : elle est ancrée au tibia. Ce qui se produit, c'est une compression périodique du tissu situé sous elle, chaque fois que le genou traverse la zone des 30°.</p>
+    <div class="anat">
+      <div class="plate">
+        <svg viewBox="0 0 520 392" role="img" aria-label="Genou droit fléchi à 30 degrés, vue latérale : la bandelette ilio-tibiale comprime l'épicondyle fémoral latéral">
+          <defs>
+            <linearGradient id="itbGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#5E86A5"/><stop offset=".58" stop-color="#65899E"/><stop offset=".76" stop-color="#C2593F"/><stop offset=".9" stop-color="#7E8B98"/><stop offset="1" stop-color="#5E86A5"/>
+            </linearGradient>
+            <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#DE4B34"/>
+            </marker>
+            <marker id="arwq" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#8A94A0"/>
+            </marker>
+          </defs>
+
+          <!-- femur -->
+          <path d="M192 14 L238 14 L242 168 Q248 198 252 216 L176 216 Q182 198 186 168 Z" fill="#FBF6EA" stroke="#B9AF98" stroke-width="1.4"/>
+          <circle cx="214" cy="236" r="43" fill="#FBF6EA" stroke="#B9AF98" stroke-width="1.4"/>
+          <!-- rotule -->
+          <path d="M150 208 Q136 226 150 246 Q168 240 168 226 Q168 214 150 208 Z" fill="#F6EFDF" stroke="#B9AF98" stroke-width="1.1"/>
+
+          <!-- tibia -->
+          <path d="M185 279 L243 245 L283 349 L255 365 Z" fill="#FBF6EA" stroke="#B9AF98" stroke-width="1.4"/>
+          <path d="M185 279 Q214 268 243 245" fill="none" stroke="#B9AF98" stroke-width="1.2"/>
+          <!-- tuberosite tibiale -->
+          <path d="M198 306 Q188 314 196 322" fill="none" stroke="#B9AF98" stroke-width="1.2"/>
+          <!-- fibula -->
+          <ellipse cx="262" cy="264" rx="12" ry="9" transform="rotate(-30 262 264)" fill="#FBF6EA" stroke="#B9AF98" stroke-width="1.1"/>
+          <path d="M257 270 L268 265 L303 336 L292 341 Z" fill="#FBF6EA" stroke="#B9AF98" stroke-width="1"/>
+
+          <!-- epicondyle lateral (relief sous la bandelette) -->
+          <circle cx="186" cy="230" r="16" fill="#F1E6D0" stroke="#B9AF98" stroke-width="1"/>
+          <!-- coussinet graisseux comprime -->
+          <ellipse cx="186" cy="230" rx="17" ry="11" fill="#DE4B34" opacity=".38"/>
+
+          <!-- bandelette ilio-tibiale, semi-transparente -->
+          <path d="M170 14 L198 14 L199 170 Q200 226 210 288 L192 293 Q180 226 174 170 Z"
+                fill="url(#itbGrad)" opacity=".76"/>
+          <path d="M170 14 L198 14 L199 170 Q200 226 210 288 L192 293 Q180 226 174 170 Z"
+                fill="none" stroke="#3F6480" stroke-width="1" opacity=".5"/>
+          <!-- contour de l'epicondyle rappele par-dessus -->
+          <circle cx="186" cy="230" r="16" fill="none" stroke="#DE4B34" stroke-width="1.6" stroke-dasharray="3 4"/>
+          <!-- insertion sur Gerdy -->
+          <circle cx="203" cy="292" r="4.2" fill="#3F6480"/>
+
+          <!-- fenetre d'impaction 20-35 degres, par-dessus les os -->
+          <path d="M214 262 L258 384 A130 130 0 0 0 289 369 Z" fill="#DE4B34" opacity=".16"/>
+          <line x1="214" y1="158" x2="214" y2="262" stroke="#8A94A0" stroke-width="1" stroke-dasharray="3 4"/>
+          <line x1="214" y1="262" x2="279" y2="374" stroke="#8A94A0" stroke-width="1" stroke-dasharray="3 4"/>
+          <path d="M214 340 A78 78 0 0 0 250 331" fill="none" stroke="#8A94A0" stroke-width="1.1" marker-end="url(#arwq)"/>
+
+          <!-- compression -->
+          <line x1="140" y1="160" x2="177" y2="211" stroke="#DE4B34" stroke-width="2" marker-end="url(#arw)"/>
+
+          <g font-family="IBM Plex Mono, monospace" font-size="11" fill="#4C5A66">
+            <text x="284" y="76">Fémur</text>
+            <line x1="246" y1="72" x2="280" y2="72" stroke="#C6CBC4" stroke-width="1"/>
+            <text x="46" y="76">Bandelette</text><text x="46" y="90">ilio-tibiale</text>
+            <line x1="128" y1="72" x2="166" y2="72" stroke="#C6CBC4" stroke-width="1"/>
+            <text x="18" y="150" fill="#DE4B34">Compression</text>
+            <text x="18" y="164" fill="#7B8892">à chaque foulée</text>
+            <text x="290" y="204" fill="#DE4B34">Épicondyle fémoral latéral</text>
+            <text x="290" y="218" fill="#7B8892">+ coussinet graisseux innervé</text>
+            <line x1="202" y1="222" x2="286" y2="204" stroke="#C6CBC4" stroke-width="1"/>
+            <text x="26" y="306">Rotule</text>
+            <line x1="70" y1="302" x2="142" y2="250" stroke="#C6CBC4" stroke-width="1"/>
+            <text x="300" y="284">Tubercule de Gerdy</text>
+            <text x="300" y="298" fill="#7B8892">insertion tibiale fixe</text>
+            <line x1="208" y1="292" x2="296" y2="280" stroke="#C6CBC4" stroke-width="1"/>
+            <text x="300" y="356" fill="#DE4B34">Fenêtre 20°–35°</text>
+            <text x="300" y="370" fill="#7B8892">de flexion du genou</text>
+            <text x="176" y="352" fill="#4C5A66">30°</text>
+          </g>
+        </svg>
+        <p class="plate-cap">Genou droit, vue latérale. La bandelette est fixée en bas : elle ne balaie pas, elle écrase.</p>
+      </div>
+
+      <div class="notes">
+        <div class="note">
+          <span class="tag">Pourquoi « essuie-glace »</span>
+          <h3>Un nom qui décrit mal le mécanisme</h3>
+          <p>L'image historique est celle d'un tendon qui balaierait le condyle d'avant en arrière. Les travaux d'imagerie dynamique décrivent plutôt une bandelette fermement amarrée au tibia, qui se tend et comprime le tissu conjonctif sous-jacent au passage de la zone des 30°. La conséquence pratique est la même : une douleur rythmée par la foulée.</p>
+        </div>
+        <div class="note">
+          <span class="tag">Signature clinique</span>
+          <h3>Douleur latérale, pas antérieure</h3>
+          <p>Elle apparaît à un temps de course reproductible, s'aggrave en descente et à petite vitesse — là où le genou passe justement plus longtemps entre 20° et 35° — et cède souvent à l'arrêt, pour revenir à la même distance. Une douleur au centre du genou ou sous la rotule oriente ailleurs.</p>
+        </div>
+        <div class="note">
+          <span class="tag">Ce que le modèle ne montre pas</span>
+          <h3>Les autres pièces du dossier</h3>
+          <p>Charge d'entraînement montée trop vite, dévers et virages toujours dans le même sens, cadence basse avec grande foulée, chaussures très usées d'un côté. La faiblesse du moyen fessier explique la mécanique ; elle n'explique pas à elle seule pourquoi la douleur est arrivée cette semaine-là.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="muscles">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">04</span><h2>Le bilan musculaire du côté droit</h2></div>
+    <p class="sec-intro">Trois muscles lâchent, deux compensent, un fascia encaisse. C'est la répartition typique — l'ordre des priorités de rééducation en découle directement.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th style="width:20%">Structure</th><th style="width:11%">État</th><th style="width:24%">Rôle dans la course</th><th style="width:22%">Test simple</th><th style="width:23%">Conséquence si déficitaire</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="m">Moyen fessier<em>gluteus medius</em></td>
+            <td><span class="chip weak">Faible</span></td>
+            <td>Stabilise le bassin dans le plan frontal pendant tout l'appui unipodal.</td>
+            <td>Appui unipodal 30 s : le bassin opposé descend ou le tronc s'incline.</td>
+            <td>Chute pelvienne, adduction fémorale : le premier maillon de la chaîne.</td>
+          </tr>
+          <tr>
+            <td class="m">Grand fessier, faisceau sup.<em>gluteus maximus</em></td>
+            <td><span class="chip weak">Faible</span></td>
+            <td>Extension de hanche et surtout frein de la rotation interne fémorale.</td>
+            <td>Pont fessier unipodal : crampe des ischio-jambiers avant fatigue fessière.</td>
+            <td>Rotation interne du fémur non contrôlée, bandelette mise en tension.</td>
+          </tr>
+          <tr>
+            <td class="m">Rotateurs externes profonds<em>piriforme, obturateurs, jumeaux</em></td>
+            <td><span class="chip weak">Faible</span></td>
+            <td>Centrage de la tête fémorale, contrôle fin de la rotation à l'appui.</td>
+            <td>Clam shell en charge : perte d'alignement au-delà de 15 répétitions.</td>
+            <td>Le genou « plonge » vers l'intérieur dès que la fatigue s'installe.</td>
+          </tr>
+          <tr>
+            <td class="m">Vaste médial oblique<em>VMO</em></td>
+            <td><span class="chip weak">Faible</span></td>
+            <td>Retient le valgus au niveau du genou et centre la rotule.</td>
+            <td>Squat unipodal : le genou dépasse en dedans de la pointe du pied.</td>
+            <td>Le valgus dynamique n'est plus freiné au dernier étage.</td>
+          </tr>
+          <tr>
+            <td class="m">Tenseur du fascia lata<em>TFL</em></td>
+            <td><span class="chip over">Sur-sollicité</span></td>
+            <td>Abducteur accessoire, fléchisseur et rotateur interne de hanche.</td>
+            <td>Palpation antéro-latérale de hanche : tonique, sensible, douloureux.</td>
+            <td>Prend le travail du moyen fessier et tire directement sur la bandelette.</td>
+          </tr>
+          <tr>
+            <td class="m">Carré des lombes controlat.<em>quadratus lumborum G</em></td>
+            <td><span class="chip over">Sur-sollicité</span></td>
+            <td>Retient le bassin par le haut quand l'abducteur ne tient plus par le bas.</td>
+            <td>Inclinaison du tronc à droite pendant l'appui droit (signe de Duchenne).</td>
+            <td>Compensation coûteuse : lombalgie latérale associée fréquente.</td>
+          </tr>
+          <tr>
+            <td class="m">Bandelette ilio-tibiale<em>tractus iliotibial</em></td>
+            <td><span class="chip strain">En contrainte</span></td>
+            <td>Fascia non contractile : transmet la tension de la hanche au tibia.</td>
+            <td>Test de Noble / Ober : douleur reproduite vers 30° de flexion.</td>
+            <td>Comprime le condyle latéral à chaque foulée : c'est le lieu de la douleur, pas la cause.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="protocole">
+  <div class="wrap">
+    <div class="sec-head"><span class="eyebrow">05</span><h2>Remettre la hanche au travail</h2></div>
+    <p class="sec-intro">Trois chantiers menés en parallèle, pas en série. Le troisième est celui qu'on saute le plus souvent, et c'est celui qui évite la récidive.</p>
+    <div class="proto">
+      <div class="card">
+        <h3>Décharger</h3>
+        <p class="sub">Semaines 1 à 2</p>
+        <ul>
+          <li><b>Réduire le volume, garder la fréquence</b><span>seuil sans douleur, terrain plat, pas de descente</span></li>
+          <li><b>Éviter les dévers et les virages répétés</b><span>changer de sens sur piste, éviter les bas-côtés inclinés</span></li>
+          <li><b>Travail des tissus autour, pas dessus</b><span>fessiers et TFL ; masser la bandelette elle-même n'allonge rien</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Renforcer</h3>
+        <p class="sub">Le cœur du traitement</p>
+        <ul>
+          <li><b>Abduction en décubitus latéral</b><span>3 × 15, lentement, bassin vertical, sans rouler en arrière</span></li>
+          <li><b>Pont fessier unipodal</b><span>3 × 10 par côté, bassin strictement horizontal</span></li>
+          <li><b>Marche latérale avec élastique</b><span>3 × 20 pas, genoux fléchis, pieds parallèles</span></li>
+          <li><b>Descente de marche contrôlée</b><span>3 × 12, le genou reste dans l'axe du 2ᵉ orteil</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Reprogrammer</h3>
+        <p class="sub">Le geste, sous fatigue</p>
+        <ul>
+          <li><b>Augmenter la cadence de 5 à 10 %</b><span>réduit l'adduction de hanche et la charge au genou</span></li>
+          <li><b>Élargir légèrement la ligne des appuis</b><span>corrige la foulée croisée, cause directe du valgus</span></li>
+          <li><b>Renforcer en fin de séance</b><span>c'est fatigué que le moyen fessier lâche, donc c'est là qu'il s'entraîne</span></li>
+          <li><b>Retour progressif aux descentes</b><span>le dernier terrain à réintroduire, jamais le premier</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p><b>Modèle pédagogique.</b> Les angles affichés sont ceux d'un modèle cinématique simplifié, choisis dans les ordres de grandeur décrits pour la course en plan frontal ; ce ne sont pas des mesures issues d'une capture de mouvement. Cette page illustre un mécanisme, elle ne remplace pas un examen : une douleur latérale de genou persistante mérite un bilan par un professionnel de santé, qui seul peut écarter les autres causes.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+"use strict";
+var NS="http://www.w3.org/2000/svg";
+function el(t,a,p){var e=document.createElementNS(NS,t);for(var k in a){e.setAttribute(k,a[k]);}if(p)p.appendChild(e);return e;}
+function rad(d){return d*Math.PI/180;}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function mod1(x){return x-Math.floor(x);}
+
+/* ---------- constantes du modèle ---------- */
+var FEM=90, TIB=82, HW=25, TRUNK=88, CX=140, GROUND=384, FOOTH=12;
+var STANCE=0.35;
+
+/* cinématique sagittale d'une jambe, phase p dans [0,1) */
+function sagittal(p){
+  var hip,knee;
+  if(p<STANCE){
+    var s=p/STANCE;
+    hip=27-45*s;
+    knee=13+28*Math.sin(Math.PI*s);
+  }else{
+    var u=(p-STANCE)/(1-STANCE);
+    hip=-18+45*(0.5-0.5*Math.cos(Math.PI*clamp(u*1.12,0,1)));
+    knee=13+96*Math.sin(Math.PI*Math.pow(u,0.72));
+  }
+  return {hip:hip,knee:knee};
+}
+/* part du poids portée par la jambe, 0..1 */
+function load(p){
+  if(p>=STANCE) return 0;
+  return Math.pow(Math.sin(Math.PI*(p/STANCE)),0.65);
+}
+function shorten(a){return clamp(Math.abs(Math.cos(rad(a*0.94))),0.34,1);}
+
+/* ---------- état complet du corps ---------- */
+function bodyState(t,path,allowFlight){
+  var pL=mod1(t), pR=mod1(t+0.5);
+  var sL=sagittal(pL), sR=sagittal(pR);
+  var wL=load(pL), wR=load(pR);
+  var k=path?1:0;
+
+  /* bascule du bassin : positif = hanche gauche qui descend */
+  var theta = wR*(k?13.5:2.5) - wL*2.5;
+  /* inclinaison du tronc, négatif = sommet vers la droite du sujet (gauche écran) */
+  var lean = -wR*(k?8.5:2) + wL*2;
+  /* adduction de hanche (positif = genou vers l'axe) */
+  var addR = 4 + wR*(k?18:7) + (1-wR)*(k?4:0);
+  var addL = 4 + wL*7;
+  /* valgus : abduction du segment jambier */
+  var valR = 2 + wR*(k?12:3);
+  var valL = 2 + wL*3;
+  /* rotation interne fémorale, rendue par un décalage du repère rotulien */
+  var rotR = wR*(k?14:3);
+
+  var sway = (wR*(k?6:3) - wL*3);
+  var cx = CX - sway;
+
+  var legs={
+    R:{side:-1,sag:sR,add:addR,val:valR,w:wR,rot:rotR,p:pR},
+    L:{side: 1,sag:sL,add:addL,val:valL,w:wL,rot:0,p:pL}
+  };
+
+  /* longueurs projetées */
+  for(var key in legs){
+    var g=legs[key];
+    g.tp=FEM*shorten(g.sag.hip);
+    g.sp=TIB*shorten(g.sag.hip-g.sag.knee);
+  }
+
+  /* hauteur du bassin : imposée par la jambe d'appui, balistique en suspension */
+  var cy;
+  var stanceKey = (pL<STANCE) ? "L" : ((pR<STANCE) ? "R" : null);
+  if(stanceKey){
+    var g2=legs[stanceKey];
+    var drop=g2.tp*Math.cos(rad(g2.add))+g2.sp*Math.cos(rad(g2.val))+FOOTH;
+    cy=(GROUND-drop)-g2.side*HW*Math.sin(rad(theta));
+  }else if(allowFlight!==false){
+    var tt=mod1(t), t0,t1;
+    if(tt>=STANCE && tt<0.5){t0=STANCE;t1=0.5;}else{t0=STANCE+0.5;t1=1.0;}
+    var y0=bodyState(t0-0.0005,path,false).cy;
+    var y1=bodyState(t1+0.0005,path,false).cy;
+    var u2=(tt-t0)/(t1-t0);
+    cy=y0+(y1-y0)*u2-10*Math.sin(Math.PI*u2);
+  }else{ cy=GROUND-170; }
+
+  var ct=Math.cos(rad(theta)), st=Math.sin(rad(theta));
+  function pel(dx,dy){return {x:cx+dx*ct-dy*st, y:cy+dx*st+dy*ct};}
+
+  for(var key2 in legs){
+    var g3=legs[key2];
+    var hip=pel(g3.side*HW, 2);
+    var fx=-g3.side*Math.sin(rad(g3.add)), fy=Math.cos(rad(g3.add));
+    var knee={x:hip.x+g3.tp*fx, y:hip.y+g3.tp*fy};
+    var tx=g3.side*Math.sin(rad(g3.val)), ty=Math.cos(rad(g3.val));
+    var ankle={x:knee.x+g3.sp*tx, y:knee.y+g3.sp*ty};
+    g3.hip=hip; g3.knee=knee; g3.ankle=ankle;
+    g3.femU={x:fx,y:fy}; g3.tibU={x:tx,y:ty};
+    /* latéral = perpendiculaire au fémur, dirigée hors de l'axe */
+    var lx=fy*g3.side, ly=-fx*g3.side;
+    if(lx*g3.side<0){lx=-lx;ly=-ly;}
+    g3.lat={x:lx,y:ly};
+    g3.foot={x:ankle.x + g3.side*(-3) + 6*Math.sin(rad(g3.sag.hip)), y:ankle.y+FOOTH};
+  }
+
+  /* tension de la bandelette droite */
+  var R=legs.R;
+  var tension=clamp(24 + 2.1*(R.add-4) + 0.22*R.sag.knee + 1.6*Math.max(0,theta) + 0.9*R.rot, 15, 100);
+  var friction = (R.sag.knee>18 && R.sag.knee<38) && (R.w>0.25 || (R.p>0.72 && R.p<0.95));
+
+  return {
+    cx:cx, cy:cy, theta:theta, lean:lean, legs:legs, pel:pel,
+    tension:tension, friction:friction, path:path,
+    drop:Math.max(0,theta), addR:R.add, valR:R.val, flexR:R.sag.knee
+  };
+}
+
+/* ---------- helpers géométriques ---------- */
+function lerp(a,b,u){return {x:a.x+(b.x-a.x)*u, y:a.y+(b.y-a.y)*u};}
+function add(a,v,s){return {x:a.x+v.x*s, y:a.y+v.y*s};}
+function nrm(a,b){var dx=b.x-a.x,dy=b.y-a.y,l=Math.hypot(dx,dy)||1;return {x:dx/l,y:dy/l,l:l};}
+/* ruban musculaire fuselé entre deux points */
+function ribbon(a,b,w1,w2){
+  var u=nrm(a,b), n={x:-u.y,y:u.x};
+  var m=lerp(a,b,0.5), bul=(w1+w2)*0.34;
+  var p=[];
+  p.push([a.x+n.x*w1*0.55, a.y+n.y*w1*0.55]);
+  p.push([m.x+n.x*bul, m.y+n.y*bul]);
+  p.push([b.x+n.x*w2*0.55, b.y+n.y*w2*0.55]);
+  p.push([b.x-n.x*w2*0.55, b.y-n.y*w2*0.55]);
+  p.push([m.x-n.x*bul, m.y-n.y*bul]);
+  p.push([a.x-n.x*w1*0.55, a.y-n.y*w1*0.55]);
+  return "M"+p[0][0].toFixed(1)+" "+p[0][1].toFixed(1)+
+         "Q"+p[1][0].toFixed(1)+" "+p[1][1].toFixed(1)+" "+p[2][0].toFixed(1)+" "+p[2][1].toFixed(1)+
+         "L"+p[3][0].toFixed(1)+" "+p[3][1].toFixed(1)+
+         "Q"+p[4][0].toFixed(1)+" "+p[4][1].toFixed(1)+" "+p[5][0].toFixed(1)+" "+p[5][1].toFixed(1)+"Z";
+}
+
+/* ---------- construction d'une figure ---------- */
+var C={
+  bone:"#F2EBDA", boneLine:"#A79C84",
+  ok:"#B0443A", okDeep:"#8C332C",
+  weak:"#8B96A2", over:"#C9892A", steel:"#5E86A5", coral:"#E1543D",
+  ink:"#B9C6CE", faint:"#2A3945"
+};
+
+function makeFigure(svg, path){
+  svg.innerHTML="";
+  var defs=el("defs",{},svg);
+  var g=el("linearGradient",{id:(path?"gb":"ga"),x1:"0",y1:"0",x2:"0",y2:"1"},defs);
+  el("stop",{offset:"0","stop-color":"#16222D"},g);
+  el("stop",{offset:"1","stop-color":"#0B1219"},g);
+  el("marker",{id:(path?"mb":"ma"),viewBox:"0 0 10 10",refX:"8",refY:"5",markerWidth:"5",markerHeight:"5",orient:"auto-start-reverse"},defs)
+    .appendChild((function(){var q=document.createElementNS(NS,"path");q.setAttribute("d","M0 0 L10 5 L0 10 z");q.setAttribute("fill",C.coral);return q;})());
+
+  el("rect",{x:0,y:0,width:280,height:430,fill:"url(#"+(path?"gb":"ga")+")"},svg);
+
+  /* sol */
+  var floor=el("g",{},svg);
+  for(var i=0;i<9;i++){
+    el("line",{x1:14+i*32,y1:GROUND+4,x2:14+i*32,y2:GROUND+16,stroke:"#1E2B36","stroke-width":1},floor);
+  }
+  el("line",{x1:10,y1:GROUND+3,x2:270,y2:GROUND+3,stroke:"#2A3947","stroke-width":1.2},floor);
+  /* ligne d'axe */
+  var axis=el("line",{x1:CX,y1:40,x2:CX,y2:GROUND+3,stroke:"#233240","stroke-width":1,"stroke-dasharray":"2 6"},svg);
+
+  var gShadow=el("g",{},svg);
+  var shR=el("ellipse",{rx:15,ry:3.2,fill:"#000",opacity:.35},gShadow);
+  var shL=el("ellipse",{rx:15,ry:3.2,fill:"#000",opacity:.35},gShadow);
+
+  var gMus=el("g",{},svg);
+  var gSkel=el("g",{},svg);
+  var gFor=el("g",{},svg);
+  var gLab=el("g",{"font-family":"IBM Plex Mono, monospace","font-size":"8.5"},svg);
+
+  /* --- muscles : un chemin par structure et par côté --- */
+  var M={};
+  function mk(name,fill,op,dash){
+    M[name]=el("path",{fill:fill,opacity:op,stroke:"none"},gMus);
+    if(dash){M[name].setAttribute("stroke",fill);M[name].setAttribute("stroke-width","1");M[name].setAttribute("stroke-dasharray",dash);M[name].setAttribute("fill-opacity","0.35");}
+    return M[name];
+  }
+  var sides=["R","L"];
+  sides.forEach(function(s){
+    var bad = path && s==="R";
+    mk("quad"+s, bad?C.ok:C.ok, .5);
+    mk("calf"+s, C.ok, .45);
+    mk("gmax"+s, bad?C.weak:C.ok, bad?.75:.75, bad?"3 3":null);
+    mk("gmed"+s, bad?C.weak:C.ok, bad?.8:.85, bad?"3 3":null);
+    mk("vmo"+s,  bad?C.weak:C.ok, bad?.8:.85, bad?"3 3":null);
+    mk("tfl"+s,  bad?C.over:C.ok, .9);
+    M["itb"+s]=el("path",{fill:C.steel,opacity:.92},gMus);
+  });
+
+  /* --- squelette --- */
+  var pelvis=el("g",{},gSkel);
+  el("path",{d:"M-30 -12 Q-34 6 -22 16 Q-14 22 -8 14 L8 14 Q14 22 22 16 Q34 6 30 -12 Q16 -18 0 -18 Q-16 -18 -30 -12 Z",
+    fill:C.bone,stroke:C.boneLine,"stroke-width":1.1},pelvis);
+  el("path",{d:"M-9 -10 L9 -10 L6 10 L-6 10 Z",fill:"none",stroke:C.boneLine,"stroke-width":.8,opacity:.7},pelvis);
+
+  var trunk=el("g",{},gSkel);
+  el("path",{d:"M0 0 L0 -"+TRUNK,stroke:C.bone,"stroke-width":5,"stroke-linecap":"round"},trunk);
+  for(var r=0;r<6;r++){
+    var yy=-26-r*10, ww=17+r*2.4;
+    el("path",{d:"M0 "+yy+" Q -"+ww+" "+(yy+4)+" -"+(ww*0.72)+" "+(yy+13),fill:"none",stroke:C.bone,"stroke-width":2,opacity:.85},trunk);
+    el("path",{d:"M0 "+yy+" Q "+ww+" "+(yy+4)+" "+(ww*0.72)+" "+(yy+13),fill:"none",stroke:C.bone,"stroke-width":2,opacity:.85},trunk);
+  }
+  el("path",{d:"M-27 -"+(TRUNK-6)+" L27 -"+(TRUNK-6),stroke:C.bone,"stroke-width":4,"stroke-linecap":"round"},trunk);
+  el("ellipse",{cx:0,cy:-(TRUNK+22),rx:15,ry:18,fill:C.bone,stroke:C.boneLine,"stroke-width":1},trunk);
+  el("ellipse",{cx:-5.6,cy:-(TRUNK+24),rx:3.4,ry:3.9,fill:C.boneLine,opacity:.5},trunk);
+  el("ellipse",{cx:5.6,cy:-(TRUNK+24),rx:3.4,ry:3.9,fill:C.boneLine,opacity:.5},trunk);
+  el("path",{d:"M0 -"+(TRUNK+20)+" l-2.6 5 h5.2 z",fill:C.boneLine,opacity:.45},trunk);
+  el("path",{d:"M-7 -"+(TRUNK+11)+" q7 4 14 0",fill:"none",stroke:C.boneLine,"stroke-width":.9,opacity:.45},trunk);
+
+  /* bras */
+  var arms={};
+  ["R","L"].forEach(function(s){
+    arms[s]={
+      up:el("line",{stroke:C.bone,"stroke-width":3.6,"stroke-linecap":"round"},trunk),
+      fo:el("line",{stroke:C.bone,"stroke-width":3.2,"stroke-linecap":"round"},trunk),
+      hand:el("circle",{r:3.4,fill:C.bone},trunk)
+    };
+  });
+
+  /* os des jambes */
+  var bones={};
+  ["R","L"].forEach(function(s){
+    bones[s]={
+      fem:el("line",{stroke:C.bone,"stroke-width":6.5,"stroke-linecap":"round"},gSkel),
+      tib:el("line",{stroke:C.bone,"stroke-width":5.2,"stroke-linecap":"round"},gSkel),
+      fib:el("line",{stroke:C.bone,"stroke-width":2,"stroke-linecap":"round",opacity:.75},gSkel),
+      hipJ:el("circle",{r:5,fill:C.bone,stroke:C.boneLine,"stroke-width":1},gSkel),
+      kneeJ:el("circle",{r:5.4,fill:C.bone,stroke:C.boneLine,"stroke-width":1},gSkel),
+      patella:el("circle",{r:2.6,fill:"#DCD2BC"},gSkel),
+      ankJ:el("circle",{r:3.6,fill:C.bone,stroke:C.boneLine,"stroke-width":.9},gSkel),
+      foot:el("path",{fill:C.bone,stroke:C.boneLine,"stroke-width":.9},gSkel)
+    };
+  });
+
+  /* conflit */
+  var flare=el("circle",{r:9,fill:"none",stroke:C.coral,"stroke-width":2,opacity:0},gSkel);
+  var flare2=el("circle",{r:4,fill:C.coral,opacity:0},gSkel);
+
+  /* forces */
+  var grf=el("line",{stroke:C.coral,"stroke-width":2,opacity:.85,"marker-end":"url(#"+(path?"mb":"ma")+")"},gFor);
+  var valgusArrow=el("line",{stroke:C.coral,"stroke-width":1.8,opacity:.9,"marker-end":"url(#"+(path?"mb":"ma")+")"},gFor);
+  var dropArc=el("path",{fill:"none",stroke:C.coral,"stroke-width":1.4,"stroke-dasharray":"3 3",opacity:.9},gFor);
+  var levelLine=el("line",{stroke:"#4A5F70","stroke-width":1,"stroke-dasharray":"2 4"},gFor);
+
+  /* étiquettes : emplacements fixes en marge, ligne de rappel vers la structure */
+  function lab(name,state,x,y,anchor,color){
+    var t=el("text",{x:x,y:y,fill:color,"text-anchor":anchor,"font-size":"7.6"},gLab);
+    var l1=el("tspan",{x:x},t); l1.textContent=name;
+    var l2=el("tspan",{x:x,dy:"9.4","font-size":"6.9","fill-opacity":".7"},t); l2.textContent=state;
+    var ln=el("line",{stroke:"#3E5262","stroke-width":.8},gLab);
+    return {t:t,l2:l2,ln:ln,x:x,y:y,anchor:anchor,w:0};
+  }
+  function leader(o,ax,ay){
+    if(!o.w){ try{o.w=o.t.getBBox().width;}catch(e){o.w=0;} }
+    var wd=o.w||56;
+    var ex=(o.anchor==="end")? o.x-wd-5 : o.x+wd+5;
+    o.ln.setAttribute("x1",ex.toFixed(1));o.ln.setAttribute("y1",(o.y-2).toFixed(1));
+    o.ln.setAttribute("x2",ax.toFixed(1));o.ln.setAttribute("y2",ay.toFixed(1));
+  }
+  var lbGmed=lab("moyen fessier", path?"inhibé":"actif", 6, 196, "start", path?C.weak:C.ok);
+  var lbTfl =lab("TFL", path?"en surcharge":"tonique normal", 6, 236, "start", path?C.over:C.ok);
+  var lbItb =lab("bandelette I-T", "tension —", 6, 276, "start", C.steel);
+  var lbVmo =lab("vaste médial", path?"faible":"actif", 274, 246, "end", path?C.weak:C.ok);
+  var lbCond=lab("condyle latéral", path?"conflit":"libre", 274, 306, "end", path?C.coral:C.ink);
+
+  function setLine(n,a,b){n.setAttribute("x1",a.x.toFixed(1));n.setAttribute("y1",a.y.toFixed(1));n.setAttribute("x2",b.x.toFixed(1));n.setAttribute("y2",b.y.toFixed(1));}
+
+  /* ---------- mise à jour ---------- */
+  function update(t,opts){
+    var S=bodyState(t,path,true);
+    gMus.style.display=opts.muscles?"":"none";
+    gFor.style.display=opts.forces?"":"none";
+    gLab.style.display=opts.labels?"":"none";
+
+    pelvis.setAttribute("transform","translate("+S.cx.toFixed(1)+","+S.cy.toFixed(1)+") rotate("+S.theta.toFixed(2)+")");
+    var neck=S.pel(0,-14);
+    trunk.setAttribute("transform","translate("+neck.x.toFixed(1)+","+neck.y.toFixed(1)+") rotate("+S.lean.toFixed(2)+")");
+
+    /* bras : opposés aux jambes, vus de face (raccourcis) */
+    var swing=Math.sin(2*Math.PI*mod1(t));
+    [["R",-1,swing],["L",1,-swing]].forEach(function(a){
+      var s=a[0], sx=a[1], sw=a[2];
+      var A=arms[s];
+      var shx=sx*25, shy=-(TRUNK-6);
+      var upAng=sx*(9+5*sw);                  /* le bras reste près du tronc */
+      var upLen=32*(0.86+0.14*Math.abs(Math.cos(rad(sw*40))));
+      var ex=shx+Math.sin(rad(upAng))*upLen, ey=shy+Math.cos(rad(upAng))*upLen;
+      var foAng=sx*(-46-18*sw);               /* avant-bras ramené devant le tronc */
+      var foLen=27*(0.66+0.28*Math.abs(Math.cos(rad(sw*50))));
+      var hx=ex+Math.sin(rad(foAng))*foLen*0.92, hy=ey+Math.cos(rad(foAng))*foLen*0.34;
+      A.up.setAttribute("x1",shx.toFixed(1));A.up.setAttribute("y1",shy.toFixed(1));
+      A.up.setAttribute("x2",ex.toFixed(1));A.up.setAttribute("y2",ey.toFixed(1));
+      A.fo.setAttribute("x1",ex.toFixed(1));A.fo.setAttribute("y1",ey.toFixed(1));
+      A.fo.setAttribute("x2",hx.toFixed(1));A.fo.setAttribute("y2",hy.toFixed(1));
+      A.hand.setAttribute("cx",hx.toFixed(1));A.hand.setAttribute("cy",hy.toFixed(1));
+    });
+
+    ["R","L"].forEach(function(s){
+      var g3=S.legs[s], B=bones[s];
+      setLine(B.fem,g3.hip,g3.knee);
+      setLine(B.tib,g3.knee,g3.ankle);
+      var fibA=add(g3.knee,g3.lat,5), fibB=add(g3.ankle,g3.lat,4);
+      setLine(B.fib,fibA,fibB);
+      B.hipJ.setAttribute("cx",g3.hip.x.toFixed(1));B.hipJ.setAttribute("cy",g3.hip.y.toFixed(1));
+      B.kneeJ.setAttribute("cx",g3.knee.x.toFixed(1));B.kneeJ.setAttribute("cy",g3.knee.y.toFixed(1));
+      var pat=add(g3.knee,g3.lat,-(g3.rot*0.28));
+      B.patella.setAttribute("cx",pat.x.toFixed(1));B.patella.setAttribute("cy",(pat.y-1).toFixed(1));
+      B.ankJ.setAttribute("cx",g3.ankle.x.toFixed(1));B.ankJ.setAttribute("cy",g3.ankle.y.toFixed(1));
+      var fx=g3.ankle.x, fy=g3.ankle.y, sh=-g3.side*2.5;
+      B.foot.setAttribute("d","M"+(fx-7).toFixed(1)+" "+fy.toFixed(1)+
+        " L"+(fx+7).toFixed(1)+" "+fy.toFixed(1)+
+        " L"+(fx+9.5+sh).toFixed(1)+" "+(fy+FOOTH).toFixed(1)+
+        " L"+(fx-9.5+sh).toFixed(1)+" "+(fy+FOOTH).toFixed(1)+" Z");
+
+      /* muscles */
+      var crestLat=S.pel(g3.side*(HW+3),-9);
+      var crestAnt=S.pel(g3.side*(HW-4),-16);
+      var crestPost=S.pel(g3.side*(HW+1), 0);
+      var troch=add(g3.hip,g3.lat,9);
+      var femQ=lerp(g3.hip,g3.knee,0.28);
+      var femM=lerp(g3.hip,g3.knee,0.62);
+
+      M["gmed"+s].setAttribute("d", ribbon(crestLat, troch, 20, 12));
+      M["gmax"+s].setAttribute("d", ribbon(crestPost, add(femQ,g3.lat,2), 24, 14));
+      M["quad"+s].setAttribute("d", ribbon(add(g3.hip,g3.lat,-2), add(g3.knee,g3.lat,-2), 17, 13));
+      M["vmo"+s].setAttribute("d", ribbon(add(femM,g3.lat,-7), add(g3.knee,g3.lat,-6), 11, 9));
+      M["calf"+s].setAttribute("d", ribbon(lerp(g3.knee,g3.ankle,0.08), lerp(g3.knee,g3.ankle,0.72), 14, 6));
+      var tflBot=add(femQ,g3.lat,6);
+      M["tfl"+s].setAttribute("d", ribbon(crestAnt, tflBot, 13, 9));
+      var gerdy=add(g3.knee,g3.lat,6.5);
+      M["itb"+s].setAttribute("d", ribbon(tflBot, gerdy, 7, 6));
+    });
+
+    /* teinte dynamique de la bandelette droite */
+    var ten=S.tension/100;
+    if(path){
+      var mixR=Math.round(94+(225-94)*Math.pow(ten,1.5));
+      var mixG=Math.round(134+(84-134)*Math.pow(ten,1.5));
+      var mixB=Math.round(165+(61-165)*Math.pow(ten,1.5));
+      M["itbR"].setAttribute("fill","rgb("+mixR+","+mixG+","+mixB+")");
+      M["itbR"].setAttribute("opacity",(0.75+0.25*ten).toFixed(2));
+    }
+
+    /* ombres portées */
+    var R=S.legs.R, L=S.legs.L;
+    shR.setAttribute("cx",R.ankle.x.toFixed(1));shR.setAttribute("cy",GROUND+9);
+    shR.setAttribute("opacity",(0.12+0.3*R.w).toFixed(2));
+    shR.setAttribute("rx",(10+7*R.w).toFixed(1));
+    shL.setAttribute("cx",L.ankle.x.toFixed(1));shL.setAttribute("cy",GROUND+9);
+    shL.setAttribute("opacity",(0.12+0.3*L.w).toFixed(2));
+    shL.setAttribute("rx",(10+7*L.w).toFixed(1));
+
+    /* conflit condylien */
+    var cond=add(R.knee,R.lat,7);
+    flare.setAttribute("cx",cond.x.toFixed(1));flare.setAttribute("cy",cond.y.toFixed(1));
+    flare2.setAttribute("cx",cond.x.toFixed(1));flare2.setAttribute("cy",cond.y.toFixed(1));
+    var on=S.friction && path;
+    flare.setAttribute("opacity",on?(0.55+0.4*Math.abs(Math.sin(t*26))).toFixed(2):0);
+    flare.setAttribute("r",(8+3*Math.abs(Math.sin(t*26))).toFixed(1));
+    flare2.setAttribute("opacity",on?0.95:0);
+
+    /* forces */
+    var gx=R.ankle.x+R.lat.x*15;
+    setLine(grf,{x:gx,y:GROUND+2},{x:gx,y:GROUND+2-(18+42*R.w)});
+    grf.setAttribute("opacity",R.w>0.06?0.9:0);
+
+    var vA=add(R.knee,R.lat,20), vB=add(R.knee,R.lat,7);
+    setLine(valgusArrow,vA,vB);
+    valgusArrow.setAttribute("opacity",(path&&R.w>0.15)?0.95:0);
+
+    var hR=S.legs.R.hip, hL=S.legs.L.hip;
+    setLine(levelLine,{x:hR.x-6,y:(hR.y+hL.y)/2},{x:hL.x+6,y:(hR.y+hL.y)/2});
+    levelLine.setAttribute("opacity",0.6);
+    dropArc.setAttribute("d","M"+hR.x.toFixed(1)+" "+hR.y.toFixed(1)+" L"+hL.x.toFixed(1)+" "+hL.y.toFixed(1));
+    dropArc.setAttribute("opacity",(path&&S.drop>4)?0.95:0);
+
+    /* étiquettes */
+    var crestLatR=S.pel(-(HW+3),-9);
+    var femQR=lerp(R.hip,R.knee,0.28);
+    var midItb=lerp(add(femQR,R.lat,6),add(R.knee,R.lat,6.5),0.5);
+    var vmoR=add(lerp(R.hip,R.knee,0.62),R.lat,-8);
+    leader(lbGmed, crestLatR.x-2, crestLatR.y+3);
+    leader(lbTfl, femQR.x-4, femQR.y);
+    leader(lbItb, midItb.x-3, midItb.y);
+    leader(lbVmo, vmoR.x+4, vmoR.y);
+    leader(lbCond, cond.x+5, cond.y);
+    lbItb.l2.textContent="tension "+Math.round(S.tension)+" %";
+
+    return S;
+  }
+  return update;
+}
+
+/* ---------- pilotage ---------- */
+var updA=makeFigure(document.getElementById("svgA"), false);
+var updB=makeFigure(document.getElementById("svgB"), true);
+
+var opts={muscles:true,forces:true,labels:true};
+var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var playing=!reduced;
+var speed=0.55, slow=false;
+var t=0.60; /* on démarre au milieu de l'appui droit */
+var last=null, frame=0;
+
+var scrub=document.getElementById("scrub");
+var pct=document.getElementById("pct");
+var playBtn=document.getElementById("play");
+
+var ros={
+  drop:{box:document.getElementById("roDrop"),v:document.getElementById("vDrop"),max:16},
+  add:{box:document.getElementById("roAdd"),v:document.getElementById("vAdd"),max:26},
+  val:{box:document.getElementById("roVal"),v:document.getElementById("vVal"),max:18},
+  flex:{box:document.getElementById("roFlex"),v:document.getElementById("vFlex"),max:120},
+  ten:{box:document.getElementById("roTen"),v:document.getElementById("vTen"),max:100}
+};
+function ro(k,val,alert){
+  var o=ros[k];
+  o.v.childNodes[0].nodeValue=String(Math.round(val));
+  o.box.classList.toggle("alert",!!alert);
+  o.box.querySelector(".ro-bar i").style.width=clamp(val/o.max*100,0,100)+"%";
+}
+
+function render(){
+  updA(t,opts);
+  var S=updB(t,opts);
+  if(frame%2===0){
+    ro("drop",S.drop,S.drop>7);
+    ro("add",S.addR,S.addR>13);
+    ro("val",S.valR,S.valR>8);
+    ro("flex",S.flexR,S.friction);
+    ro("ten",S.tension,S.tension>60);
+    pct.textContent=Math.round(mod1(t)*100)+" %";
+  }
+  frame++;
+}
+function loop(ts){
+  if(last===null)last=ts;
+  var dt=Math.min(0.05,(ts-last)/1000);last=ts;
+  if(playing){
+    t=mod1(t+dt*speed*(slow?0.28:1));
+    scrub.value=Math.round(mod1(t)*1000);
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+playBtn.addEventListener("click",function(){
+  playing=!playing;
+  playBtn.textContent=playing?"Pause":"Lecture";
+  playBtn.setAttribute("aria-pressed",String(playing));
+});
+if(reduced){playBtn.textContent="Lecture";playBtn.setAttribute("aria-pressed","false");}
+
+scrub.addEventListener("input",function(){
+  playing=false;playBtn.textContent="Lecture";playBtn.setAttribute("aria-pressed","false");
+  t=scrub.value/1000;render();
+});
+function toggle(id,key){
+  var b=document.getElementById(id);
+  b.addEventListener("click",function(){
+    if(key==="slow"){slow=!slow;b.setAttribute("aria-pressed",String(slow));}
+    else{opts[key]=!opts[key];b.setAttribute("aria-pressed",String(opts[key]));}
+    render();
+  });
+}
+toggle("tMus","muscles");toggle("tFor","forces");toggle("tLab","labels");toggle("tSlow","slow");
+scrub.value=Math.round(t*1000);
+render();
+})();
+</script>
