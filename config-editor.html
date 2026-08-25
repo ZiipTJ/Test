@@ -857,6 +857,18 @@
             renderDynamicSubassemblies();
         }
 
+        // Catégories de sous-ensembles : uniquement Partie haute / Partie basse
+        // (utile pour le Sherpa B). "Aucune" pour tous les autres robots.
+        const SUB_GROUPS = ["Partie basse", "Partie haute"];
+
+        function groupSelectHtml(cls, value) {
+            const current = value || "";
+            const opts = ['<option value="">Aucune</option>']
+                .concat(SUB_GROUPS.map(g =>
+                    `<option value="${g}"${g === current ? ' selected' : ''}>${g}</option>`));
+            return `<select class="${cls}">${opts.join('')}</select>`;
+        }
+
         function renderDynamicSubassemblies() {
             const tbody = document.getElementById('dynSubassyTableBody');
             if (!tbody) return;
@@ -873,7 +885,7 @@
                 row.innerHTML = `
                     <td><input type="text" value="${se.id || ''}" class="sub-id-${idx} font-code" style="text-transform: uppercase;"></td>
                     <td><input type="text" value="${se.name || ''}" class="sub-name-${idx}"></td>
-                    <td><input type="text" value="${se.group || ''}" class="sub-group-${idx}" list="groupSuggestions" placeholder="Partie basse..."></td>
+                    <td>${groupSelectHtml(`sub-group-${idx}`, se.group)}</td>
                     <td>
                         <div class="logic-input-wrapper">
                             <input type="text" value="${se.option || ''}"
@@ -1063,7 +1075,7 @@
                 tr.innerHTML = `
                     <td><input type="text" value="${se.id || ''}" class="ssub-id-${idx} font-code" style="text-transform: uppercase;"></td>
                     <td><input type="text" value="${se.name || ''}" class="ssub-name-${idx}"></td>
-                    <td><input type="text" value="${se.group || ''}" class="ssub-group-${idx}" list="groupSuggestions" placeholder="Partie basse..."></td>
+                    <td>${groupSelectHtml(`ssub-group-${idx}`, se.group)}</td>
                     <td style="text-align: center;">
                         <button onclick="removeStationSubassembly(${idx})" class="btn-delete">Supprimer</button>
                     </td>
@@ -1291,13 +1303,6 @@
         initEditor();
     </script>
 
-    <datalist id="groupSuggestions">
-        <option value="Partie basse"></option>
-        <option value="Partie haute"></option>
-        <option value="Options"></option>
-        <option value="Câblage"></option>
-        <option value="Contrôle final"></option>
-    </datalist>
 
 </body>
 </html>

@@ -312,6 +312,43 @@
             display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap;
         }
         .sync-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--slate-500); flex-shrink: 0; }
+        /* ---- Onglets du dossier ---- */
+        .pane-tabs {
+            display: flex; gap: 0.4rem; padding: 0 1.5rem;
+            border-bottom: 1px solid var(--slate-200); background-color: #fff;
+        }
+        .pane-tab {
+            background: transparent; border: none; border-bottom: 3px solid transparent;
+            border-radius: 0; padding: 0.7rem 1rem; font-size: 0.8125rem; font-weight: 700;
+            color: var(--slate-500);
+        }
+        .pane-tab:hover { color: var(--slate-800); background-color: var(--slate-50); }
+        .pane-tab.active { color: var(--slate-900); border-bottom-color: var(--blue); }
+        .pane-tab .pane-badge {
+            font-size: 0.6875rem; font-weight: 700; background-color: var(--slate-200);
+            color: var(--slate-600); padding: 0.05rem 0.4rem; border-radius: 9999px; margin-left: 0.35rem;
+        }
+        .pane-tab.active .pane-badge { background-color: var(--blue); color: #fff; }
+
+        /* ---- Indicateurs ---- */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .kpi-card {
+            background: #fff; border: 1px solid var(--slate-200); border-radius: var(--radius-lg);
+            padding: 1rem 1.1rem; box-shadow: var(--shadow-sm);
+        }
+        .kpi-label {
+            font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.03em;
+            color: var(--slate-500); font-weight: 700;
+        }
+        .kpi-value { font-size: 1.4rem; font-weight: 700; color: var(--slate-900); margin-top: 0.25rem; }
+        .kpi-sub { font-size: 0.7rem; color: var(--slate-400); margin-top: 0.15rem; }
+        .chart-wrap { overflow-x: auto; padding-bottom: 0.5rem; }
+        .empty-hint {
+            text-align: center; color: var(--slate-400); font-style: italic;
+            font-size: 0.8125rem; padding: 2rem 1rem;
+        }
+        .row-current { background-color: #eff6ff !important; }
+
         .sync-dot.saving { background: var(--amber); }
         .sync-dot.ok { background: var(--emerald); }
         .sync-dot.err { background: var(--red); }
@@ -696,8 +733,21 @@
                     <button onclick="showActiveForm()" class="btn-gray" style="font-size: 0.75rem;">⬅️ Retour Création</button>
                 </div>
 
+                <div class="pane-tabs">
+                    <button id="paneTabSub" onclick="setPane('sub')" class="pane-tab active">
+                        Sous-ensembles <span id="paneTabSubCount" class="pane-badge">0</span>
+                    </button>
+                    <button id="paneTabBom" onclick="setPane('bom')" class="pane-tab">
+                        Nomenclature d'assemblage <span id="paneTabBomCount" class="pane-badge">0</span>
+                    </button>
+                    <button id="paneTabKpi" onclick="setPane('kpi')" class="pane-tab">
+                        Indicateurs
+                    </button>
+                </div>
+
                 <div class="scan-body">
-                    <div id="subAssyContainer" class="hidden" style="margin-bottom: 1.5rem;">
+                  <div id="paneSub">
+                    <div id="subAssyContainer" style="margin-bottom: 1.5rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                             <h3 class="section-title">Sous-ensembles</h3>
                             <span id="subAssyCount" style="font-size: 0.75rem; font-weight: 700; color: #64748b;"></span>
@@ -708,15 +758,22 @@
                                     <tr>
                                         <th style="width: 3.5rem; text-align: center;">Fait</th>
                                         <th class="normal-wrap">Sous-ensemble</th>
-                                        <th style="width: 11rem;">Heure</th>
+                                        <th style="width: 7rem;">Temps</th>
+                                        <th style="width: 11rem;">Date</th>
                                         <th style="text-align: center; width: 7rem;">Trigramme</th>
+                                        <th class="normal-wrap">Remarques</th>
                                     </tr>
                                 </thead>
                                 <tbody id="subAssyTableBody"></tbody>
                             </table>
                         </div>
                     </div>
+                    <div id="subAssyEmpty" class="empty-hint hidden">
+                        Aucun sous-ensemble n'est défini pour ce type dans la configuration en vigueur.
+                    </div>
+                  </div>
 
+                  <div id="paneBom" class="hidden">
                     <div id="savContainer" class="hidden" style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 0.75rem; font-weight: 700; color: #dc2626; text-transform: uppercase; background-color: #fef2f2; display: inline-block; padding: 0.25rem 0.625rem; border-radius: 0.25rem; border: 1px solid #fca5a5; margin-bottom: 0.75rem;">SAV</h3>
                         <div class="table-wrap" style="border-color: #fca5a5;">
@@ -756,6 +813,11 @@
                             </table>
                         </div>
                     </div>
+                  </div>
+
+                  <div id="paneKpi" class="hidden">
+                    <div id="kpiContent"></div>
+                  </div>
                 </div>
             </div>
         </main>
@@ -849,6 +911,47 @@
         </div>
     </div>
 
+    <div id="subAssyModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 460px;">
+            <div class="modal-header">
+                <h3>Valider un sous-ensemble</h3>
+            </div>
+            <form onsubmit="handleSaveSubassembly(event)">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.1rem;">
+                    <div class="form-group">
+                        <label>Sous-ensemble</label>
+                        <div id="subAssyModalName" style="padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 700; font-size: 0.875rem;">--</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Date d'enregistrement</label>
+                        <div id="subAssyModalDate" style="padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 600; font-size: 0.875rem; color: #475569;">--</div>
+                    </div>
+                    <div class="form-group">
+                        <label>* Temps passé</label>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input id="subAssyHours" type="number" min="0" max="999" placeholder="0" style="text-align: center;">
+                            <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
+                            <input id="subAssyMinutes" type="number" min="0" max="59" placeholder="0" style="text-align: center;">
+                            <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">min</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>* Trigramme</label>
+                        <input id="subAssyOperator" type="text" required maxlength="3" placeholder="" style="font-weight: 700; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                    </div>
+                    <div class="form-group">
+                        <label>Remarques (facultatif)</label>
+                        <textarea id="subAssyNote" rows="2" placeholder=""></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeModal('subAssyModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" class="btn-blue">Valider</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="remarksModal" class="modal hidden">
         <div class="modal-content" style="max-width: 480px;">
             <div class="modal-header">
@@ -903,7 +1006,8 @@
         let showFinished = false;
         let scanTypingTimer = null;
         let lastKeyTime = 0;
-        let pendingSubIndex = null;
+        let activeSubIndex = null;
+        let activePane = 'sub';
 
         const BATTERY_REF = "SHE-0020400";
         const RACK_BATTERY_REF = "SHE-1046501";
@@ -919,6 +1023,131 @@
             return !!item.scanned;
         }
 
+        // ====================================================================
+        //  JOURS OUVRÉS (Alsace-Moselle) & TEMPS DE PASSAGE
+        // ====================================================================
+        const holidayCache = {};
+
+        // Dimanche de Pâques (algorithme de Meeus/Butcher)
+        function easterSunday(year) {
+            const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+            const d = Math.floor(b / 4), e = b % 4;
+            const f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3);
+            const h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4), k = c % 4;
+            const l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31);
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            return new Date(year, month - 1, day);
+        }
+
+        function dayKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+
+        // Fériés légaux + les 2 jours propres à l'Alsace-Moselle
+        // (Vendredi Saint et 26 décembre).
+        function holidaysForYear(year) {
+            if (holidayCache[year]) return holidayCache[year];
+            const set = new Set();
+            const add = (d) => set.add(dayKey(d));
+            const easter = easterSunday(year);
+            const off = (n) => new Date(easter.getFullYear(), easter.getMonth(), easter.getDate() + n);
+
+            add(new Date(year, 0, 1));    // Jour de l'an
+            add(off(-2));                 // Vendredi Saint (Alsace-Moselle)
+            add(off(1));                  // Lundi de Pâques
+            add(new Date(year, 4, 1));    // Fête du Travail
+            add(new Date(year, 4, 8));    // Victoire 1945
+            add(off(39));                 // Ascension
+            add(off(50));                 // Lundi de Pentecôte
+            add(new Date(year, 6, 14));   // Fête nationale
+            add(new Date(year, 7, 15));   // Assomption
+            add(new Date(year, 10, 1));   // Toussaint
+            add(new Date(year, 10, 11));  // Armistice
+            add(new Date(year, 11, 25));  // Noël
+            add(new Date(year, 11, 26));  // 2e jour de Noël (Alsace-Moselle)
+
+            holidayCache[year] = set;
+            return set;
+        }
+
+        function isWorkingDay(d) {
+            const wd = d.getDay();
+            if (wd === 0 || wd === 6) return false;
+            return !holidaysForYear(d.getFullYear()).has(dayKey(d));
+        }
+
+        // Temps écoulé entre deux instants, week-ends et fériés déduits.
+        function workingDurationMs(startMs, endMs) {
+            if (!startMs || !endMs || endMs <= startMs) return 0;
+            let total = 0;
+            const cur = new Date(startMs);
+            cur.setHours(0, 0, 0, 0);
+            let guard = 0;
+            while (cur.getTime() < endMs && guard++ < 4000) {
+                const dayStart = cur.getTime();
+                const next = new Date(cur);
+                next.setDate(next.getDate() + 1);
+                const dayEnd = next.getTime();
+                if (isWorkingDay(cur)) {
+                    const from = Math.max(dayStart, startMs);
+                    const to = Math.min(dayEnd, endMs);
+                    if (to > from) total += to - from;
+                }
+                cur.setTime(dayEnd);
+            }
+            return total;
+        }
+
+        function formatWorkingDuration(ms) {
+            if (!ms || ms <= 0) return '--';
+            const totalMin = Math.round(ms / 60000);
+            const days = Math.floor(totalMin / 1440);
+            const hours = Math.floor((totalMin % 1440) / 60);
+            const mins = totalMin % 60;
+            const parts = [];
+            if (days) parts.push(`${days} j`);
+            if (hours) parts.push(`${hours} h`);
+            if (mins || parts.length === 0) parts.push(`${mins} min`);
+            return parts.join(' ');
+        }
+
+        function formatMinutes(totalMin) {
+            if (!totalMin || totalMin <= 0) return '--';
+            const h = Math.floor(totalMin / 60);
+            const m = Math.round(totalMin % 60);
+            if (h && m) return `${h} h ${m} min`;
+            if (h) return `${h} h`;
+            return `${m} min`;
+        }
+
+        // Date d'ouverture du dossier (les anciens éléments n'ont pas de
+        // createdAt : on la retrouve depuis l'identifiant "R-<timestamp>").
+        function elementCreatedAt(el) {
+            if (el.createdAt) return el.createdAt;
+            const parsed = parseInt(String(el.id || '').split('-')[1]);
+            return isNaN(parsed) ? null : parsed;
+        }
+
+        function isElementComplete(el) {
+            const bomOk = (el.bom || []).every(isItemComplete);
+            const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
+            const subOk = subs.every(s => s.done);
+            const hasSomething = (el.bom || []).length > 0 || subs.length > 0;
+            return hasSomething && bomOk && subOk;
+        }
+
+        // Horodate le passage à 100 % ; l'efface si le dossier repasse en dessous.
+        function updateCompletion(el) {
+            if (!el) return;
+            if (isElementComplete(el)) {
+                if (!el.completedAt) el.completedAt = Date.now();
+            } else if (el.completedAt) {
+                el.completedAt = null;
+            }
+        }
+
         // Construit la liste des sous-ensembles à réaliser, filtrée par les
         // options cochées (même logique de condition que la nomenclature).
         function buildSubassemblies(source, checkedOptionIds) {
@@ -932,7 +1161,9 @@
                     group: se.group || "",
                     done: false,
                     doneTime: "",
-                    doneOperator: ""
+                    doneOperator: "",
+                    durationMin: 0,
+                    note: ""
                 });
             });
             return out;
@@ -1616,6 +1847,9 @@
             }
 
             renderScanTables();
+            // Sans sous-ensembles configurés, on ouvre directement la nomenclature.
+            const hasSubs = Array.isArray(el.subassemblies) && el.subassemblies.length > 0;
+            setPane(hasSubs ? 'sub' : 'bom');
             renderSidebarList();
         }
 
@@ -1722,6 +1956,7 @@
                 (isSAV ? savBody : bomBody).appendChild(tr);
             });
 
+            document.getElementById('paneTabBomCount').textContent = `${normalScanned}/${normalCount}`;
             document.getElementById('activeProgressCount').textContent = `${normalScanned} / ${normalCount} Pièces`;
             const pct = normalCount > 0 ? Math.round((normalScanned / normalCount) * 100) : 0;
             document.getElementById('activeProgressBar').style.width = `${pct}%`;
@@ -1747,17 +1982,37 @@
             renderSubassemblies();
         }
 
+        // ---- Onglets du dossier ---------------------------------------------
+        function setPane(pane) {
+            activePane = pane;
+            const map = { sub: 'paneSub', bom: 'paneBom', kpi: 'paneKpi' };
+            const tabs = { sub: 'paneTabSub', bom: 'paneTabBom', kpi: 'paneTabKpi' };
+            Object.keys(map).forEach(k => {
+                document.getElementById(map[k]).classList.toggle('hidden', k !== pane);
+                document.getElementById(tabs[k]).className = 'pane-tab' + (k === pane ? ' active' : '');
+            });
+            if (pane === 'kpi') renderIndicators();
+        }
+
         // ---- Sous-ensembles --------------------------------------------------
         function renderSubassemblies() {
             const el = getActiveElement();
             const container = document.getElementById('subAssyContainer');
+            const emptyBox = document.getElementById('subAssyEmpty');
             const tbody = document.getElementById('subAssyTableBody');
-            if (!el || !Array.isArray(el.subassemblies) || el.subassemblies.length === 0) {
+            const subs = (el && Array.isArray(el.subassemblies)) ? el.subassemblies : [];
+
+            document.getElementById('paneTabSubCount').textContent =
+                `${subs.filter(s => s.done).length}/${subs.length}`;
+
+            if (subs.length === 0) {
                 container.classList.add('hidden');
+                emptyBox.classList.remove('hidden');
                 return;
             }
             const locked = !!el.closed;
             container.classList.remove('hidden');
+            emptyBox.classList.add('hidden');
             tbody.innerHTML = '';
 
             // Regroupement par famille (Partie basse / Partie haute / …) en
@@ -1773,7 +2028,7 @@
             groups.forEach((rows, groupName) => {
                 if (groupName) {
                     const gr = document.createElement('tr');
-                    gr.innerHTML = `<td colspan="4" style="background-color: #f1f5f9; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569;">${groupName}</td>`;
+                    gr.innerHTML = `<td colspan="6" style="background-color: #f1f5f9; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569;">${groupName}</td>`;
                     tbody.appendChild(gr);
                 }
                 rows.forEach(({ se, idx }) => {
@@ -1785,8 +2040,10 @@
                             <input type="checkbox" ${se.done ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="toggleSubassembly(${idx})" style="width: 1.1rem; height: 1.1rem; cursor: ${locked ? 'not-allowed' : 'pointer'};">
                         </td>
                         <td class="normal-wrap" style="font-weight: 500;">${se.name}</td>
+                        <td style="font-weight: 700; font-size: 0.8125rem; color: #0f172a;">${se.done ? formatMinutes(se.durationMin) : '--'}</td>
                         <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${se.doneTime || '--'}</td>
                         <td style="text-align: center; font-weight: 700; font-size: 0.8125rem;">${se.doneOperator || '--'}</td>
+                        <td class="normal-wrap" style="font-size: 0.75rem; color: #475569;">${se.note || ''}</td>
                     `;
                     tbody.appendChild(tr);
                 });
@@ -1803,33 +2060,260 @@
 
             if (se.done) {
                 se.done = false; se.doneTime = ''; se.doneOperator = '';
+                se.durationMin = 0; se.note = '';
                 el.updatedAt = Date.now();
+                updateCompletion(el);
                 renderSubassemblies();
                 renderSidebarList();
                 scheduleSave();
                 return;
             }
 
-            if (!currentScanOperator) {
-                pendingSubIndex = index;
-                renderSubassemblies();
-                openScanOperatorModal();
-                return;
-            }
-            applySubassembly(index, currentScanOperator);
+            // Le trigramme et le temps sont redemandés à chaque validation.
+            activeSubIndex = index;
+            document.getElementById('subAssyModalName').textContent = se.name;
+            document.getElementById('subAssyModalDate').textContent = formatDateTime();
+            document.getElementById('subAssyHours').value = '';
+            document.getElementById('subAssyMinutes').value = '';
+            document.getElementById('subAssyOperator').value = '';
+            document.getElementById('subAssyNote').value = '';
+            renderSubassemblies();
+            document.getElementById('subAssyModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('subAssyHours').focus(), 50);
         }
 
-        function applySubassembly(index, operator) {
+        function handleSaveSubassembly(e) {
+            e.preventDefault();
             const el = getActiveElement();
-            if (!el) return;
-            const se = el.subassemblies[index];
+            if (!el || el.closed || activeSubIndex === null) { closeModal('subAssyModal'); return; }
+
+            const operator = document.getElementById('subAssyOperator').value.trim().toUpperCase();
+            if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
+
+            const h = parseInt(document.getElementById('subAssyHours').value) || 0;
+            const m = parseInt(document.getElementById('subAssyMinutes').value) || 0;
+            const duration = h * 60 + m;
+            if (duration <= 0) { alert("Veuillez renseigner le temps passé."); return; }
+
+            const se = el.subassemblies[activeSubIndex];
             se.done = true;
             se.doneTime = formatDateTime();
             se.doneOperator = operator;
+            se.durationMin = duration;
+            se.note = document.getElementById('subAssyNote').value.trim();
+
             el.updatedAt = Date.now();
+            updateCompletion(el);
+            activeSubIndex = null;
+            closeModal('subAssyModal');
             renderSubassemblies();
             renderSidebarList();
             scheduleSave();
+        }
+
+        // ---- Indicateurs -----------------------------------------------------
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // Agrège les temps saisis par sous-ensemble, tous dossiers confondus.
+        function collectSubassemblyStats() {
+            const map = new Map();
+            elements.forEach(el => {
+                (el.subassemblies || []).forEach(se => {
+                    if (!se.done || !se.durationMin) return;
+                    const key = se.name;
+                    if (!map.has(key)) map.set(key, { name: key, group: se.group || '', total: 0, count: 0 });
+                    const s = map.get(key);
+                    s.total += se.durationMin;
+                    s.count += 1;
+                });
+            });
+            const list = Array.from(map.values());
+            list.forEach(s => { s.avg = s.total / s.count; });
+            list.sort((a, b) => b.avg - a.avg);   // le plus long à gauche
+            return list;
+        }
+
+        function collectLeadTimes() {
+            return elements
+                .filter(el => el.objectType !== 'envoi')
+                .map(el => {
+                    const start = elementCreatedAt(el);
+                    const end = el.completedAt || null;
+                    return {
+                        el,
+                        start,
+                        end,
+                        ms: (start && end) ? workingDurationMs(start, end) : 0
+                    };
+                });
+        }
+
+        function buildBarChart(stats) {
+            if (stats.length === 0) return '';
+            const barW = 54, gap = 18, padL = 62, padR = 24, padT = 20, padB = 110;
+            const chartH = 240;
+            const width = padL + padR + stats.length * barW + (stats.length - 1) * gap;
+            const height = chartH + padT + padB;
+            const maxVal = Math.max(...stats.map(s => s.avg));
+
+            // Graduations horizontales
+            let grid = '';
+            const ticks = 4;
+            for (let i = 0; i <= ticks; i++) {
+                const val = (maxVal / ticks) * i;
+                const y = padT + chartH - (chartH * i / ticks);
+                grid += `<line x1="${padL}" y1="${y}" x2="${width - padR}" y2="${y}" stroke="#e2e8f0" stroke-width="1"/>`;
+                grid += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#94a3b8">${formatMinutes(Math.round(val))}</text>`;
+            }
+
+            let bars = '';
+            stats.forEach((s, i) => {
+                const h = maxVal > 0 ? Math.max(2, (s.avg / maxVal) * chartH) : 2;
+                const x = padL + i * (barW + gap);
+                const y = padT + chartH - h;
+                const label = s.name.length > 22 ? s.name.slice(0, 21) + '…' : s.name;
+                bars += `
+                    <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="url(#barGrad)">
+                        <title>${escapeHtml(s.name)} — moyenne ${formatMinutes(Math.round(s.avg))} sur ${s.count} relevé(s)</title>
+                    </rect>
+                    <text x="${x + barW / 2}" y="${y - 6}" text-anchor="middle" font-size="11" font-weight="700" fill="#0f172a">${formatMinutes(Math.round(s.avg))}</text>
+                    <text x="${x + barW / 2}" y="${padT + chartH + 14}" text-anchor="end" font-size="10.5" fill="#334155"
+                          transform="rotate(-45 ${x + barW / 2} ${padT + chartH + 14})">${escapeHtml(label)}</text>
+                `;
+            });
+
+            return `
+                <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img"
+                     aria-label="Classement des sous-ensembles par temps moyen">
+                    <defs>
+                        <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#3b82f6"/>
+                            <stop offset="100%" stop-color="#1d4ed8"/>
+                        </linearGradient>
+                    </defs>
+                    ${grid}
+                    <line x1="${padL}" y1="${padT + chartH}" x2="${width - padR}" y2="${padT + chartH}" stroke="#94a3b8" stroke-width="1.5"/>
+                    ${bars}
+                </svg>
+            `;
+        }
+
+        function renderIndicators() {
+            const box = document.getElementById('kpiContent');
+            if (!box) return;
+
+            const el = getActiveElement();
+            const stats = collectSubassemblyStats();
+            const leads = collectLeadTimes();
+            const done = leads.filter(l => l.ms > 0);
+            const avgLead = done.length ? done.reduce((a, l) => a + l.ms, 0) / done.length : 0;
+
+            const current = el ? leads.find(l => l.el.id === el.id) : null;
+            const currentLead = current
+                ? (current.ms > 0 ? formatWorkingDuration(current.ms) : 'Dossier en cours')
+                : '--';
+
+            let html = `
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Temps de passage — ce dossier</div>
+                        <div class="kpi-value">${currentLead}</div>
+                        <div class="kpi-sub">${el ? escapeHtml(el.displayName) : ''}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Temps de passage moyen</div>
+                        <div class="kpi-value">${done.length ? formatWorkingDuration(avgLead) : '--'}</div>
+                        <div class="kpi-sub">${done.length} dossier(s) terminé(s)</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Sous-ensembles mesurés</div>
+                        <div class="kpi-value">${stats.length}</div>
+                        <div class="kpi-sub">${stats.reduce((a, s) => a + s.count, 0)} relevé(s) au total</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 0.5rem;">
+                    <h3 class="section-title">Classement des sous-ensembles par temps moyen</h3>
+                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Du plus long (à gauche) au plus court (à droite), tous dossiers confondus.</p>
+                </div>
+            `;
+
+            if (stats.length === 0) {
+                html += `<div class="empty-hint">Aucun temps de sous-ensemble enregistré pour le moment.</div>`;
+            } else {
+                html += `<div class="chart-wrap">${buildBarChart(stats)}</div>`;
+                html += `
+                    <div class="table-wrap" style="margin-top: 1.5rem;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 3rem; text-align: center;">#</th>
+                                    <th class="normal-wrap">Sous-ensemble</th>
+                                    <th style="width: 10rem;">Partie</th>
+                                    <th style="width: 9rem;">Temps moyen</th>
+                                    <th style="width: 9rem;">Temps cumulé</th>
+                                    <th style="width: 7rem; text-align: center;">Relevés</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${stats.map((s, i) => `
+                                    <tr>
+                                        <td style="text-align: center; font-weight: 700; color: #94a3b8;">${i + 1}</td>
+                                        <td class="normal-wrap" style="font-weight: 600;">${escapeHtml(s.name)}</td>
+                                        <td style="font-size: 0.75rem; color: #64748b;">${escapeHtml(s.group || '--')}</td>
+                                        <td style="font-weight: 700;">${formatMinutes(Math.round(s.avg))}</td>
+                                        <td style="color: #475569;">${formatMinutes(s.total)}</td>
+                                        <td style="text-align: center;">${s.count}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div style="margin-top: 2rem; margin-bottom: 0.5rem;">
+                    <h3 class="section-title">Temps de passage par dossier</h3>
+                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Entre l'ouverture du dossier et le passage à 100 %, week-ends et jours fériés d'Alsace-Moselle déduits.</p>
+                </div>
+            `;
+
+            if (leads.length === 0) {
+                html += `<div class="empty-hint">Aucun dossier enregistré.</div>`;
+            } else {
+                html += `
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="normal-wrap">Dossier</th>
+                                    <th style="width: 9rem;">Client</th>
+                                    <th style="width: 11rem;">Ouverture</th>
+                                    <th style="width: 11rem;">100 % atteint</th>
+                                    <th style="width: 10rem;">Temps ouvré</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${leads.map(l => `
+                                    <tr class="${(el && l.el.id === el.id) ? 'row-current' : ''}">
+                                        <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(l.el.displayName)}</td>
+                                        <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(l.el.client || '')}</td>
+                                        <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.start ? formatDateTime(new Date(l.start)) : '--'}</td>
+                                        <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.end ? formatDateTime(new Date(l.end)) : '--'}</td>
+                                        <td style="font-weight: 700;">${l.ms > 0 ? formatWorkingDuration(l.ms) : '<span style="color:#94a3b8; font-weight:500; font-style:italic;">En cours</span>'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            box.innerHTML = html;
         }
 
         // ---- Remarques du dossier -------------------------------------------
@@ -1904,6 +2388,7 @@
             el.bom[index].scanDate = formatDateTime();
             el.bom[index].scanOperator = operator;
             el.updatedAt = Date.now();
+            updateCompletion(el);
 
             renderScanTables();
             renderSidebarList();
@@ -1923,6 +2408,7 @@
                 scanOperator: operator
             });
             el.updatedAt = Date.now();
+            updateCompletion(el);
 
             closeModal('manualScanModal');
             renderScanTables();
@@ -1954,6 +2440,7 @@
             el.bom[index].serialNum = val;
             el.bom[index].scanDate = formatDateTime();
             el.updatedAt = Date.now();
+            updateCompletion(el);
             editingIndex = null;
             renderScanTables();
             renderSidebarList();
@@ -2030,7 +2517,7 @@
             );
 
             const id = 'R-' + Date.now();
-            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom, subassemblies, updatedAt: Date.now() });
+            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom, subassemblies, createdAt: Date.now(), updatedAt: Date.now() });
             selectElement(id);
             scheduleSave();
         }
@@ -2055,7 +2542,7 @@
             );
 
             const id = 'S-' + Date.now();
-            elements.push({ id, objectType: 'station', type: code, typeName: selectedType?.name || "Station", color: selectedType?.color || "#64748B", num: autoNum, displayName, client, projectNum, operator, remarks, bom, subassemblies, updatedAt: Date.now() });
+            elements.push({ id, objectType: 'station', type: code, typeName: selectedType?.name || "Station", color: selectedType?.color || "#64748B", num: autoNum, displayName, client, projectNum, operator, remarks, bom, subassemblies, createdAt: Date.now(), updatedAt: Date.now() });
             selectElement(id);
             scheduleSave();
         }
@@ -2087,7 +2574,7 @@
             const id = 'E-' + Date.now();
             const displayName = `Envoi PR${projectNum}`;
 
-            elements.push({ id, objectType: 'envoi', displayName, client, projectNum, operator, dateValidation: dateStr, bom, updatedAt: Date.now() });
+            elements.push({ id, objectType: 'envoi', displayName, client, projectNum, operator, dateValidation: dateStr, bom, createdAt: Date.now(), updatedAt: Date.now() });
             scheduleSave();
             alert("Envoi enregistré avec succès !");
             showEnvoisConsultationView();
@@ -2221,6 +2708,7 @@
             item.scanDate = formatDateTime();
             if (currentScanOperator) item.scanOperator = currentScanOperator;
             el.updatedAt = Date.now();
+            updateCompletion(el);
 
             closeModal('batteryChargeModal');
             renderScanTables();
@@ -2250,6 +2738,7 @@
             item.scanDate = formatDateTime();
             if (currentScanOperator) item.scanOperator = currentScanOperator;
             el.updatedAt = Date.now();
+            updateCompletion(el);
 
             closeModal('rackBatteryModal');
             renderScanTables();
@@ -2291,14 +2780,6 @@
             if (trigram.length !== 3) return;
             currentScanOperator = trigram;
             closeModal('operatorScanModal');
-
-            // Sous-ensemble en attente d'opérateur
-            if (pendingSubIndex !== null) {
-                const i = pendingSubIndex;
-                pendingSubIndex = null;
-                applySubassembly(i, currentScanOperator);
-                return;
-            }
 
             if (pendingScanIndex === null) return;
 
