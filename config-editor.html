@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Éditeur de Configuration Sherpa - config.json</title>
+    <style>
+        :root {
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-300: #cbd5e1;
+            --slate-400: #94a3b8;
+            --slate-500: #64748b;
+            --slate-600: #475569;
+            --slate-700: #334155;
+            --slate-800: #1e293b;
+            --slate-900: #0f172a;
+            --blue-600: #2563eb;
+            --blue-700: #1d4ed8;
+            --emerald-600: #059669;
+            --emerald-700: #047857;
+            --red-500: #ef4444;
+            --red-600: #dc2626;
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-stack);
+            background-color: var(--slate-100);
+            color: var(--slate-800);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        header {
+            background-color: var(--slate-900);
+            color: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        .header-title h1 { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.025em; }
+        .header-title p { font-size: 0.75rem; color: var(--slate-400); margin-top: 2px; }
+
+        .btn-group { display: flex; gap: 0.5rem; }
+
+        button {
+            font-family: var(--font-stack);
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-secondary {
+            background-color: var(--slate-800); color: white;
+            font-size: 0.875rem; font-weight: 600;
+            padding: 0.5rem 1rem; border: 1px solid var(--slate-700);
+        }
+        .btn-secondary:hover { background-color: var(--slate-700); }
+
+        .btn-primary {
+            background-color: var(--blue-600); color: white;
+            font-size: 0.875rem; font-weight: 700;
+            padding: 0.5rem 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .btn-primary:hover { background-color: var(--blue-700); }
+
+        .btn-success {
+            background-color: var(--emerald-600); color: white;
+            font-size: 0.75rem; font-weight: 700; padding: 0.5rem 0.75rem;
+        }
+        .btn-success:hover { background-color: var(--emerald-700); }
+
+        .wrapper { flex: 1; display: flex; flex-direction: row; overflow: hidden; }
+
+        @media (max-width: 768px) {
+            .wrapper { flex-direction: column; }
+            aside { width: 100% !important; border-right: none !important; border-bottom: 1px solid var(--slate-200); max-height: 250px; }
+        }
+
+        aside {
+            width: 18rem;
+            background-color: white;
+            border-right: 1px solid var(--slate-200);
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow-y: auto;
+        }
+
+        .sidebar-menu { display: flex; flex-direction: column; gap: 0.25rem; }
+
+        .sidebar-section-title {
+            font-size: 0.6875rem; font-weight: 700; color: var(--slate-400);
+            text-transform: uppercase; letter-spacing: 0.1em;
+            padding: 0.5rem 0.75rem; margin-top: 0.5rem;
+        }
+
+        .tab-btn {
+            width: 100%; text-align: left; padding: 0.5rem 0.75rem;
+            font-size: 0.875rem; font-weight: 600; border-radius: 4px;
+            background: transparent; color: var(--slate-600); justify-content: flex-start;
+        }
+        .tab-btn:hover { background-color: var(--slate-50); }
+        .tab-btn.active-main { background-color: var(--slate-900); color: white; }
+        .tab-btn.active-sub { background-color: var(--slate-200); color: var(--slate-900); font-weight: 700; }
+
+        .dyn-tab-item { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .color-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+        .btn-reset {
+            color: var(--red-600); background: transparent;
+            font-size: 0.75rem; font-weight: 600; width: 100%;
+            justify-content: flex-start; padding: 0.5rem 0.75rem;
+        }
+        .btn-reset:hover { text-decoration: underline; background-color: rgba(239, 68, 68, 0.05); }
+
+        main { flex: 1; overflow-y: auto; padding: 2rem; background-color: var(--slate-50); }
+
+        section { display: none; }
+        section.active-section { display: block; }
+
+        .section-header {
+            border-bottom: 1px solid var(--slate-200);
+            padding-bottom: 0.75rem; margin-bottom: 1.5rem;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .section-header h2 { font-size: 1.25rem; font-weight: 700; color: var(--slate-800); }
+        .section-header p { font-size: 0.75rem; color: var(--slate-500); margin-top: 0.25rem; }
+
+        .card {
+            background-color: white; border: 1px solid var(--slate-200);
+            border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            padding: 1.5rem; margin-bottom: 1.5rem;
+        }
+
+        .card-header-flex {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--slate-100);
+            padding-bottom: 0.75rem; margin-bottom: 1rem;
+        }
+
+        .card h3 {
+            font-size: 0.875rem; font-weight: 700; color: var(--slate-700);
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+
+        .table-responsive {
+            overflow-x: auto; background-color: white;
+            border: 1px solid var(--slate-200); border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
+
+        th {
+            background-color: var(--slate-50); color: var(--slate-500);
+            font-weight: 700; padding: 0.75rem 1rem; border-bottom: 1px solid var(--slate-200);
+        }
+
+        td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--slate-100); vertical-align: middle; }
+
+        input[type="text"], input[type="number"], select {
+            width: 100%; border: 1px solid var(--slate-200); border-radius: 4px;
+            padding: 0.375rem 0.5rem; font-size: 0.8125rem; outline: none;
+            font-family: var(--font-stack);
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus {
+            border-color: var(--blue-600); box-shadow: 0 0 0 1px var(--blue-600);
+        }
+
+        .font-code { font-family: monospace; font-weight: bold; }
+
+        .color-picker-container { display: flex; align-items: center; gap: 0.5rem; }
+
+        input[type="color"] {
+            border: 1px solid var(--slate-200); border-radius: 4px;
+            width: 40px; height: 28px; cursor: pointer; padding: 0; background: none;
+        }
+
+        .btn-delete { color: var(--red-500); font-size: 0.75rem; font-weight: 700; background: transparent; }
+        .btn-delete:hover { text-decoration: underline; color: var(--red-600); }
+
+        .badge-color { display: inline-block; width: 16px; height: 16px; border-radius: 50%; }
+
+        .helper-text { font-size: 0.6875rem; color: var(--slate-400); margin-top: 0.25rem; }
+
+        .logic-input-wrapper { position: relative; }
+        .logic-input { font-family: monospace !important; font-weight: bold; color: var(--slate-800); }
+        .logic-valid { border-color: #10b981 !important; }
+        .logic-invalid { border-color: #ef4444 !important; background-color: #fef2f2; }
+
+        .logic-feedback { font-size: 0.6875rem; margin-top: 2px; font-weight: 600; }
+        .logic-feedback.valid { color: #10b981; }
+        .logic-feedback.invalid { color: #ef4444; }
+
+        .group-hint {
+            background: var(--slate-50); border: 1px solid var(--slate-200);
+            border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem;
+            font-size: 0.75rem; color: var(--slate-600); line-height: 1.5;
+        }
+        .group-hint strong { color: var(--slate-800); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1>Éditeur de Configuration</h1>
+            <p>Robots, options logiques (ET/OU), nomenclature et sous-ensembles</p>
+        </div>
+        <div class="btn-group">
+            <button onclick="triggerFileImport()" class="btn-secondary">
+                📁 Importer un config.json
+            </button>
+            <input type="file" id="importFileInput" accept=".json" onchange="importJsonFile(event)" style="display:none">
+            <button onclick="exportJsonFile()" class="btn-primary">
+                💾 Télécharger config.json
+            </button>
+        </div>
+    </header>
+
+    <div class="wrapper">
+        <aside>
+            <div class="sidebar-menu">
+                <h2 class="sidebar-section-title">Sections Générales</h2>
+                <button onclick="switchSection('robots_list')" id="tab-robots_list" class="tab-btn active-main">
+                    🤖 Catalogue des Robots
+                </button>
+                <button onclick="switchSection('tops')" id="tab-tops" class="tab-btn">
+                    🔼 Équipements Supérieurs (Tops)
+                </button>
+                <button onclick="switchSection('station_base')" id="tab-station_base" class="tab-btn">
+                    🔌 Pièces Base - Stations
+                </button>
+                <button onclick="switchSection('station_types')" id="tab-station_types" class="tab-btn">
+                    🔋 Types de Stations
+                </button>
+
+                <h2 class="sidebar-section-title">Configurations par Robot</h2>
+                <div id="dynamicRobotTabs"></div>
+            </div>
+
+            <div style="border-top: 1px solid var(--slate-100); padding-top: 0.75rem;">
+                <button onclick="resetToDefaults()" class="btn-reset">
+                    ⚠️ Réinitialiser aux valeurs d'usine
+                </button>
+            </div>
+        </aside>
+
+        <main>
+            <section id="section-robots_list" class="active-section">
+                <div class="section-header">
+                    <div>
+                        <h2>Catalogue des Robots</h2>
+                        <p>Configurez les identifiants et modèles principaux de la flotte.</p>
+                    </div>
+                    <button onclick="addNewRobotType()" class="btn-success">
+                        + Ajouter un Robot au Catalogue
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">Code Unique (ID)</th>
+                                <th>Nom du Modèle</th>
+                                <th style="width: 30%;">Couleur d'Identification</th>
+                                <th style="text-align: center; width: 15%;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="robotsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="section-robot_dynamic_edit">
+                <div class="section-header">
+                    <div>
+                        <h2 id="dynamicRobotTitle">Configuration</h2>
+                        <p>Versions, options, nomenclature et sous-ensembles d'assemblage.</p>
+                    </div>
+                    <span id="dynamicRobotBadge" class="badge-color"></span>
+                </div>
+
+                <div class="card">
+                    <h3>1. Versions Matérielles (HARD) Autorisées</h3>
+                    <div style="margin-top: 0.5rem;">
+                        <input id="dynRobotVersionsInput" type="text" class="font-code">
+                        <p class="helper-text">Séparez les versions par des virgules (ex: 3.4.0, 3.5.0)</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h3>2. Options Disponibles à l'Assemblage</h3>
+                        <button onclick="addDynamicRobotOption()" class="btn-success" style="padding: 0.25rem 0.5rem;">
+                            + Ajouter une Option
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 40%;">ID Option (ex: TRITON, CAM3D_BASSE)</th>
+                                    <th>Libellé Application</th>
+                                    <th style="text-align: center; width: 20%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dynOptionsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h3>3. Composants requis &amp; conditions logiques (AND / OR / NOT)</h3>
+                        <button onclick="addDynamicRobotComponent()" class="btn-success" style="padding: 0.25rem 0.5rem;">
+                            + Ajouter un Composant
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 25%;">Référence</th>
+                                    <th style="width: 35%;">Désignation</th>
+                                    <th style="width: 30%;">Condition Logique d'activation (ex: TRITON OR MLS)</th>
+                                    <th style="text-align: center; width: 10%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dynComponentsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h3>4. Sous-ensembles à réaliser</h3>
+                        <button onclick="addDynamicSubassembly()" class="btn-success" style="padding: 0.25rem 0.5rem;">
+                            + Ajouter un Sous-ensemble
+                        </button>
+                    </div>
+                    <div class="group-hint">
+                        Le champ <strong>Partie / Groupe</strong> sert à regrouper les sous-ensembles dans le logiciel de suivi
+                        (par exemple <strong>Partie basse</strong>, <strong>Partie haute</strong>, <strong>Options</strong>).
+                        Laissez la <strong>condition logique</strong> vide pour un sous-ensemble toujours présent, ou saisissez une
+                        formule d'options (ex : <code>CAM3D_BASSE OR CAM3D_HAUTE</code>) pour qu'il n'apparaisse que si l'option est cochée.
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 18%;">ID</th>
+                                    <th style="width: 30%;">Nom du sous-ensemble</th>
+                                    <th style="width: 20%;">Partie / Groupe</th>
+                                    <th style="width: 22%;">Condition Logique</th>
+                                    <th style="text-align: center; width: 10%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dynSubassyTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="section-tops">
+                <div class="section-header">
+                    <div>
+                        <h2>Équipements Supérieurs (Tops)</h2>
+                        <p>Gérez les dimensions de calcul des structures optionnelles.</p>
+                    </div>
+                    <button onclick="addNewTop()" class="btn-success">
+                        + Ajouter un Top
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Désignation</th>
+                                <th style="width: 10%;">Abrév.</th>
+                                <th style="width: 12%;">Ht Calc (mm)</th>
+                                <th style="width: 12%;">Ht Min (mm)</th>
+                                <th>Articles de Scan (Séparés par ;)</th>
+                                <th style="text-align: center; width: 10%;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="section-station_base">
+                <div class="section-header">
+                    <div>
+                        <h2>Pièces Communes des Stations de Charge</h2>
+                        <p>Nomenclature universelle s'appliquant à tous les types de stations.</p>
+                    </div>
+                    <button onclick="addStationBaseComponent()" class="btn-success">
+                        + Ajouter un composant de base
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">Référence</th>
+                                <th>Désignation</th>
+                                <th style="text-align: center; width: 15%;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stationBaseTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="section-station_types">
+                <div class="section-header">
+                    <div>
+                        <h2>Types de Stations de Charge</h2>
+                        <p>Configurez les modèles physiques de stations et leurs sous-ensembles.</p>
+                    </div>
+                    <button onclick="addNewStationType()" class="btn-success">
+                        + Ajouter un Type de Station
+                    </button>
+                </div>
+                <div class="table-responsive" style="margin-bottom: 1.5rem;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nom du Type</th>
+                                <th style="width: 25%;">Code court</th>
+                                <th style="width: 30%;">Couleur Distincte</th>
+                                <th style="text-align: center; width: 15%;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stationTypesTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h3>Sous-ensembles par type de station</h3>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <select id="stationSubTypeSelect" onchange="onStationSubTypeChange()" style="width: auto; min-width: 12rem;"></select>
+                            <button onclick="addStationSubassembly()" class="btn-success" style="padding: 0.25rem 0.5rem;">
+                                + Ajouter
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 22%;">ID</th>
+                                    <th style="width: 45%;">Nom du sous-ensemble</th>
+                                    <th style="width: 23%;">Partie / Groupe</th>
+                                    <th style="text-align: center; width: 10%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stationSubassyTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // CONFIGURATION PAR DÉFAUT (valeurs d'usine, sans stockage navigateur)
+        const DEFAULT_CONFIG = {
+            "robots": [
+                { "code": "D", "name": "Sherpa D", "color": "#00B0F0" },
+                { "code": "BI", "name": "Sherpa BI", "color": "#FFC000" },
+                { "code": "BR", "name": "Sherpa BR", "color": "#FFC000" },
+                { "code": "P", "name": "Sherpa P", "color": "#8B5CF6" },
+                { "code": "F", "name": "Sherpa F", "color": "#FF3399" },
+                { "code": "FL", "name": "Sherpa FL", "color": "#64748B" }
+            ],
+            "robot_versions": {
+                "F": ["1.0.6", "1.1.0"],
+                "P": ["3.3.1"],
+                "D": ["3.4.0", "3.5.0"],
+                "BI": ["5.5.0"],
+                "BR": ["5.5.0"],
+                "FL": ["1.0.0"]
+            },
+            "robot_options": {
+                "D": [
+                    { "id": "TRITON", "label": "Option TRITON" },
+                    { "id": "MLS", "label": "Option MLS" },
+                    { "id": "CAM3D_BASSE", "label": "Caméra 3D Basse" },
+                    { "id": "CAM3D_HAUTE", "label": "Caméra 3D Haute" }
+                ],
+                "BI": [
+                    { "id": "CAM3D", "label": "Option CAM3D" }
+                ],
+                "BR": [
+                    { "id": "CAM3D", "label": "Option CAM3D" }
+                ]
+            },
+            "robot_components": {
+                "D": [
+                    { "ref": "SHE-0027200", "designation": "Scrutateur NanoScan3 (AVG)", "option": "" },
+                    { "ref": "SHE-0027200", "designation": "Scrutateur NanoScan3 (AVD)", "option": "" },
+                    { "ref": "SHE-1047530", "designation": "Capteur-caméra TLOC100", "option": "TRITON" },
+                    { "ref": "SHE-1046733", "designation": "Capteur magnétique", "option": "MLS" },
+                    { "ref": "SHE-1046974", "designation": "Caméra 3D Basse", "option": "CAM3D_BASSE" },
+                    { "ref": "SHE-1046974", "designation": "Caméra 3D Haute", "option": "CAM3D_HAUTE" },
+                    { "ref": "SHE-1046976", "designation": "Traitement vidéo OVP800", "option": "CAM3D_BASSE OR CAM3D_HAUTE" }
+                ],
+                "BI": [
+                    { "ref": "SHE-0012000", "designation": "Batterie Lithium Standard", "option": "" }
+                ]
+            },
+            "robot_subassemblies": {
+                "BI": [
+                    { "id": "SE_BASSE_CHASSIS", "name": "Châssis / roues motrices", "group": "Partie basse", "option": "" },
+                    { "id": "SE_BASSE_ENERGIE", "name": "Batteries & plaque induction", "group": "Partie basse", "option": "" },
+                    { "id": "SE_HAUTE_MAT", "name": "Mât & platine supérieure", "group": "Partie haute", "option": "" },
+                    { "id": "SE_HAUTE_CAPOT", "name": "Capotage & habillage", "group": "Partie haute", "option": "" },
+                    { "id": "SE_OPT_CAM3D", "name": "Portique caméras 3D", "group": "Options", "option": "CAM3D" }
+                ]
+            },
+            "station_types": [
+                { "name": "Station de charge D", "code": "STD", "color": "#0048F0" },
+                { "name": "Station de charge B", "code": "STB", "color": "#B38600" },
+                { "name": "Station de charge P", "code": "STP", "color": "#6424F9" }
+            ],
+            "station_subassemblies": {},
+            "tops": [
+                { "name": "Plateau", "articles": "", "abbr": "P", "calc_ht": 48, "ht_min": 569 }
+            ],
+            "station_base_components": [
+                { "designation": "Plaque induction fixe SCs", "ref": "SHE-1013800" }
+            ]
+        };
+
+        // Variable globale en mémoire vive
+        let localConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+        let activeSection = 'robots_list';
+        let currentEditingRobotCode = '';
+        let currentStationSubCode = '';
+
+        // Garantit que toutes les clés attendues existent (config ancienne ou partielle)
+        function normalizeConfig(cfg) {
+            if (!Array.isArray(cfg.robots)) cfg.robots = [];
+            if (!cfg.robot_versions) cfg.robot_versions = {};
+            if (!cfg.robot_options) cfg.robot_options = {};
+            if (!cfg.robot_components) cfg.robot_components = {};
+            if (!cfg.robot_subassemblies) cfg.robot_subassemblies = {};
+            if (!cfg.station_subassemblies) cfg.station_subassemblies = {};
+            if (!Array.isArray(cfg.station_types)) cfg.station_types = [];
+            if (!Array.isArray(cfg.tops)) cfg.tops = [];
+            if (!Array.isArray(cfg.station_base_components)) cfg.station_base_components = [];
+            return cfg;
+        }
+
+        function initEditor() {
+            normalizeConfig(localConfig);
+            renderRobotTabs();
+            renderActiveSection();
+        }
+
+        // --- VALIDATEUR LOGIQUE ET/OU/NOT ---
+        function validateExpression(expr, activeOptions = []) {
+            let clean = expr.trim();
+            if (!clean) return { valid: true, error: null };
+
+            let tokens = clean.match(/[a-zA-Z0-9_]+|[()]/g) || [];
+            let validOperators = ["AND", "OR", "NOT"];
+
+            for (let token of tokens) {
+                if (token === "(" || token === ")") continue;
+                if (validOperators.includes(token.toUpperCase())) continue;
+                if (!activeOptions.includes(token)) {
+                    return { valid: false, error: `Option "${token}" inconnue` };
+                }
+            }
+
+            let testExpr = clean
+                .replace(/AND/gi, '&&')
+                .replace(/OR/gi, '||')
+                .replace(/NOT/gi, '!')
+                .replace(/[a-zA-Z0-9_]+/g, 'true');
+
+            try {
+                new Function(`return (${testExpr})`);
+                let openParens = (clean.match(/\(/g) || []).length;
+                let closeParens = (clean.match(/\)/g) || []).length;
+                if (openParens !== closeParens) {
+                    return { valid: false, error: "Parenthèses non équilibrées" };
+                }
+                return { valid: true, error: null };
+            } catch (e) {
+                return { valid: false, error: "Formule invalide" };
+            }
+        }
+
+        // Validation partagée entre composants et sous-ensembles
+        function applyLogicFeedback(inputEl, statusEl, emptyLabel) {
+            if (!inputEl || !statusEl) return;
+            const rOpts = (localConfig.robot_options[currentEditingRobotCode] || []).map(o => o.id);
+            const result = validateExpression(inputEl.value, rOpts);
+            const base = inputEl.className.replace(/\s*logic-(valid|invalid)/g, '');
+            if (result.valid) {
+                inputEl.className = base + " logic-valid";
+                statusEl.className = "logic-feedback valid";
+                statusEl.textContent = inputEl.value.trim() ? "✓ Syntaxe correcte" : emptyLabel;
+            } else {
+                inputEl.className = base + " logic-invalid";
+                statusEl.className = "logic-feedback invalid";
+                statusEl.textContent = `✗ ${result.error}`;
+            }
+        }
+
+        function handleLogicKeyup(inputEl, idx) {
+            applyLogicFeedback(inputEl, document.getElementById(`logic-status-${idx}`),
+                "Toujours visible (Composant de Base)");
+        }
+
+        function handleSubLogicKeyup(inputEl, idx) {
+            applyLogicFeedback(inputEl, document.getElementById(`sublogic-status-${idx}`),
+                "Toujours présent");
+        }
+
+        function renderRobotTabs() {
+            const container = document.getElementById('dynamicRobotTabs');
+            if (!container) return;
+            container.innerHTML = '';
+
+            localConfig.robots.forEach(r => {
+                const button = document.createElement('button');
+                button.id = `tab-robot-dyn-${r.code}`;
+                button.className = (activeSection === 'robot_dynamic_edit' && currentEditingRobotCode === r.code)
+                    ? "tab-btn active-sub" : "tab-btn";
+
+                button.onclick = () => {
+                    collectCurrentViewData();
+                    currentEditingRobotCode = r.code;
+                    activeSection = 'robot_dynamic_edit';
+
+                    ['robots_list', 'tops', 'station_base', 'station_types'].forEach(tId => {
+                        const tEl = document.getElementById(`tab-${tId}`);
+                        const sEl = document.getElementById(`section-${tId}`);
+                        if (tEl) tEl.className = "tab-btn";
+                        if (sEl) sEl.className = "";
+                    });
+
+                    const secEdit = document.getElementById('section-robot_dynamic_edit');
+                    if (secEdit) secEdit.className = "active-section";
+                    renderRobotTabs();
+                    renderActiveSection();
+                };
+
+                button.innerHTML = `
+                    <div class="dyn-tab-item">
+                        <span>⚙️ Configurer ${r.name}</span>
+                        <span class="color-dot" style="background-color: ${r.color};"></span>
+                    </div>
+                `;
+                container.appendChild(button);
+            });
+        }
+
+        function switchSection(sectionId) {
+            collectCurrentViewData();
+            activeSection = sectionId;
+            currentEditingRobotCode = '';
+
+            const secEdit = document.getElementById('section-robot_dynamic_edit');
+            if (secEdit) secEdit.className = "";
+
+            ['robots_list', 'tops', 'station_base', 'station_types'].forEach(id => {
+                const el = document.getElementById(`tab-${id}`);
+                const secEl = document.getElementById(`section-${id}`);
+                if (id === sectionId) {
+                    if (el) el.className = "tab-btn active-main";
+                    if (secEl) secEl.className = "active-section";
+                } else {
+                    if (el) el.className = "tab-btn";
+                    if (secEl) secEl.className = "";
+                }
+            });
+
+            renderRobotTabs();
+            renderActiveSection();
+        }
+
+        function renderActiveSection() {
+            if (activeSection === 'robots_list') renderRobotsList();
+            else if (activeSection === 'tops') renderTops();
+            else if (activeSection === 'station_base') renderStationBase();
+            else if (activeSection === 'station_types') renderStationTypes();
+            else if (activeSection === 'robot_dynamic_edit') renderRobotDynamicConfig();
+        }
+
+        // --- CATALOGUE DES ROBOTS ---
+        function renderRobotsList() {
+            const tbody = document.getElementById('robotsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            localConfig.robots.forEach((robot, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" value="${robot.code}" class="robot-code-${index} font-code" style="text-transform:uppercase;"></td>
+                    <td><input type="text" value="${robot.name}" class="robot-name-${index}"></td>
+                    <td>
+                        <div class="color-picker-container">
+                            <input type="color" value="${robot.color}" class="robot-colorpicker-${index}" onchange="syncRobotColorInput(${index})">
+                            <input type="text" value="${robot.color}" class="robot-color-${index} font-code">
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <button onclick="removeRobotType(${index})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function syncRobotColorInput(index) {
+            const picker = document.querySelector(`.robot-colorpicker-${index}`);
+            const textInput = document.querySelector(`.robot-color-${index}`);
+            if (picker && textInput) textInput.value = picker.value.toUpperCase();
+        }
+
+        function addNewRobotType() {
+            collectCurrentViewData();
+            const newCode = "NEW_" + Date.now().toString().slice(-3);
+            localConfig.robots.push({ "code": newCode, "name": "Sherpa Nouveau", "color": "#64748B" });
+
+            localConfig.robot_versions[newCode] = ["1.0.0"];
+            localConfig.robot_options[newCode] = [];
+            localConfig.robot_components[newCode] = [];
+            localConfig.robot_subassemblies[newCode] = [];
+
+            renderRobotTabs();
+            renderRobotsList();
+        }
+
+        function removeRobotType(index) {
+            if (!confirm("Voulez-vous supprimer ce type de robot ainsi que TOUTES ses options, composants et sous-ensembles associés ?")) return;
+            collectCurrentViewData();
+            const code = localConfig.robots[index].code;
+            localConfig.robots.splice(index, 1);
+
+            delete localConfig.robot_versions[code];
+            delete localConfig.robot_options[code];
+            delete localConfig.robot_components[code];
+            delete localConfig.robot_subassemblies[code];
+
+            if (currentEditingRobotCode === code) {
+                currentEditingRobotCode = '';
+                activeSection = 'robots_list';
+                switchSection('robots_list');
+                return;
+            }
+
+            renderRobotTabs();
+            renderRobotsList();
+        }
+
+        // --- CONFIGURATION D'UN ROBOT ---
+        function renderRobotDynamicConfig() {
+            const r = localConfig.robots.find(item => item.code === currentEditingRobotCode);
+            if (!r) return;
+
+            const titleEl = document.getElementById('dynamicRobotTitle');
+            if (titleEl) titleEl.textContent = `Configuration du : ${r.name} (${r.code})`;
+
+            const badge = document.getElementById('dynamicRobotBadge');
+            if (badge) badge.style.backgroundColor = r.color;
+
+            // 1. Versions HARD
+            const versionsArray = localConfig.robot_versions[r.code] || [];
+            const vInput = document.getElementById('dynRobotVersionsInput');
+            if (vInput) vInput.value = versionsArray.join(', ');
+
+            // 2. Options
+            const tbodyOptions = document.getElementById('dynOptionsTableBody');
+            if (tbodyOptions) {
+                tbodyOptions.innerHTML = '';
+                const opts = localConfig.robot_options[r.code] || [];
+                if (opts.length === 0) {
+                    tbodyOptions.innerHTML = `<tr><td colspan="3" style="color: var(--slate-400); font-style: italic; padding: 1rem; text-align: center;">Aucune option configurée pour ce robot.</td></tr>`;
+                } else {
+                    opts.forEach((opt, idx) => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><input type="text" value="${opt.id}" class="opt-id-${idx} font-code" style="text-transform: uppercase;"></td>
+                            <td><input type="text" value="${opt.label}" class="opt-label-${idx}"></td>
+                            <td style="text-align: center;">
+                                <button onclick="removeDynamicRobotOption(${idx})" class="btn-delete">Supprimer</button>
+                            </td>
+                        `;
+                        tbodyOptions.appendChild(row);
+                    });
+                }
+            }
+
+            // 3. Composants
+            const tbodyComps = document.getElementById('dynComponentsTableBody');
+            if (tbodyComps) {
+                tbodyComps.innerHTML = '';
+                const comps = localConfig.robot_components[r.code] || [];
+                if (comps.length === 0) {
+                    tbodyComps.innerHTML = `<tr><td colspan="4" style="color: var(--slate-400); font-style: italic; padding: 1.5rem; text-align: center;">Nomenclature vide pour ce robot.</td></tr>`;
+                } else {
+                    comps.forEach((comp, idx) => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><input type="text" value="${comp.ref}" class="comp-ref-${idx} font-code"></td>
+                            <td><input type="text" value="${comp.designation}" class="comp-desig-${idx}"></td>
+                            <td>
+                                <div class="logic-input-wrapper">
+                                    <input type="text" value="${comp.option || ''}"
+                                           class="comp-opt-${idx} font-code logic-input"
+                                           placeholder="Optionnel (ex: TRITON OR MLS)"
+                                           onkeyup="handleLogicKeyup(this, ${idx})">
+                                    <div id="logic-status-${idx}" class="logic-feedback"></div>
+                                </div>
+                            </td>
+                            <td style="text-align: center;">
+                                <button onclick="removeDynamicRobotComponent(${idx})" class="btn-delete">Supprimer</button>
+                            </td>
+                        `;
+                        tbodyComps.appendChild(row);
+                        handleLogicKeyup(row.querySelector(`.comp-opt-${idx}`), idx);
+                    });
+                }
+            }
+
+            // 4. Sous-ensembles
+            renderDynamicSubassemblies();
+        }
+
+        function renderDynamicSubassemblies() {
+            const tbody = document.getElementById('dynSubassyTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const subs = localConfig.robot_subassemblies[currentEditingRobotCode] || [];
+            if (subs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color: var(--slate-400); font-style: italic; padding: 1.5rem; text-align: center;">Aucun sous-ensemble défini pour ce robot.</td></tr>`;
+                return;
+            }
+
+            subs.forEach((se, idx) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="text" value="${se.id || ''}" class="sub-id-${idx} font-code" style="text-transform: uppercase;"></td>
+                    <td><input type="text" value="${se.name || ''}" class="sub-name-${idx}"></td>
+                    <td><input type="text" value="${se.group || ''}" class="sub-group-${idx}" list="groupSuggestions" placeholder="Partie basse..."></td>
+                    <td>
+                        <div class="logic-input-wrapper">
+                            <input type="text" value="${se.option || ''}"
+                                   class="sub-opt-${idx} font-code logic-input"
+                                   placeholder="Optionnel"
+                                   onkeyup="handleSubLogicKeyup(this, ${idx})">
+                            <div id="sublogic-status-${idx}" class="logic-feedback"></div>
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <button onclick="removeDynamicSubassembly(${idx})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+                handleSubLogicKeyup(row.querySelector(`.sub-opt-${idx}`), idx);
+            });
+        }
+
+        function addDynamicRobotOption() {
+            collectCurrentViewData();
+            if (!localConfig.robot_options[currentEditingRobotCode]) localConfig.robot_options[currentEditingRobotCode] = [];
+            localConfig.robot_options[currentEditingRobotCode].push({ "id": "NOUVELLE_OPT", "label": "Libellé Option" });
+            renderRobotDynamicConfig();
+        }
+
+        function removeDynamicRobotOption(idx) {
+            collectCurrentViewData();
+            localConfig.robot_options[currentEditingRobotCode].splice(idx, 1);
+            renderRobotDynamicConfig();
+        }
+
+        function addDynamicRobotComponent() {
+            collectCurrentViewData();
+            if (!localConfig.robot_components[currentEditingRobotCode]) localConfig.robot_components[currentEditingRobotCode] = [];
+            localConfig.robot_components[currentEditingRobotCode].push({ "ref": "SHE-0000", "designation": "Nouvelle pièce à ajouter", "option": "" });
+            renderRobotDynamicConfig();
+        }
+
+        function removeDynamicRobotComponent(idx) {
+            collectCurrentViewData();
+            localConfig.robot_components[currentEditingRobotCode].splice(idx, 1);
+            renderRobotDynamicConfig();
+        }
+
+        function addDynamicSubassembly() {
+            collectCurrentViewData();
+            if (!localConfig.robot_subassemblies[currentEditingRobotCode]) localConfig.robot_subassemblies[currentEditingRobotCode] = [];
+            const n = localConfig.robot_subassemblies[currentEditingRobotCode].length + 1;
+            localConfig.robot_subassemblies[currentEditingRobotCode].push({
+                "id": `SE_${n}`, "name": "Nouveau sous-ensemble", "group": "", "option": ""
+            });
+            renderRobotDynamicConfig();
+        }
+
+        function removeDynamicSubassembly(idx) {
+            collectCurrentViewData();
+            localConfig.robot_subassemblies[currentEditingRobotCode].splice(idx, 1);
+            renderRobotDynamicConfig();
+        }
+
+        // --- TOPS ---
+        function renderTops() {
+            const tbody = document.getElementById('topsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            localConfig.tops.forEach((top, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" value="${top.name}" class="top-name-${index}"></td>
+                    <td><input type="text" value="${top.abbr}" class="top-abbr-${index} font-code" style="text-align: center;"></td>
+                    <td><input type="number" value="${top.calc_ht || ''}" class="top-calcht-${index}" style="text-align: center;"></td>
+                    <td><input type="number" value="${top.ht_min || ''}" class="top-htmin-${index}" style="text-align: center;"></td>
+                    <td><input type="text" value="${top.articles}" placeholder="SHE-1046653;Vérin LINAK..." class="top-articles-${index}"></td>
+                    <td style="text-align: center;">
+                        <button onclick="removeTop(${index})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function addNewTop() {
+            collectCurrentViewData();
+            localConfig.tops.push({ "name": "Nouveau Top", "articles": "", "abbr": "NEW", "calc_ht": 50, "ht_min": 550 });
+            renderTops();
+        }
+
+        function removeTop(index) {
+            collectCurrentViewData();
+            localConfig.tops.splice(index, 1);
+            renderTops();
+        }
+
+        // --- PIÈCES DE BASE DES STATIONS ---
+        function renderStationBase() {
+            const tbody = document.getElementById('stationBaseTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            localConfig.station_base_components.forEach((comp, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" value="${comp.ref}" class="stationB-ref-${index} font-code"></td>
+                    <td><input type="text" value="${comp.designation}" class="stationB-desig-${index}"></td>
+                    <td style="text-align: center;">
+                        <button onclick="removeStationBaseComponent(${index})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function addStationBaseComponent() {
+            collectCurrentViewData();
+            localConfig.station_base_components.push({ "designation": "Nouvelle pièce station", "ref": "SHE-ST-000" });
+            renderStationBase();
+        }
+
+        function removeStationBaseComponent(index) {
+            collectCurrentViewData();
+            localConfig.station_base_components.splice(index, 1);
+            renderStationBase();
+        }
+
+        // --- TYPES DE STATIONS + LEURS SOUS-ENSEMBLES ---
+        function renderStationTypes() {
+            const tbody = document.getElementById('stationTypesTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            localConfig.station_types.forEach((st, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" value="${st.name}" class="stype-name-${index}"></td>
+                    <td><input type="text" value="${st.code}" class="stype-code-${index} font-code" style="text-align: center;"></td>
+                    <td>
+                        <div class="color-picker-container">
+                            <input type="color" value="${st.color}" class="stype-colorpicker-${index}" onchange="syncColorInput(${index})">
+                            <input type="text" value="${st.color}" class="stype-color-${index} font-code">
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <button onclick="removeStationType(${index})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Sélecteur du type dont on édite les sous-ensembles
+            const sel = document.getElementById('stationSubTypeSelect');
+            if (sel) {
+                sel.innerHTML = '';
+                localConfig.station_types.forEach(st => {
+                    const o = document.createElement('option');
+                    o.value = st.code; o.textContent = `${st.name} (${st.code})`;
+                    sel.appendChild(o);
+                });
+                const codes = localConfig.station_types.map(s => s.code);
+                if (!codes.includes(currentStationSubCode)) currentStationSubCode = codes[0] || '';
+                sel.value = currentStationSubCode;
+            }
+            renderStationSubassemblies();
+        }
+
+        function onStationSubTypeChange() {
+            collectStationSubassemblies();
+            currentStationSubCode = document.getElementById('stationSubTypeSelect').value;
+            renderStationSubassemblies();
+        }
+
+        function renderStationSubassemblies() {
+            const tbody = document.getElementById('stationSubassyTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (!currentStationSubCode) {
+                tbody.innerHTML = `<tr><td colspan="4" style="color: var(--slate-400); font-style: italic; padding: 1.5rem; text-align: center;">Créez d'abord un type de station.</td></tr>`;
+                return;
+            }
+
+            const subs = localConfig.station_subassemblies[currentStationSubCode] || [];
+            if (subs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="color: var(--slate-400); font-style: italic; padding: 1.5rem; text-align: center;">Aucun sous-ensemble défini pour ce type de station.</td></tr>`;
+                return;
+            }
+
+            subs.forEach((se, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" value="${se.id || ''}" class="ssub-id-${idx} font-code" style="text-transform: uppercase;"></td>
+                    <td><input type="text" value="${se.name || ''}" class="ssub-name-${idx}"></td>
+                    <td><input type="text" value="${se.group || ''}" class="ssub-group-${idx}" list="groupSuggestions" placeholder="Partie basse..."></td>
+                    <td style="text-align: center;">
+                        <button onclick="removeStationSubassembly(${idx})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function addStationSubassembly() {
+            if (!currentStationSubCode) { alert("Créez d'abord un type de station."); return; }
+            collectCurrentViewData();
+            if (!localConfig.station_subassemblies[currentStationSubCode]) localConfig.station_subassemblies[currentStationSubCode] = [];
+            const n = localConfig.station_subassemblies[currentStationSubCode].length + 1;
+            localConfig.station_subassemblies[currentStationSubCode].push({
+                "id": `SE_${n}`, "name": "Nouveau sous-ensemble", "group": "", "option": ""
+            });
+            renderStationSubassemblies();
+        }
+
+        function removeStationSubassembly(idx) {
+            collectStationSubassemblies();
+            localConfig.station_subassemblies[currentStationSubCode].splice(idx, 1);
+            renderStationSubassemblies();
+        }
+
+        function collectStationSubassemblies() {
+            const subs = localConfig.station_subassemblies[currentStationSubCode];
+            if (!Array.isArray(subs)) return;
+            subs.forEach((se, idx) => {
+                const idInp = document.querySelector(`.ssub-id-${idx}`);
+                const nameInp = document.querySelector(`.ssub-name-${idx}`);
+                const groupInp = document.querySelector(`.ssub-group-${idx}`);
+                if (idInp && nameInp && groupInp) {
+                    se.id = idInp.value.trim().toUpperCase();
+                    se.name = nameInp.value.trim();
+                    se.group = groupInp.value.trim();
+                }
+            });
+        }
+
+        function syncColorInput(index) {
+            const picker = document.querySelector(`.stype-colorpicker-${index}`);
+            const textInput = document.querySelector(`.stype-color-${index}`);
+            if (picker && textInput) textInput.value = picker.value.toUpperCase();
+        }
+
+        function addNewStationType() {
+            collectCurrentViewData();
+            localConfig.station_types.push({ "name": "Station de charge X", "code": "STX", "color": "#475569" });
+            renderStationTypes();
+        }
+
+        function removeStationType(index) {
+            collectCurrentViewData();
+            const code = localConfig.station_types[index].code;
+            localConfig.station_types.splice(index, 1);
+            delete localConfig.station_subassemblies[code];
+            renderStationTypes();
+        }
+
+        // --- CONSERVATION DES VALEURS SAISIES ---
+        function collectCurrentViewData() {
+            if (activeSection === 'robots_list') {
+                localConfig.robots.forEach((robot, index) => {
+                    const codeInput = document.querySelector(`.robot-code-${index}`);
+                    const nameInput = document.querySelector(`.robot-name-${index}`);
+                    const colorInput = document.querySelector(`.robot-color-${index}`);
+
+                    if (codeInput && nameInput && colorInput) {
+                        const oldCode = robot.code;
+                        const newCode = codeInput.value.trim().toUpperCase();
+                        robot.code = newCode;
+                        robot.name = nameInput.value.trim();
+                        robot.color = colorInput.value.trim().toUpperCase();
+
+                        if (oldCode !== newCode) {
+                            ['robot_versions', 'robot_options', 'robot_components', 'robot_subassemblies'].forEach(key => {
+                                if (localConfig[key][oldCode]) {
+                                    localConfig[key][newCode] = localConfig[key][oldCode];
+                                    delete localConfig[key][oldCode];
+                                }
+                            });
+                            if (currentEditingRobotCode === oldCode) currentEditingRobotCode = newCode;
+                        }
+                    }
+                });
+            } else if (activeSection === 'robot_dynamic_edit') {
+                const code = currentEditingRobotCode;
+                const vInput = document.getElementById('dynRobotVersionsInput');
+                if (vInput) {
+                    localConfig.robot_versions[code] = vInput.value.split(',').map(s => s.trim()).filter(s => s !== '');
+                }
+
+                (localConfig.robot_options[code] || []).forEach((opt, idx) => {
+                    const idInp = document.querySelector(`.opt-id-${idx}`);
+                    const labelInp = document.querySelector(`.opt-label-${idx}`);
+                    if (idInp && labelInp) {
+                        opt.id = idInp.value.trim().toUpperCase();
+                        opt.label = labelInp.value.trim();
+                    }
+                });
+
+                (localConfig.robot_components[code] || []).forEach((comp, idx) => {
+                    const refInp = document.querySelector(`.comp-ref-${idx}`);
+                    const desigInp = document.querySelector(`.comp-desig-${idx}`);
+                    const optInp = document.querySelector(`.comp-opt-${idx}`);
+                    if (refInp && desigInp && optInp) {
+                        comp.ref = refInp.value.trim();
+                        comp.designation = desigInp.value.trim();
+                        comp.option = optInp.value.trim();
+                    }
+                });
+
+                (localConfig.robot_subassemblies[code] || []).forEach((se, idx) => {
+                    const idInp = document.querySelector(`.sub-id-${idx}`);
+                    const nameInp = document.querySelector(`.sub-name-${idx}`);
+                    const groupInp = document.querySelector(`.sub-group-${idx}`);
+                    const optInp = document.querySelector(`.sub-opt-${idx}`);
+                    if (idInp && nameInp && groupInp && optInp) {
+                        se.id = idInp.value.trim().toUpperCase();
+                        se.name = nameInp.value.trim();
+                        se.group = groupInp.value.trim();
+                        se.option = optInp.value.trim();
+                    }
+                });
+            } else if (activeSection === 'tops') {
+                localConfig.tops.forEach((top, index) => {
+                    const nameInput = document.querySelector(`.top-name-${index}`);
+                    const abbrInput = document.querySelector(`.top-abbr-${index}`);
+                    const calcHtInput = document.querySelector(`.top-calcht-${index}`);
+                    const htMinInput = document.querySelector(`.top-htmin-${index}`);
+                    const articlesInput = document.querySelector(`.top-articles-${index}`);
+
+                    if (nameInput && abbrInput && calcHtInput && htMinInput && articlesInput) {
+                        top.name = nameInput.value.trim();
+                        top.abbr = abbrInput.value.trim();
+                        top.calc_ht = parseInt(calcHtInput.value) || null;
+                        top.ht_min = parseInt(htMinInput.value) || null;
+                        top.articles = articlesInput.value.trim();
+                    }
+                });
+            } else if (activeSection === 'station_base') {
+                localConfig.station_base_components.forEach((comp, index) => {
+                    const refInput = document.querySelector(`.stationB-ref-${index}`);
+                    const desigInput = document.querySelector(`.stationB-desig-${index}`);
+                    if (refInput && desigInput) {
+                        comp.ref = refInput.value.trim();
+                        comp.designation = desigInput.value.trim();
+                    }
+                });
+            } else if (activeSection === 'station_types') {
+                localConfig.station_types.forEach((st, index) => {
+                    const nameInput = document.querySelector(`.stype-name-${index}`);
+                    const codeInput = document.querySelector(`.stype-code-${index}`);
+                    const colorInput = document.querySelector(`.stype-color-${index}`);
+                    if (nameInput && codeInput && colorInput) {
+                        const oldCode = st.code;
+                        const newCode = codeInput.value.trim().toUpperCase();
+                        st.name = nameInput.value.trim();
+                        st.code = newCode;
+                        st.color = colorInput.value.trim().toUpperCase();
+                        if (oldCode !== newCode && localConfig.station_subassemblies[oldCode]) {
+                            localConfig.station_subassemblies[newCode] = localConfig.station_subassemblies[oldCode];
+                            delete localConfig.station_subassemblies[oldCode];
+                            if (currentStationSubCode === oldCode) currentStationSubCode = newCode;
+                        }
+                    }
+                });
+                collectStationSubassemblies();
+            }
+        }
+
+        // --- IMPORT / EXPORT JSON ---
+        function exportJsonFile() {
+            collectCurrentViewData();
+            const blob = new Blob([JSON.stringify(localConfig, null, 4)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const dl = document.createElement('a');
+            dl.setAttribute("href", url);
+            dl.setAttribute("download", "config.json");
+            document.body.appendChild(dl);
+            dl.click();
+            dl.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function triggerFileImport() {
+            const fileInput = document.getElementById('importFileInput');
+            if (fileInput) fileInput.click();
+        }
+
+        function importJsonFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = normalizeConfig(JSON.parse(e.target.result));
+                    if (imported.robots.length === 0) {
+                        imported.robots = JSON.parse(JSON.stringify(DEFAULT_CONFIG.robots));
+                    }
+                    localConfig = imported;
+                    currentEditingRobotCode = '';
+                    currentStationSubCode = '';
+                    switchSection('robots_list');
+                    alert("Fichier config.json importé avec succès !");
+                } catch (err) {
+                    alert("Fichier JSON invalide ou corrompu.");
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function resetToDefaults() {
+            if (confirm("Voulez-vous réinitialiser le catalogue de configuration aux valeurs d'origine ? (Toutes vos modifications actuelles seront perdues)")) {
+                localConfig = normalizeConfig(JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+                currentEditingRobotCode = '';
+                currentStationSubCode = '';
+                switchSection('robots_list');
+            }
+        }
+
+        initEditor();
+    </script>
+
+    <datalist id="groupSuggestions">
+        <option value="Partie basse"></option>
+        <option value="Partie haute"></option>
+        <option value="Options"></option>
+        <option value="Câblage"></option>
+        <option value="Contrôle final"></option>
+    </datalist>
+
+</body>
+</html>

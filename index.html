@@ -558,6 +558,11 @@
                             </div>
                         </div>
 
+                        <div class="form-group">
+                            <label>Remarques</label>
+                            <textarea id="formStationRemarks" rows="2" placeholder="Informations complémentaires..."></textarea>
+                        </div>
+
                         <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 1rem;">
                             <button type="button" onclick="resetStationForm()" class="btn-gray">Annuler</button>
                             <button type="submit" class="btn-primary">Ajouter Station</button>
@@ -685,12 +690,33 @@
                                 <button onclick="exportAllCSV()">Export global (Tous les éléments)</button>
                             </div>
                         </div>
+                        <button id="btnRemarksAction" onclick="openRemarksModal()" class="btn-gray" style="font-size: 0.75rem;">📝 Remarques</button>
                         <button id="btnCloseDossier" onclick="toggleCloseDossier()" class="btn-red" style="font-size: 0.75rem;">Clôturer</button>
                     </div>
                     <button onclick="showActiveForm()" class="btn-gray" style="font-size: 0.75rem;">⬅️ Retour Création</button>
                 </div>
 
                 <div class="scan-body">
+                    <div id="subAssyContainer" class="hidden" style="margin-bottom: 1.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h3 class="section-title">Sous-ensembles</h3>
+                            <span id="subAssyCount" style="font-size: 0.75rem; font-weight: 700; color: #64748b;"></span>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 3.5rem; text-align: center;">Fait</th>
+                                        <th class="normal-wrap">Sous-ensemble</th>
+                                        <th style="width: 11rem;">Heure</th>
+                                        <th style="text-align: center; width: 7rem;">Trigramme</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="subAssyTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div id="savContainer" class="hidden" style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 0.75rem; font-weight: 700; color: #dc2626; text-transform: uppercase; background-color: #fef2f2; display: inline-block; padding: 0.25rem 0.625rem; border-radius: 0.25rem; border: 1px solid #fca5a5; margin-bottom: 0.75rem;">SAV</h3>
                         <div class="table-wrap" style="border-color: #fca5a5;">
@@ -823,6 +849,26 @@
         </div>
     </div>
 
+    <div id="remarksModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>Remarques du dossier</h3>
+            </div>
+            <form onsubmit="handleSaveRemarks(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Remarques</label>
+                        <textarea id="remarksInput" rows="5" placeholder="Informations complémentaires..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeModal('remarksModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" class="btn-blue">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="operatorScanModal" class="modal hidden">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header" style="background-color: #ffffff; color: #0f172a; border-bottom: 1px solid #e2e8f0;">
@@ -855,6 +901,9 @@
         let activeBatteryRowIndex = null;
         let editingIndex = null;
         let showFinished = false;
+        let scanTypingTimer = null;
+        let lastKeyTime = 0;
+        let pendingSubIndex = null;
 
         const BATTERY_REF = "SHE-0020400";
         const RACK_BATTERY_REF = "SHE-1046501";
@@ -868,6 +917,25 @@
         function isItemComplete(item) {
             if (isBatteryRef(item.ref)) return !!item.scanned && !!item.charged;
             return !!item.scanned;
+        }
+
+        // Construit la liste des sous-ensembles à réaliser, filtrée par les
+        // options cochées (même logique de condition que la nomenclature).
+        function buildSubassemblies(source, checkedOptionIds) {
+            if (!Array.isArray(source)) return [];
+            const out = [];
+            source.forEach((se, i) => {
+                if (se.option && !evaluateOptionCondition(se.option, checkedOptionIds)) return;
+                out.push({
+                    id: se.id || `SE${i}`,
+                    name: se.name || se.designation || `Sous-ensemble ${i + 1}`,
+                    group: se.group || "",
+                    done: false,
+                    doneTime: "",
+                    doneOperator: ""
+                });
+            });
+            return out;
         }
 
         // ====================================================================
@@ -1067,9 +1135,12 @@
             if (!dataHandle || saving || isBusy()) return;
             const disk = await readDataFile();
             if (!disk || !Array.isArray(disk.elements)) return;
-            const before = elements.length;
+            const before = JSON.stringify(elements);
             elements = mergeElements(disk.elements, elements);
             dataVersion = Math.max(dataVersion, disk.version || 0);
+            // Rien de nouveau sur le disque : on ne redessine pas l'écran
+            // (sinon une saisie en cours dans un champ serait effacée).
+            if (JSON.stringify(elements) === before) return;
             renderSidebarList();
             if (activeElementId && getActiveElement()) renderScanTables();
         }
@@ -1277,6 +1348,7 @@
             document.getElementById('formStationClient').value = '';
             document.getElementById('formStationProjectNum').value = '';
             document.getElementById('formStationOperator').value = '';
+            document.getElementById('formStationRemarks').value = '';
         }
 
         function resetEnvoiForm() {
@@ -1615,7 +1687,7 @@
                 } else {
                     snFieldHTML = `
                         <div style="display: flex; gap: 0.5rem;">
-                            <input id="rowScan-${idx}" type="text" placeholder="Entrer ou Scanner S/N" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onkeypress="if(event.key === 'Enter') triggerScanRow(${idx})">
+                            <input id="rowScan-${idx}" type="text" placeholder="Entrer ou Scanner S/N" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" oninput="onScanInput(${idx})" onkeypress="if(event.key === 'Enter') triggerScanRow(${idx})">
                             <button onclick="triggerScanRow(${idx})" class="btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.7125rem;">Enregistrer</button>
                         </div>
                     `;
@@ -1671,10 +1743,136 @@
                 closedBadge.classList.add('hidden');
                 manualBtn.classList.remove('hidden');
             }
+
+            renderSubassemblies();
+        }
+
+        // ---- Sous-ensembles --------------------------------------------------
+        function renderSubassemblies() {
+            const el = getActiveElement();
+            const container = document.getElementById('subAssyContainer');
+            const tbody = document.getElementById('subAssyTableBody');
+            if (!el || !Array.isArray(el.subassemblies) || el.subassemblies.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            const locked = !!el.closed;
+            container.classList.remove('hidden');
+            tbody.innerHTML = '';
+
+            // Regroupement par famille (Partie basse / Partie haute / …) en
+            // conservant l'ordre d'apparition défini dans la configuration.
+            const groups = new Map();
+            el.subassemblies.forEach((se, idx) => {
+                const g = se.group || '';
+                if (!groups.has(g)) groups.set(g, []);
+                groups.get(g).push({ se, idx });
+            });
+
+            let doneCount = 0;
+            groups.forEach((rows, groupName) => {
+                if (groupName) {
+                    const gr = document.createElement('tr');
+                    gr.innerHTML = `<td colspan="4" style="background-color: #f1f5f9; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569;">${groupName}</td>`;
+                    tbody.appendChild(gr);
+                }
+                rows.forEach(({ se, idx }) => {
+                    if (se.done) doneCount++;
+                    const tr = document.createElement('tr');
+                    if (se.done) tr.className = 'scanned-row';
+                    tr.innerHTML = `
+                        <td style="text-align: center;">
+                            <input type="checkbox" ${se.done ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="toggleSubassembly(${idx})" style="width: 1.1rem; height: 1.1rem; cursor: ${locked ? 'not-allowed' : 'pointer'};">
+                        </td>
+                        <td class="normal-wrap" style="font-weight: 500;">${se.name}</td>
+                        <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${se.doneTime || '--'}</td>
+                        <td style="text-align: center; font-weight: 700; font-size: 0.8125rem;">${se.doneOperator || '--'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+
+            document.getElementById('subAssyCount').textContent =
+                `${doneCount} / ${el.subassemblies.length} réalisés`;
+        }
+
+        function toggleSubassembly(index) {
+            const el = getActiveElement();
+            if (!el || el.closed) { renderSubassemblies(); return; }
+            const se = el.subassemblies[index];
+
+            if (se.done) {
+                se.done = false; se.doneTime = ''; se.doneOperator = '';
+                el.updatedAt = Date.now();
+                renderSubassemblies();
+                renderSidebarList();
+                scheduleSave();
+                return;
+            }
+
+            if (!currentScanOperator) {
+                pendingSubIndex = index;
+                renderSubassemblies();
+                openScanOperatorModal();
+                return;
+            }
+            applySubassembly(index, currentScanOperator);
+        }
+
+        function applySubassembly(index, operator) {
+            const el = getActiveElement();
+            if (!el) return;
+            const se = el.subassemblies[index];
+            se.done = true;
+            se.doneTime = formatDateTime();
+            se.doneOperator = operator;
+            el.updatedAt = Date.now();
+            renderSubassemblies();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        // ---- Remarques du dossier -------------------------------------------
+        function openRemarksModal() {
+            const el = getActiveElement();
+            if (!el) return;
+            const input = document.getElementById('remarksInput');
+            input.value = el.remarks || '';
+            input.disabled = !!el.closed;
+            document.getElementById('remarksModal').classList.remove('hidden');
+        }
+
+        function handleSaveRemarks(e) {
+            e.preventDefault();
+            const el = getActiveElement();
+            closeModal('remarksModal');
+            if (!el || el.closed) return;
+            el.remarks = document.getElementById('remarksInput').value.trim();
+            el.updatedAt = Date.now();
+            selectElement(el.id);
+            scheduleSave();
+        }
+
+        // ---- Validation automatique de la saisie ----------------------------
+        // Une douchette envoie ses caractères très rapprochés : on valide vite.
+        // Une saisie au clavier est plus lente : on laisse le temps de finir.
+        function onScanInput(index) {
+            const input = document.getElementById(`rowScan-${index}`);
+            if (!input) return;
+            const now = Date.now();
+            const rafale = (now - lastKeyTime) < 60;
+            lastKeyTime = now;
+            clearTimeout(scanTypingTimer);
+            const delai = rafale ? 150 : 900;
+            scanTypingTimer = setTimeout(() => {
+                const inp = document.getElementById(`rowScan-${index}`);
+                if (inp && inp.value.trim().length >= 3) triggerScanRow(index);
+            }, delai);
         }
 
         // ---- Actions de scan -------------------------------------------------
         function triggerScanRow(index) {
+            clearTimeout(scanTypingTimer);
             const el = getActiveElement();
             if (!el || el.closed) return;
 
@@ -1826,8 +2024,13 @@
                 }
             }
 
+            const subassemblies = buildSubassemblies(
+                config.robot_subassemblies ? config.robot_subassemblies[type] : null,
+                checkedOptionIds
+            );
+
             const id = 'R-' + Date.now();
-            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom, updatedAt: Date.now() });
+            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom, subassemblies, updatedAt: Date.now() });
             selectElement(id);
             scheduleSave();
         }
@@ -1838,6 +2041,7 @@
             const client = document.getElementById('formStationClient').value.trim();
             const projectNum = document.getElementById('formStationProjectNum').value.trim();
             const operator = document.getElementById('formStationOperator').value.trim().toUpperCase();
+            const remarks = document.getElementById('formStationRemarks').value.trim();
 
             const autoNum = getNextStationNumber(code);
             const selectedType = config.station_types.find(st => st.code === code);
@@ -1845,8 +2049,13 @@
 
             const bom = config.station_base_components ? config.station_base_components.map(comp => ({ ref: comp.ref, designation: comp.designation, category: "Station", scanned: false, serialNum: "", scanDate: "", scanOperator: "" })) : [];
 
+            const subassemblies = buildSubassemblies(
+                config.station_subassemblies ? config.station_subassemblies[code] : null,
+                []
+            );
+
             const id = 'S-' + Date.now();
-            elements.push({ id, objectType: 'station', type: code, typeName: selectedType?.name || "Station", color: selectedType?.color || "#64748B", num: autoNum, displayName, client, projectNum, operator, bom, updatedAt: Date.now() });
+            elements.push({ id, objectType: 'station', type: code, typeName: selectedType?.name || "Station", color: selectedType?.color || "#64748B", num: autoNum, displayName, client, projectNum, operator, remarks, bom, subassemblies, updatedAt: Date.now() });
             selectElement(id);
             scheduleSave();
         }
@@ -1923,8 +2132,11 @@
                     if (rType) elementColor = rType.color;
                 } else if (el.objectType === 'station') { elementColor = el.color || '#64748B'; }
 
-                const total = el.bom.length;
-                const scannedCount = el.bom.filter(p => isItemComplete(p)).length;
+                // L'avancement tient compte des pièces ET des sous-ensembles.
+                const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
+                const total = el.bom.length + subs.length;
+                const scannedCount = el.bom.filter(p => isItemComplete(p)).length
+                                   + subs.filter(s => s.done).length;
                 const percentage = total > 0 ? Math.round((scannedCount / total) * 100) : 0;
 
                 let leftOptionsInfo = '';
@@ -2080,6 +2292,14 @@
             currentScanOperator = trigram;
             closeModal('operatorScanModal');
 
+            // Sous-ensemble en attente d'opérateur
+            if (pendingSubIndex !== null) {
+                const i = pendingSubIndex;
+                pendingSubIndex = null;
+                applySubassembly(i, currentScanOperator);
+                return;
+            }
+
             if (pendingScanIndex === null) return;
 
             if (pendingScanIndex === -1) {
@@ -2170,6 +2390,10 @@
             el.bom.forEach(item => {
                 csvContent += `${cleanCSVField(item.ref)};${cleanCSVField(item.designation)};${cleanCSVField(snForCSV(item))};${cleanCSVField(item.scanDate)};${cleanCSVField(item.scanOperator)};${cleanCSVField(item.category)}\r\n`;
             });
+            (el.subassemblies || []).forEach(se => {
+                const cat = se.group ? `Sous-ensemble - ${se.group}` : 'Sous-ensemble';
+                csvContent += `${cleanCSVField('')};${cleanCSVField(se.name)};${cleanCSVField(se.done ? 'FAIT' : 'A FAIRE')};${cleanCSVField(se.doneTime)};${cleanCSVField(se.doneOperator)};${cleanCSVField(cat)}\r\n`;
+            });
             triggerCSVDownload(csvContent, `export_${el.displayName.replace(/\s+/g, '_')}.csv`);
         }
 
@@ -2189,6 +2413,10 @@
 
                 el.bom.forEach(item => {
                     csvContent += `${cleanCSVField(elType)};${cleanCSVField(num)};${cleanCSVField(modelType)};${cleanCSVField(top)};${cleanCSVField(projNum)};${cleanCSVField(client)};${cleanCSVField(options)};${cleanCSVField(item.ref)};${cleanCSVField(item.designation)};${cleanCSVField(snForCSV(item))};${cleanCSVField(item.scanDate)};${cleanCSVField(item.scanOperator)};${cleanCSVField(item.category)}\r\n`;
+                });
+                (el.subassemblies || []).forEach(se => {
+                    const cat = se.group ? `Sous-ensemble - ${se.group}` : 'Sous-ensemble';
+                    csvContent += `${cleanCSVField(elType)};${cleanCSVField(num)};${cleanCSVField(modelType)};${cleanCSVField(top)};${cleanCSVField(projNum)};${cleanCSVField(client)};${cleanCSVField(options)};${cleanCSVField('')};${cleanCSVField(se.name)};${cleanCSVField(se.done ? 'FAIT' : 'A FAIRE')};${cleanCSVField(se.doneTime)};${cleanCSVField(se.doneOperator)};${cleanCSVField(cat)}\r\n`;
                 });
             });
             triggerCSVDownload(csvContent, `export_global_production_smr_${Date.now()}.csv`);
