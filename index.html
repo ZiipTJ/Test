@@ -194,7 +194,7 @@
         .scan-header {
             background: linear-gradient(180deg, #ffffff, var(--slate-50));
             border-bottom: 1px solid var(--slate-200); padding: 1.5rem;
-            display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1.5rem;
+            display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1.5rem;
         }
         .active-badge {
             font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 9999px;
@@ -325,12 +325,22 @@
         .pane-tab:hover { color: var(--slate-800); background-color: var(--slate-50); }
         .pane-tab.active { color: var(--slate-900); border-bottom-color: var(--blue); }
         .pane-tab .pane-badge {
-            font-size: 0.6875rem; font-weight: 700; background-color: var(--slate-200);
-            color: var(--slate-600); padding: 0.05rem 0.4rem; border-radius: 9999px; margin-left: 0.35rem;
+            font-size: 0.6875rem; font-weight: 700; padding: 0.05rem 0.4rem;
+            border-radius: 9999px; margin-left: 0.35rem; color: #fff;
         }
-        .pane-tab.active .pane-badge { background-color: var(--blue); color: #fff; }
+        #paneTabSubCount { background-color: var(--slate-900); }
+        #paneTabBomCount { background-color: var(--blue); }
+        .pane-tab:not(.active) .pane-badge { opacity: 0.45; }
 
         /* ---- Indicateurs ---- */
+        /* ---- Compteurs : bleu = S/N, noir = sous-ensembles ---- */
+        .count-pill {
+            font-size: 0.6875rem; font-weight: 700; padding: 0.15rem 0.45rem;
+            border-radius: 9999px; flex-shrink: 0; white-space: nowrap; line-height: 1.35;
+        }
+        .count-sn  { background-color: var(--blue); color: #fff; }
+        .count-sub { background-color: var(--slate-900); color: #fff; }
+
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
         .kpi-card {
             background: #fff; border: 1px solid var(--slate-200); border-radius: var(--radius-lg);
@@ -723,7 +733,10 @@
                     <div class="progress-container">
                         <div style="text-align: right;">
                             <div style="font-size: 0.625rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Avancement</div>
-                            <div id="activeProgressCount" style="font-size: 0.875rem; font-weight: 700; color: #059669;">0 / 0 Pièces</div>
+                            <div style="display: flex; gap: 0.35rem; justify-content: flex-end; margin-top: 0.25rem;">
+                                <span id="progSn" class="count-pill count-sn" title="Numéros de série scannés">0/0</span>
+                                <span id="progSub" class="count-pill count-sub" title="Sous-ensembles réalisés">0/0</span>
+                            </div>
                         </div>
                         <div class="progress-bar-bg">
                             <div id="activeProgressBar" class="progress-bar-fill"></div>
@@ -1971,11 +1984,6 @@
                 (isSAV ? savBody : bomBody).appendChild(tr);
             });
 
-            document.getElementById('paneTabBomCount').textContent = `${normalScanned}/${normalCount}`;
-            document.getElementById('activeProgressCount').textContent = `${normalScanned} / ${normalCount} Pièces`;
-            const pct = normalCount > 0 ? Math.round((normalScanned / normalCount) * 100) : 0;
-            document.getElementById('activeProgressBar').style.width = `${pct}%`;
-
             document.getElementById('savContainer').classList.toggle('hidden', !hasSAV);
 
             // État verrouillage : boutons + badge
@@ -1995,6 +2003,31 @@
             }
 
             renderSubassemblies();
+        }
+
+        // Compteurs du dossier : bleu = numéros de série, noir = sous-ensembles.
+        // La barre d'avancement, elle, agrège les deux.
+        function updateProgressUI() {
+            const el = getActiveElement();
+            if (!el) return;
+
+            const bomItems = (el.bom || []).filter(i => i.category !== 'SAV');
+            const bomDone = bomItems.filter(isItemComplete).length;
+            const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
+            const subDone = subs.filter(s => s.done).length;
+
+            document.getElementById('progSn').textContent = `${bomDone}/${bomItems.length}`;
+            document.getElementById('paneTabBomCount').textContent = `${bomDone}/${bomItems.length}`;
+
+            const subPill = document.getElementById('progSub');
+            subPill.textContent = `${subDone}/${subs.length}`;
+            subPill.classList.toggle('hidden', subs.length === 0);
+            document.getElementById('paneTabSubCount').textContent = `${subDone}/${subs.length}`;
+
+            const totAll = bomItems.length + subs.length;
+            const doneAll = bomDone + subDone;
+            const pct = totAll > 0 ? Math.round((doneAll / totAll) * 100) : 0;
+            document.getElementById('activeProgressBar').style.width = `${pct}%`;
         }
 
         // ---- Onglets du dossier ---------------------------------------------
@@ -2017,8 +2050,7 @@
             const tbody = document.getElementById('subAssyTableBody');
             const subs = (el && Array.isArray(el.subassemblies)) ? el.subassemblies : [];
 
-            document.getElementById('paneTabSubCount').textContent =
-                `${subs.filter(s => s.done).length}/${subs.length}`;
+            updateProgressUI();
 
             if (subs.length === 0) {
                 container.classList.add('hidden');
