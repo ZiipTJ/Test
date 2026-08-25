@@ -380,12 +380,6 @@
                 📦 Liste envois
             </button>
             <input type="file" id="importConfigInput" accept=".json" onchange="handleFileImport(event)" class="hidden">
-            <button onclick="openConnectOverlay()" class="btn-secondary">
-                🗂️ Fichiers
-            </button>
-            <button onclick="exportWorkspace()" class="btn-blue">
-                📤 Sauvegarde manuelle
-            </button>
         </div>
     </nav>
 
@@ -715,6 +709,9 @@
                             <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">Indicateurs généraux</h2>
                             <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Analyse consolidée de tous les dossiers robots et stations de charge.</p>
                         </div>
+                        <button onclick="exportIndicatorsCSV()" class="btn-primary" style="font-size: 0.75rem;">
+                            📥 Exporter les indicateurs (CSV)
+                        </button>
                     </div>
                     <div id="globalKpiContent"></div>
                 </div>
@@ -1127,11 +1124,23 @@
             return total;
         }
 
-        function formatWorkingDuration(ms) {
+        // Base 35 h/semaine : une journée ouvrée compte 7 heures de travail.
+        const HOURS_PER_WORKING_DAY = 7;
+
+        // Convertit un écart "calendaire ouvré" (jours de 24 h, week-ends et
+        // fériés déjà déduits) en heures réellement ouvrées.
+        function toBusinessHours(ms) {
+            return (ms / 3600000) * (HOURS_PER_WORKING_DAY / 24);
+        }
+
+        // Affiche en journées de 7 h (ex. "2 j 3 h" = 17 h ouvrées).
+        function formatBusinessDuration(ms) {
             if (!ms || ms <= 0) return '--';
-            const totalMin = Math.round(ms / 60000);
-            const days = Math.floor(totalMin / 1440);
-            const hours = Math.floor((totalMin % 1440) / 60);
+            const totalMin = Math.round(toBusinessHours(ms) * 60);
+            if (totalMin <= 0) return '--';
+            const dayMin = HOURS_PER_WORKING_DAY * 60;
+            const days = Math.floor(totalMin / dayMin);
+            const hours = Math.floor((totalMin % dayMin) / 60);
             const mins = totalMin % 60;
             const parts = [];
             if (days) parts.push(`${days} j`);
@@ -1139,6 +1148,7 @@
             if (mins || parts.length === 0) parts.push(`${mins} min`);
             return parts.join(' ');
         }
+
 
         function formatMinutes(totalMin) {
             if (!totalMin || totalMin <= 0) return '--';
@@ -1454,16 +1464,6 @@
             document.getElementById('connectStartBtn').disabled = !(tempConfigHandle && tempDataHandle);
         }
 
-        function openConnectOverlay() {
-            showOverlay();
-            if (!FS_SUPPORTED) {
-                document.getElementById('connectSetup').classList.add('hidden');
-                document.getElementById('connectReconnect').classList.add('hidden');
-                document.getElementById('connectUnsupported').classList.remove('hidden');
-                return;
-            }
-            showSetup();
-        }
 
         async function pickConfig() {
             try {
@@ -2267,8 +2267,8 @@
                 <div class="kpi-grid">
                     <div class="kpi-card">
                         <div class="kpi-label">Temps de passage</div>
-                        <div class="kpi-value">${leadMs > 0 ? formatWorkingDuration(leadMs) : 'En cours'}</div>
-                        <div class="kpi-sub">Ouverture → 100 %, hors week-ends et fériés</div>
+                        <div class="kpi-value">${leadMs > 0 ? formatBusinessDuration(leadMs) : 'En cours'}</div>
+                        <div class="kpi-sub">Ouverture → 100 %, en heures ouvrées (journées de 7 h)</div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-label">Temps de montage cumulé</div>
@@ -2363,8 +2363,8 @@
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-label">Temps de passage moyen</div>
-                        <div class="kpi-value">${done.length ? formatWorkingDuration(avgLead) : '--'}</div>
-                        <div class="kpi-sub">Hors week-ends et fériés Alsace-Moselle</div>
+                        <div class="kpi-value">${done.length ? formatBusinessDuration(avgLead) : '--'}</div>
+                        <div class="kpi-sub">Heures ouvrées, hors week-ends et fériés Alsace-Moselle</div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-label">Sous-ensembles mesurés</div>
@@ -2432,7 +2432,7 @@
                                     <th style="width: 9rem;">Client</th>
                                     <th style="width: 11rem;">Ouverture</th>
                                     <th style="width: 11rem;">100 % atteint</th>
-                                    <th style="width: 10rem;">Temps ouvré</th>
+                                    <th style="width: 10rem;">Temps ouvré (7 h/j)</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2442,7 +2442,7 @@
                                         <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(l.el.client || '')}</td>
                                         <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.start ? formatDateTime(new Date(l.start)) : '--'}</td>
                                         <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.end ? formatDateTime(new Date(l.end)) : '--'}</td>
-                                        <td style="font-weight: 700;">${l.ms > 0 ? formatWorkingDuration(l.ms) : '<span style="color:#94a3b8; font-weight:500; font-style:italic;">En cours</span>'}</td>
+                                        <td style="font-weight: 700;">${l.ms > 0 ? formatBusinessDuration(l.ms) : '<span style="color:#94a3b8; font-weight:500; font-style:italic;">En cours</span>'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -2760,9 +2760,11 @@
 
                 // L'avancement tient compte des pièces ET des sous-ensembles.
                 const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
-                const total = el.bom.length + subs.length;
-                const scannedCount = el.bom.filter(p => isItemComplete(p)).length
-                                   + subs.filter(s => s.done).length;
+                const bomItems = (el.bom || []).filter(i => i.category !== 'SAV');
+                const bomDone = bomItems.filter(isItemComplete).length;
+                const subDone = subs.filter(s => s.done).length;
+                const total = bomItems.length + subs.length;
+                const scannedCount = bomDone + subDone;
                 const percentage = total > 0 ? Math.round((scannedCount / total) * 100) : 0;
 
                 let leftOptionsInfo = '';
@@ -2799,7 +2801,10 @@
                             </div>
                             ${leftOptionsInfo}
                         </div>
-                        <span style="font-size: 0.6875rem; font-weight: 700; background-color: #e2e8f0; padding: 0.15rem 0.45rem; border-radius: 9999px; margin-left: 0.75rem; flex-shrink: 0;">${scannedCount}/${total}</span>
+                        <span style="display: flex; gap: 0.3rem; margin-left: 0.75rem; flex-shrink: 0;">
+                            <span class="count-pill count-sn" title="Numéros de série scannés">${bomDone}/${bomItems.length}</span>
+                            ${subs.length ? `<span class="count-pill count-sub" title="Sous-ensembles réalisés">${subDone}/${subs.length}</span>` : ''}
+                        </span>
                     </div>
                     <div style="margin-top: 0.5rem; width: 100%; background-color: #e2e8f0; height: 4px; border-radius: 9999px; overflow: hidden;">
                         <div style="height: 100%; background-color: ${scannedCount === total ? '#10b981' : '#94a3b8'}; width: ${percentage}%"></div>
@@ -3042,6 +3047,49 @@
             triggerCSVDownload(csvContent, `export_global_production_smr_${Date.now()}.csv`);
         }
 
+        // Export des indicateurs généraux : synthèse, classement des
+        // sous-ensembles, puis temps de passage dossier par dossier.
+        function exportIndicatorsCSV() {
+            const stats = collectSubassemblyStats(elements);
+            const leads = collectLeadTimes();
+            const done = leads.filter(l => l.ms > 0);
+            const avgLead = done.length ? done.reduce((a, l) => a + l.ms, 0) / done.length : 0;
+
+            const h1 = (n) => Math.round(toBusinessHours(n) * 100) / 100;
+            let csv = "﻿";
+
+            csv += "SYNTHESE\r\n";
+            csv += "Indicateur;Valeur\r\n";
+            csv += `${cleanCSVField("Dossiers suivis")};${cleanCSVField(leads.length)}\r\n`;
+            csv += `${cleanCSVField("Dossiers termines a 100%")};${cleanCSVField(done.length)}\r\n`;
+            csv += `${cleanCSVField("Temps de passage moyen (h ouvrees)")};${cleanCSVField(done.length ? h1(avgLead) : '')}\r\n`;
+            csv += `${cleanCSVField("Sous-ensembles mesures")};${cleanCSVField(stats.length)}\r\n`;
+            csv += `${cleanCSVField("Releves de temps")};${cleanCSVField(stats.reduce((a, s) => a + s.count, 0))}\r\n`;
+            csv += `${cleanCSVField("Base horaire")};${cleanCSVField("35 h/semaine - journee de " + HOURS_PER_WORKING_DAY + " h")}\r\n`;
+            csv += "\r\n";
+
+            csv += "CLASSEMENT DES SOUS-ENSEMBLES PAR TEMPS MOYEN\r\n";
+            csv += "Rang;Sous-ensemble;Partie;Temps moyen (min);Temps cumule (min);Releves\r\n";
+            stats.forEach((s, i) => {
+                csv += `${cleanCSVField(i + 1)};${cleanCSVField(s.name)};${cleanCSVField(s.group)};`
+                     + `${cleanCSVField(Math.round(s.avg))};${cleanCSVField(s.total)};${cleanCSVField(s.count)}\r\n`;
+            });
+            csv += "\r\n";
+
+            csv += "TEMPS DE PASSAGE PAR DOSSIER\r\n";
+            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Temps ouvre (h);Statut\r\n";
+            leads.forEach(l => {
+                csv += `${cleanCSVField(l.el.displayName)};${cleanCSVField(l.el.client)};`
+                     + `${cleanCSVField(l.el.projectNum ? 'PR' + l.el.projectNum : '')};`
+                     + `${cleanCSVField(l.start ? formatDateTime(new Date(l.start)) : '')};`
+                     + `${cleanCSVField(l.end ? formatDateTime(new Date(l.end)) : '')};`
+                     + `${cleanCSVField(l.ms > 0 ? h1(l.ms) : '')};`
+                     + `${cleanCSVField(l.ms > 0 ? 'Termine' : 'En cours')}\r\n`;
+            });
+
+            triggerCSVDownload(csv, `indicateurs_generaux_${Date.now()}.csv`);
+        }
+
         function triggerCSVDownload(content, fileName) {
             const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
@@ -3049,11 +3097,6 @@
             document.body.appendChild(link); link.click(); link.remove();
         }
 
-        function exportWorkspace() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ elements }, null, 4));
-            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", `workspace_backup_${Date.now()}.json`);
-            document.body.appendChild(dl); dl.click(); dl.remove();
-        }
 
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
         boot();
