@@ -1133,6 +1133,13 @@
             return (ms / 3600000) * (HOURS_PER_WORKING_DAY / 24);
         }
 
+        // Délai calendaire brut entre deux instants, en jours décimaux
+        // (ex. "1,2 j"). C'est simplement 100 % − ouverture, sans retrait.
+        function formatCalendarDays(ms) {
+            if (!ms || ms <= 0) return '--';
+            return (ms / 86400000).toFixed(1).replace('.', ',') + ' j';
+        }
+
         // Affiche en journées de 7 h (ex. "2 j 3 h" = 17 h ouvrées).
         function formatBusinessDuration(ms) {
             if (!ms || ms <= 0) return '--';
@@ -2193,7 +2200,8 @@
                         el,
                         start,
                         end,
-                        ms: (start && end) ? workingDurationMs(start, end) : 0
+                        ms: (start && end) ? workingDurationMs(start, end) : 0,
+                        calMs: (start && end && end > start) ? (end - start) : 0
                     };
                 });
         }
@@ -2259,6 +2267,7 @@
             const stats = collectSubassemblyStats([el]);
             const start = elementCreatedAt(el);
             const leadMs = (start && el.completedAt) ? workingDurationMs(start, el.completedAt) : 0;
+            const calMs = (start && el.completedAt && el.completedAt > start) ? (el.completedAt - start) : 0;
             const totalMin = stats.reduce((a, s) => a + s.total, 0);
             const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
             const doneSubs = subs.filter(s => s.done).length;
@@ -2267,8 +2276,8 @@
                 <div class="kpi-grid">
                     <div class="kpi-card">
                         <div class="kpi-label">Temps de passage</div>
-                        <div class="kpi-value">${leadMs > 0 ? formatBusinessDuration(leadMs) : 'En cours'}</div>
-                        <div class="kpi-sub">Ouverture → 100 %, en heures ouvrées (journées de 7 h)</div>
+                        <div class="kpi-value">${calMs > 0 ? formatCalendarDays(calMs) : 'En cours'}</div>
+                        <div class="kpi-sub">${leadMs > 0 ? formatBusinessDuration(leadMs) + ' ouvrées (journées de 7 h)' : 'Ouverture → 100 %'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-label">Temps de montage cumulé</div>
@@ -2353,6 +2362,7 @@
             const leads = collectLeadTimes();
             const done = leads.filter(l => l.ms > 0);
             const avgLead = done.length ? done.reduce((a, l) => a + l.ms, 0) / done.length : 0;
+            const avgCal = done.length ? done.reduce((a, l) => a + l.calMs, 0) / done.length : 0;
 
             let html = `
                 <div class="kpi-grid">
@@ -2363,8 +2373,8 @@
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-label">Temps de passage moyen</div>
-                        <div class="kpi-value">${done.length ? formatBusinessDuration(avgLead) : '--'}</div>
-                        <div class="kpi-sub">Heures ouvrées, hors week-ends et fériés Alsace-Moselle</div>
+                        <div class="kpi-value">${done.length ? formatCalendarDays(avgCal) : '--'}</div>
+                        <div class="kpi-sub">${done.length ? formatBusinessDuration(avgLead) + ' ouvrées (hors week-ends et fériés)' : 'Aucun dossier terminé'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-label">Sous-ensembles mesurés</div>
@@ -2432,6 +2442,7 @@
                                     <th style="width: 9rem;">Client</th>
                                     <th style="width: 11rem;">Ouverture</th>
                                     <th style="width: 11rem;">100 % atteint</th>
+                                    <th style="width: 7rem;">Délai</th>
                                     <th style="width: 10rem;">Temps ouvré (7 h/j)</th>
                                 </tr>
                             </thead>
@@ -2442,6 +2453,7 @@
                                         <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(l.el.client || '')}</td>
                                         <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.start ? formatDateTime(new Date(l.start)) : '--'}</td>
                                         <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.end ? formatDateTime(new Date(l.end)) : '--'}</td>
+                                        <td style="font-weight: 700;">${formatCalendarDays(l.calMs)}</td>
                                         <td style="font-weight: 700;">${l.ms > 0 ? formatBusinessDuration(l.ms) : '<span style="color:#94a3b8; font-weight:500; font-style:italic;">En cours</span>'}</td>
                                     </tr>
                                 `).join('')}
@@ -3054,6 +3066,7 @@
             const leads = collectLeadTimes();
             const done = leads.filter(l => l.ms > 0);
             const avgLead = done.length ? done.reduce((a, l) => a + l.ms, 0) / done.length : 0;
+            const avgCal = done.length ? done.reduce((a, l) => a + l.calMs, 0) / done.length : 0;
 
             const h1 = (n) => Math.round(toBusinessHours(n) * 100) / 100;
             let csv = "﻿";
@@ -3062,6 +3075,7 @@
             csv += "Indicateur;Valeur\r\n";
             csv += `${cleanCSVField("Dossiers suivis")};${cleanCSVField(leads.length)}\r\n`;
             csv += `${cleanCSVField("Dossiers termines a 100%")};${cleanCSVField(done.length)}\r\n`;
+            csv += `${cleanCSVField("Delai moyen (j calendaires)")};${cleanCSVField(done.length ? (Math.round(avgCal / 86400000 * 10) / 10) : '')}\r\n`;
             csv += `${cleanCSVField("Temps de passage moyen (h ouvrees)")};${cleanCSVField(done.length ? h1(avgLead) : '')}\r\n`;
             csv += `${cleanCSVField("Sous-ensembles mesures")};${cleanCSVField(stats.length)}\r\n`;
             csv += `${cleanCSVField("Releves de temps")};${cleanCSVField(stats.reduce((a, s) => a + s.count, 0))}\r\n`;
@@ -3077,12 +3091,13 @@
             csv += "\r\n";
 
             csv += "TEMPS DE PASSAGE PAR DOSSIER\r\n";
-            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Temps ouvre (h);Statut\r\n";
+            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Delai (j);Temps ouvre (h);Statut\r\n";
             leads.forEach(l => {
                 csv += `${cleanCSVField(l.el.displayName)};${cleanCSVField(l.el.client)};`
                      + `${cleanCSVField(l.el.projectNum ? 'PR' + l.el.projectNum : '')};`
                      + `${cleanCSVField(l.start ? formatDateTime(new Date(l.start)) : '')};`
                      + `${cleanCSVField(l.end ? formatDateTime(new Date(l.end)) : '')};`
+                     + `${cleanCSVField(l.calMs > 0 ? (Math.round(l.calMs / 86400000 * 10) / 10) : '')};`
                      + `${cleanCSVField(l.ms > 0 ? h1(l.ms) : '')};`
                      + `${cleanCSVField(l.ms > 0 ? 'Termine' : 'En cours')}\r\n`;
             });
