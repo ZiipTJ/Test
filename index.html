@@ -333,6 +333,29 @@
         .pane-tab:not(.active) .pane-badge { opacity: 0.45; }
 
         /* ---- Indicateurs ---- */
+        /* ---- Statuts du dossier ---- */
+        .status-tag {
+            font-size: 0.625rem; font-weight: 800; padding: 0.1rem 0.45rem;
+            border-radius: 9999px; color: #fff; text-transform: uppercase;
+            letter-spacing: 0.03em; white-space: nowrap; flex-shrink: 0;
+        }
+        .status-step {
+            display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem;
+            border: 1px solid var(--slate-200); border-radius: var(--radius);
+            background: #fff; margin-bottom: 0.5rem;
+        }
+        .status-step.done { background: #f0fdf4; border-color: #86efac; }
+        .status-step.current { border-color: var(--blue); box-shadow: var(--ring); }
+        .status-step-mark {
+            width: 1.4rem; height: 1.4rem; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 800; color: #fff; background: var(--slate-300);
+        }
+        .status-step.done .status-step-mark { background: var(--emerald); }
+        .status-step.current .status-step-mark { background: var(--blue); }
+        .status-step-label { font-size: 0.8125rem; font-weight: 700; color: var(--slate-800); }
+        .status-step-sub { font-size: 0.7rem; color: var(--slate-500); }
+
         /* ---- Compteurs : bleu = S/N, noir = sous-ensembles ---- */
         .count-pill {
             font-size: 0.6875rem; font-weight: 700; padding: 0.15rem 0.45rem;
@@ -722,6 +745,7 @@
                     <div style="flex: 1; min-width: 250px;">
                         <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem; flex-wrap: wrap;">
                             <span id="activeBadge" class="active-badge">--</span>
+                            <span id="statusBadge" class="active-badge">--</span>
                             <span id="closedBadge" class="active-badge hidden" style="background-color: #dc2626;">Terminé</span>
                             <h2 id="activeTitle" style="font-size: 1.5rem; font-weight: 700; color: #0f172a;">--</h2>
                         </div>
@@ -763,6 +787,9 @@
                     </button>
                     <button id="paneTabBom" onclick="setPane('bom')" class="pane-tab">
                         Nomenclature d'assemblage <span id="paneTabBomCount" class="pane-badge">0</span>
+                    </button>
+                    <button id="paneTabMer" onclick="setPane('mer')" class="pane-tab">
+                        MER
                     </button>
                     <button id="paneTabKpi" onclick="setPane('kpi')" class="pane-tab">
                         Indicateurs
@@ -837,6 +864,10 @@
                             </table>
                         </div>
                     </div>
+                  </div>
+
+                  <div id="paneMer" class="hidden">
+                    <div id="merContent"></div>
                   </div>
 
                   <div id="paneKpi" class="hidden">
@@ -1182,13 +1213,41 @@
             return hasSomething && bomOk && subOk;
         }
 
+        // ---- Statuts du dossier ---------------------------------------------
+        //  CRÉÉ → PROD (1re pièce scannée ou 1er sous-ensemble validé)
+        //       → MER  (100 % atteint)
+        //       → EXP2 (validation manuelle de la MER, avec trigramme)
+        const STATUS_DEFS = {
+            CREE: { label: 'CRÉÉ', color: '#64748b', desc: 'Dossier ouvert, aucune saisie' },
+            PROD: { label: 'PROD', color: '#2563eb', desc: 'Assemblage en cours' },
+            MER:  { label: 'MER',  color: '#d97706', desc: 'Assemblage terminé, MER à valider' },
+            EXP2: { label: 'EXP2', color: '#059669', desc: 'MER validée' }
+        };
+        const STATUS_ORDER = ['CREE', 'PROD', 'MER', 'EXP2'];
+
+        function computeStatus(el) {
+            if (!el) return 'CREE';
+            if (el.merValidation) return 'EXP2';
+            if (isElementComplete(el)) return 'MER';
+            const anyScanned = (el.bom || []).some(i => i.scanned);
+            const anySub = (el.subassemblies || []).some(s => s.done);
+            return (anyScanned || anySub) ? 'PROD' : 'CREE';
+        }
+
+        function statusTagHtml(el) {
+            const st = STATUS_DEFS[computeStatus(el)];
+            return `<span class="status-tag" style="background-color: ${st.color};">${st.label}</span>`;
+        }
+
         // Horodate le passage à 100 % ; l'efface si le dossier repasse en dessous.
         function updateCompletion(el) {
             if (!el) return;
             if (isElementComplete(el)) {
                 if (!el.completedAt) el.completedAt = Date.now();
-            } else if (el.completedAt) {
-                el.completedAt = null;
+            } else {
+                if (el.completedAt) el.completedAt = null;
+                // Le dossier repasse sous 100 % : la validation MER ne tient plus.
+                if (el.merValidation) el.merValidation = null;
             }
         }
 
@@ -2035,18 +2094,25 @@
             const doneAll = bomDone + subDone;
             const pct = totAll > 0 ? Math.round((doneAll / totAll) * 100) : 0;
             document.getElementById('activeProgressBar').style.width = `${pct}%`;
+
+            const st = STATUS_DEFS[computeStatus(el)];
+            const badge = document.getElementById('statusBadge');
+            badge.textContent = st.label;
+            badge.style.backgroundColor = st.color;
+            badge.title = st.desc;
         }
 
         // ---- Onglets du dossier ---------------------------------------------
         function setPane(pane) {
             activePane = pane;
-            const map = { sub: 'paneSub', bom: 'paneBom', kpi: 'paneKpi' };
-            const tabs = { sub: 'paneTabSub', bom: 'paneTabBom', kpi: 'paneTabKpi' };
+            const map = { sub: 'paneSub', bom: 'paneBom', mer: 'paneMer', kpi: 'paneKpi' };
+            const tabs = { sub: 'paneTabSub', bom: 'paneTabBom', mer: 'paneTabMer', kpi: 'paneTabKpi' };
             Object.keys(map).forEach(k => {
                 document.getElementById(map[k]).classList.toggle('hidden', k !== pane);
                 document.getElementById(tabs[k]).className = 'pane-tab' + (k === pane ? ' active' : '');
             });
             if (pane === 'kpi') renderIndicators();
+            if (pane === 'mer') renderMerPane();
         }
 
         // ---- Sous-ensembles --------------------------------------------------
@@ -2160,6 +2226,125 @@
             activeSubIndex = null;
             closeModal('subAssyModal');
             renderSubassemblies();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        // ---- Onglet MER ------------------------------------------------------
+        function renderMerPane() {
+            const box = document.getElementById('merContent');
+            if (!box) return;
+            const el = getActiveElement();
+            if (!el) { box.innerHTML = ''; return; }
+
+            const status = computeStatus(el);
+            const reached = STATUS_ORDER.indexOf(status);
+            const locked = !!el.closed;
+
+            let html = `
+                <div style="margin-bottom: 0.5rem;">
+                    <h3 class="section-title">Avancement du dossier</h3>
+                </div>
+            `;
+
+            STATUS_ORDER.forEach((key, i) => {
+                const st = STATUS_DEFS[key];
+                const cls = i < reached ? 'done' : (i === reached ? 'current' : '');
+                const mark = i < reached ? '✓' : (i + 1);
+                html += `
+                    <div class="status-step ${cls}">
+                        <div class="status-step-mark">${mark}</div>
+                        <div style="flex: 1;">
+                            <div class="status-step-label">${st.label}</div>
+                            <div class="status-step-sub">${st.desc}</div>
+                        </div>
+                        ${i === reached ? '<span class="status-tag" style="background-color: ' + st.color + ';">Actuel</span>' : ''}
+                    </div>
+                `;
+            });
+
+            html += `<div style="margin-top: 1.5rem;">`;
+
+            if (el.merValidation) {
+                const v = el.merValidation;
+                html += `
+                    <div class="table-wrap">
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td style="font-weight: 700; width: 14rem;">MER validée par</td>
+                                    <td style="font-weight: 700; color: #059669;">${escapeHtml(v.operator)}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">Le</td>
+                                    <td style="font-family: monospace; color: #475569;">${escapeHtml(v.date)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    ${locked ? '' : `
+                        <button onclick="cancelMerValidation()" class="btn-gray" style="margin-top: 1rem; font-size: 0.75rem;">
+                            Annuler la validation MER
+                        </button>
+                    `}
+                `;
+            } else if (status === 'MER') {
+                html += `
+                    <div class="table-wrap" style="padding: 1.25rem;">
+                        <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 1rem;">
+                            L'assemblage est terminé à 100 %. Saisissez votre trigramme pour valider la MER
+                            et faire passer le dossier en <strong>EXP2</strong>.
+                        </p>
+                        <form onsubmit="handleValidateMer(event)" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
+                            <div class="form-group" style="max-width: 12rem;">
+                                <label>* Trigramme</label>
+                                <input id="merOperator" type="text" required maxlength="3" placeholder=""
+                                       style="font-weight: 700; text-transform: uppercase;"
+                                       oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')"
+                                       ${locked ? 'disabled' : ''}>
+                            </div>
+                            <button type="submit" class="btn-primary" ${locked ? 'disabled' : ''}>Valider la MER</button>
+                        </form>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="empty-hint">
+                        La validation MER sera possible une fois le dossier terminé à 100 %
+                        (numéros de série et sous-ensembles).
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+            box.innerHTML = html;
+        }
+
+        function handleValidateMer(e) {
+            e.preventDefault();
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            if (!isElementComplete(el)) { alert("Le dossier doit être terminé à 100 %."); return; }
+
+            const operator = document.getElementById('merOperator').value.trim().toUpperCase();
+            if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
+
+            el.merValidation = { operator, date: formatDateTime(), at: Date.now() };
+            el.updatedAt = Date.now();
+            renderScanTables();
+            renderMerPane();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        function cancelMerValidation() {
+            const el = getActiveElement();
+            if (!el || el.closed || !el.merValidation) return;
+            if (!confirm("Annuler la validation MER ? Le dossier repassera au statut MER.")) return;
+            el.merValidation = null;
+            el.updatedAt = Date.now();
+            renderScanTables();
+            renderMerPane();
             renderSidebarList();
             scheduleSave();
         }
@@ -2805,7 +2990,9 @@
                     <div style="display: flex; justify-content: space-between; align-items: start;">
                         <div style="flex: 1; min-width: 0;">
                             <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem;">
-                                <span style="font-size: 0.875rem; font-weight: 700;">${numberLabel}${finishedTag}</span>
+                                <span style="font-size: 0.875rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                                    ${numberLabel} ${statusTagHtml(el)}${finishedTag}
+                                </span>
                                 <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569;">${el.client}</span>
                             </div>
                             <div style="font-size: 0.8125rem; font-weight: 500; color: #1e293b; margin-top: 0.125rem;">
@@ -3099,7 +3286,7 @@
                      + `${cleanCSVField(l.end ? formatDateTime(new Date(l.end)) : '')};`
                      + `${cleanCSVField(l.calMs > 0 ? (Math.round(l.calMs / 86400000 * 10) / 10) : '')};`
                      + `${cleanCSVField(l.ms > 0 ? h1(l.ms) : '')};`
-                     + `${cleanCSVField(l.ms > 0 ? 'Termine' : 'En cours')}\r\n`;
+                     + `${cleanCSVField(STATUS_DEFS[computeStatus(l.el)].label)}\r\n`;
             });
 
             triggerCSVDownload(csv, `indicateurs_generaux_${Date.now()}.csv`);
