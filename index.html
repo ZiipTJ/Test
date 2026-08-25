@@ -2235,7 +2235,11 @@
                         <table>
                             <tbody>
                                 <tr>
-                                    <td style="font-weight: 700; width: 14rem;">MER validée par</td>
+                                    <td style="font-weight: 700; width: 14rem;">Temps de mise en route</td>
+                                    <td style="font-weight: 700; color: #0f172a;">${formatMinutes(v.durationMin)}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">MER validée par</td>
                                     <td style="font-weight: 700; color: #059669;">${escapeHtml(v.operator)}</td>
                                 </tr>
                                 <tr>
@@ -2258,8 +2262,19 @@
                             L'assemblage est terminé à 100 %. Saisissez votre trigramme pour valider la MER
                             et faire passer le dossier en <strong>EXPE</strong>.
                         </p>
-                        <form onsubmit="handleValidateMer(event)" style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
-                            <div class="form-group" style="max-width: 12rem;">
+                        <form onsubmit="handleValidateMer(event)" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                            <div class="form-group">
+                                <label>* Temps de mise en route</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input id="merHours" type="number" min="0" max="999" placeholder=""
+                                           style="text-align: center; max-width: 5rem;" ${locked ? 'disabled' : ''}>
+                                    <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
+                                    <input id="merMinutes" type="number" min="0" max="59" placeholder=""
+                                           style="text-align: center; max-width: 5rem;" ${locked ? 'disabled' : ''}>
+                                    <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">min</span>
+                                </div>
+                            </div>
+                            <div class="form-group" style="max-width: 10rem;">
                                 <label>* Trigramme</label>
                                 <input id="merOperator" type="text" required maxlength="3" placeholder=""
                                        style="font-weight: 700; text-transform: uppercase;"
@@ -2291,7 +2306,12 @@
             const operator = document.getElementById('merOperator').value.trim().toUpperCase();
             if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
 
-            el.merValidation = { operator, date: formatDateTime(), at: Date.now() };
+            const h = parseInt(document.getElementById('merHours').value) || 0;
+            const m = parseInt(document.getElementById('merMinutes').value) || 0;
+            const durationMin = h * 60 + m;
+            if (durationMin <= 0) { alert("Veuillez renseigner le temps de mise en route."); return; }
+
+            el.merValidation = { operator, date: formatDateTime(), at: Date.now(), durationMin };
             el.updatedAt = Date.now();
             renderScanTables();
             renderMerPane();
@@ -2454,6 +2474,38 @@
                 </div>
 
                 <div style="margin-bottom: 0.5rem;">
+                    <h3 class="section-title">Mise en route</h3>
+                </div>
+            `;
+
+            const mer = el.merValidation;
+            if (mer) {
+                html += `
+                    <div class="table-wrap" style="margin-bottom: 1.5rem;">
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td style="font-weight: 700; width: 14rem;">Temps de mise en route</td>
+                                    <td style="font-weight: 700; color: #0f172a;">${formatMinutes(mer.durationMin)}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">Validée par</td>
+                                    <td style="font-weight: 700; color: #059669;">${escapeHtml(mer.operator)}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">Le</td>
+                                    <td style="font-family: monospace; color: #475569;">${escapeHtml(mer.date)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                html += `<div class="empty-hint" style="margin-bottom: 1.5rem;">Mise en route pas encore validée.</div>`;
+            }
+
+            html += `
+                <div style="margin-bottom: 0.5rem;">
                     <h3 class="section-title">Temps par sous-ensemble</h3>
                     <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Du plus long (à gauche) au plus court (à droite), pour ce dossier.</p>
                 </div>
@@ -2562,6 +2614,61 @@
                                         <td style="font-weight: 700;">${formatMinutes(Math.round(s.avg))}</td>
                                         <td style="color: #475569;">${formatMinutes(s.total)}</td>
                                         <td style="text-align: center;">${s.count}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            // --- Mise en route ---
+            const mers = elements.filter(el => el.merValidation && el.merValidation.durationMin > 0);
+            const merTotal = mers.reduce((a, el) => a + el.merValidation.durationMin, 0);
+            const merAvg = mers.length ? merTotal / mers.length : 0;
+
+            html += `
+                <div style="margin-top: 2rem; margin-bottom: 0.5rem;">
+                    <h3 class="section-title">Mise en route</h3>
+                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Temps saisis à la validation MER.</p>
+                </div>
+            `;
+
+            if (mers.length === 0) {
+                html += `<div class="empty-hint">Aucune mise en route validée pour le moment.</div>`;
+            } else {
+                html += `
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-label">Temps de MER moyen</div>
+                            <div class="kpi-value">${formatMinutes(Math.round(merAvg))}</div>
+                            <div class="kpi-sub">Sur ${mers.length} mise(s) en route</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Temps de MER cumulé</div>
+                            <div class="kpi-value">${formatMinutes(merTotal)}</div>
+                            <div class="kpi-sub">Toutes mises en route confondues</div>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="normal-wrap">Dossier</th>
+                                    <th style="width: 9rem;">Client</th>
+                                    <th style="width: 9rem;">Temps MER</th>
+                                    <th style="width: 11rem;">Validée le</th>
+                                    <th style="width: 7rem; text-align: center;">Trigramme</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${mers.map(el => `
+                                    <tr>
+                                        <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(el.displayName)}</td>
+                                        <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(el.client || '')}</td>
+                                        <td style="font-weight: 700;">${formatMinutes(el.merValidation.durationMin)}</td>
+                                        <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(el.merValidation.date || '')}</td>
+                                        <td style="text-align: center; font-weight: 700;">${escapeHtml(el.merValidation.operator || '')}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -3212,6 +3319,8 @@
             const done = leads.filter(l => l.ms > 0);
             const avgLead = done.length ? done.reduce((a, l) => a + l.ms, 0) / done.length : 0;
             const avgCal = done.length ? done.reduce((a, l) => a + l.calMs, 0) / done.length : 0;
+            const mers = elements.filter(el => el.merValidation && el.merValidation.durationMin > 0);
+            const merAvg = mers.length ? mers.reduce((a, el) => a + el.merValidation.durationMin, 0) / mers.length : 0;
 
             const h1 = (n) => Math.round(toBusinessHours(n) * 100) / 100;
             let csv = "﻿";
@@ -3222,6 +3331,8 @@
             csv += `${cleanCSVField("Dossiers termines a 100%")};${cleanCSVField(done.length)}\r\n`;
             csv += `${cleanCSVField("Delai moyen (j calendaires)")};${cleanCSVField(done.length ? (Math.round(avgCal / 86400000 * 10) / 10) : '')}\r\n`;
             csv += `${cleanCSVField("Temps de passage moyen (h ouvrees)")};${cleanCSVField(done.length ? h1(avgLead) : '')}\r\n`;
+            csv += `${cleanCSVField("Temps de MER moyen (min)")};${cleanCSVField(mers.length ? Math.round(merAvg) : '')}\r\n`;
+            csv += `${cleanCSVField("Mises en route validees")};${cleanCSVField(mers.length)}\r\n`;
             csv += `${cleanCSVField("Sous-ensembles mesures")};${cleanCSVField(stats.length)}\r\n`;
             csv += `${cleanCSVField("Releves de temps")};${cleanCSVField(stats.reduce((a, s) => a + s.count, 0))}\r\n`;
             csv += `${cleanCSVField("Base horaire")};${cleanCSVField("35 h/semaine - journee de " + HOURS_PER_WORKING_DAY + " h")}\r\n`;
@@ -3236,7 +3347,7 @@
             csv += "\r\n";
 
             csv += "TEMPS DE PASSAGE PAR DOSSIER\r\n";
-            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Delai (j);Temps ouvre (h);Statut\r\n";
+            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Delai (j);Temps ouvre (h);Temps MER (min);Statut\r\n";
             leads.forEach(l => {
                 csv += `${cleanCSVField(l.el.displayName)};${cleanCSVField(l.el.client)};`
                      + `${cleanCSVField(l.el.projectNum ? 'PR' + l.el.projectNum : '')};`
@@ -3244,6 +3355,7 @@
                      + `${cleanCSVField(l.end ? formatDateTime(new Date(l.end)) : '')};`
                      + `${cleanCSVField(l.calMs > 0 ? (Math.round(l.calMs / 86400000 * 10) / 10) : '')};`
                      + `${cleanCSVField(l.ms > 0 ? h1(l.ms) : '')};`
+                     + `${cleanCSVField(l.el.merValidation ? (l.el.merValidation.durationMin || '') : '')};`
                      + `${cleanCSVField(STATUS_DEFS[computeStatus(l.el)].label)}\r\n`;
             });
 
