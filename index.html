@@ -347,7 +347,6 @@
             text-align: center; color: var(--slate-400); font-style: italic;
             font-size: 0.8125rem; padding: 2rem 1rem;
         }
-        .row-current { background-color: #eff6ff !important; }
 
         .sync-dot.saving { background: var(--amber); }
         .sync-dot.ok { background: var(--emerald); }
@@ -364,6 +363,9 @@
         </div>
         <div class="nav-buttons">
             <span id="syncStatus" class="sync-status"><span class="sync-dot"></span><span id="syncStatusText">Hors ligne</span></span>
+            <button onclick="showGlobalIndicatorsView()" class="btn-secondary">
+                📊 Indicateurs généraux
+            </button>
             <button onclick="showEnvoisConsultationView()" class="btn-secondary">
                 📦 Liste envois
             </button>
@@ -696,6 +698,18 @@
                 </div>
             </div>
 
+            <div id="globalIndicatorsPanel" class="form-panel hidden">
+                <div class="form-card">
+                    <div class="form-header">
+                        <div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">Indicateurs généraux</h2>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Analyse consolidée de tous les dossiers robots et stations de charge.</p>
+                        </div>
+                    </div>
+                    <div id="globalKpiContent"></div>
+                </div>
+            </div>
+
             <div id="scanPanel" class="scan-panel hidden">
                 <div class="scan-header">
                     <div style="flex: 1; min-width: 250px;">
@@ -929,9 +943,9 @@
                     <div class="form-group">
                         <label>* Temps passé</label>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <input id="subAssyHours" type="number" min="0" max="999" placeholder="0" style="text-align: center;">
+                            <input id="subAssyHours" type="number" min="0" max="999" placeholder="" style="text-align: center;">
                             <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
-                            <input id="subAssyMinutes" type="number" min="0" max="59" placeholder="0" style="text-align: center;">
+                            <input id="subAssyMinutes" type="number" min="0" max="59" placeholder="" style="text-align: center;">
                             <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">min</span>
                         </div>
                     </div>
@@ -1540,7 +1554,8 @@
         }
 
         function hideAllPanels() {
-            ['robotFormPanel', 'stationFormPanel', 'envoiFormPanel', 'envoisConsultationPanel', 'scanPanel']
+            ['robotFormPanel', 'stationFormPanel', 'envoiFormPanel', 'envoisConsultationPanel',
+             'globalIndicatorsPanel', 'scanPanel']
                 .forEach(id => document.getElementById(id).classList.add('hidden'));
         }
 
@@ -2079,7 +2094,6 @@
             document.getElementById('subAssyNote').value = '';
             renderSubassemblies();
             document.getElementById('subAssyModal').classList.remove('hidden');
-            setTimeout(() => document.getElementById('subAssyHours').focus(), 50);
         }
 
         function handleSaveSubassembly(e) {
@@ -2117,10 +2131,11 @@
                 ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
 
-        // Agrège les temps saisis par sous-ensemble, tous dossiers confondus.
-        function collectSubassemblyStats() {
+        // Agrège les temps saisis par sous-ensemble sur le périmètre donné
+        // (un seul dossier, ou tous les dossiers pour la vue générale).
+        function collectSubassemblyStats(scope) {
             const map = new Map();
-            elements.forEach(el => {
+            (scope || elements).forEach(el => {
                 (el.subassemblies || []).forEach(se => {
                     if (!se.done || !se.durationMin) return;
                     const key = se.name;
@@ -2151,8 +2166,9 @@
                 });
         }
 
-        function buildBarChart(stats) {
+        function buildBarChart(stats, chartId) {
             if (stats.length === 0) return '';
+            const gradId = `barGrad_${chartId || 'a'}`;
             const barW = 54, gap = 18, padL = 62, padR = 24, padT = 20, padB = 110;
             const chartH = 240;
             const width = padL + padR + stats.length * barW + (stats.length - 1) * gap;
@@ -2176,8 +2192,8 @@
                 const y = padT + chartH - h;
                 const label = s.name.length > 22 ? s.name.slice(0, 21) + '…' : s.name;
                 bars += `
-                    <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="url(#barGrad)">
-                        <title>${escapeHtml(s.name)} — moyenne ${formatMinutes(Math.round(s.avg))} sur ${s.count} relevé(s)</title>
+                    <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" fill="url(#${gradId})">
+                        <title>${escapeHtml(s.name)} — ${s.count > 1 ? `moyenne ${formatMinutes(Math.round(s.avg))} sur ${s.count} relevés` : formatMinutes(Math.round(s.avg))}</title>
                     </rect>
                     <text x="${x + barW / 2}" y="${y - 6}" text-anchor="middle" font-size="11" font-weight="700" fill="#0f172a">${formatMinutes(Math.round(s.avg))}</text>
                     <text x="${x + barW / 2}" y="${padT + chartH + 14}" text-anchor="end" font-size="10.5" fill="#334155"
@@ -2189,7 +2205,7 @@
                 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img"
                      aria-label="Classement des sous-ensembles par temps moyen">
                     <defs>
-                        <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stop-color="#3b82f6"/>
                             <stop offset="100%" stop-color="#1d4ed8"/>
                         </linearGradient>
@@ -2201,32 +2217,122 @@
             `;
         }
 
+        // Indicateurs du dossier courant uniquement (aucune comparaison).
         function renderIndicators() {
             const box = document.getElementById('kpiContent');
             if (!box) return;
-
             const el = getActiveElement();
-            const stats = collectSubassemblyStats();
-            const leads = collectLeadTimes();
-            const done = leads.filter(l => l.ms > 0);
-            const avgLead = done.length ? done.reduce((a, l) => a + l.ms, 0) / done.length : 0;
+            if (!el) { box.innerHTML = ''; return; }
 
-            const current = el ? leads.find(l => l.el.id === el.id) : null;
-            const currentLead = current
-                ? (current.ms > 0 ? formatWorkingDuration(current.ms) : 'Dossier en cours')
-                : '--';
+            const stats = collectSubassemblyStats([el]);
+            const start = elementCreatedAt(el);
+            const leadMs = (start && el.completedAt) ? workingDurationMs(start, el.completedAt) : 0;
+            const totalMin = stats.reduce((a, s) => a + s.total, 0);
+            const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
+            const doneSubs = subs.filter(s => s.done).length;
 
             let html = `
                 <div class="kpi-grid">
                     <div class="kpi-card">
-                        <div class="kpi-label">Temps de passage — ce dossier</div>
-                        <div class="kpi-value">${currentLead}</div>
-                        <div class="kpi-sub">${el ? escapeHtml(el.displayName) : ''}</div>
+                        <div class="kpi-label">Temps de passage</div>
+                        <div class="kpi-value">${leadMs > 0 ? formatWorkingDuration(leadMs) : 'En cours'}</div>
+                        <div class="kpi-sub">Ouverture → 100 %, hors week-ends et fériés</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Temps de montage cumulé</div>
+                        <div class="kpi-value">${totalMin > 0 ? formatMinutes(totalMin) : '--'}</div>
+                        <div class="kpi-sub">Somme des temps saisis</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Sous-ensembles réalisés</div>
+                        <div class="kpi-value">${doneSubs} / ${subs.length}</div>
+                        <div class="kpi-sub">${escapeHtml(el.displayName)}</div>
+                    </div>
+                </div>
+
+                <div class="table-wrap" style="margin-bottom: 1.5rem;">
+                    <table>
+                        <tbody>
+                            <tr>
+                                <td style="font-weight: 700; width: 14rem;">Ouverture du dossier</td>
+                                <td style="font-family: monospace; color: #475569;">${start ? formatDateTime(new Date(start)) : '--'}</td>
+                            </tr>
+                            <tr>
+                                <td style="font-weight: 700;">100 % atteint</td>
+                                <td style="font-family: monospace; color: #475569;">${el.completedAt ? formatDateTime(new Date(el.completedAt)) : '<span style="font-style: italic; color: #94a3b8;">Pas encore</span>'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin-bottom: 0.5rem;">
+                    <h3 class="section-title">Temps par sous-ensemble</h3>
+                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Du plus long (à gauche) au plus court (à droite), pour ce dossier.</p>
+                </div>
+            `;
+
+            if (stats.length === 0) {
+                html += `<div class="empty-hint">Aucun temps enregistré sur ce dossier pour le moment.</div>`;
+            } else {
+                html += `<div class="chart-wrap">${buildBarChart(stats, 'local')}</div>`;
+                html += `
+                    <div class="table-wrap" style="margin-top: 1.5rem;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 3rem; text-align: center;">#</th>
+                                    <th class="normal-wrap">Sous-ensemble</th>
+                                    <th style="width: 10rem;">Partie</th>
+                                    <th style="width: 9rem;">Temps</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${stats.map((s, i) => `
+                                    <tr>
+                                        <td style="text-align: center; font-weight: 700; color: #94a3b8;">${i + 1}</td>
+                                        <td class="normal-wrap" style="font-weight: 600;">${escapeHtml(s.name)}</td>
+                                        <td style="font-size: 0.75rem; color: #64748b;">${escapeHtml(s.group || '--')}</td>
+                                        <td style="font-weight: 700;">${formatMinutes(s.total)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            box.innerHTML = html;
+        }
+
+        // ---- Indicateurs généraux (tous dossiers) ---------------------------
+        function showGlobalIndicatorsView() {
+            activeElementId = null;
+            hideAllPanels();
+            document.getElementById('globalIndicatorsPanel').classList.remove('hidden');
+            renderGlobalIndicators();
+            renderSidebarList();
+        }
+
+        function renderGlobalIndicators() {
+            const box = document.getElementById('globalKpiContent');
+            if (!box) return;
+
+            const stats = collectSubassemblyStats(elements);
+            const leads = collectLeadTimes();
+            const done = leads.filter(l => l.ms > 0);
+            const avgLead = done.length ? done.reduce((a, l) => a + l.ms, 0) / done.length : 0;
+
+            let html = `
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Dossiers suivis</div>
+                        <div class="kpi-value">${leads.length}</div>
+                        <div class="kpi-sub">${done.length} terminé(s) à 100 %</div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-label">Temps de passage moyen</div>
                         <div class="kpi-value">${done.length ? formatWorkingDuration(avgLead) : '--'}</div>
-                        <div class="kpi-sub">${done.length} dossier(s) terminé(s)</div>
+                        <div class="kpi-sub">Hors week-ends et fériés Alsace-Moselle</div>
                     </div>
                     <div class="kpi-card">
                         <div class="kpi-label">Sous-ensembles mesurés</div>
@@ -2244,7 +2350,7 @@
             if (stats.length === 0) {
                 html += `<div class="empty-hint">Aucun temps de sous-ensemble enregistré pour le moment.</div>`;
             } else {
-                html += `<div class="chart-wrap">${buildBarChart(stats)}</div>`;
+                html += `<div class="chart-wrap">${buildBarChart(stats, 'global')}</div>`;
                 html += `
                     <div class="table-wrap" style="margin-top: 1.5rem;">
                         <table>
@@ -2299,7 +2405,7 @@
                             </thead>
                             <tbody>
                                 ${leads.map(l => `
-                                    <tr class="${(el && l.el.id === el.id) ? 'row-current' : ''}">
+                                    <tr>
                                         <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(l.el.displayName)}</td>
                                         <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(l.el.client || '')}</td>
                                         <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.start ? formatDateTime(new Date(l.start)) : '--'}</td>
@@ -2315,6 +2421,7 @@
 
             box.innerHTML = html;
         }
+
 
         // ---- Remarques du dossier -------------------------------------------
         function openRemarksModal() {
