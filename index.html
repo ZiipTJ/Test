@@ -759,6 +759,10 @@
                             </div>
                         </div>
                         <button id="btnRemarksAction" onclick="openRemarksModal()" class="btn-gray" style="font-size: 0.75rem;">📝 Remarques</button>
+                        <div class="dropdown">
+                            <button id="btnStatusMenu" class="btn-gray" style="font-size: 0.75rem;">Statut ▾</button>
+                            <div class="dropdown-content" id="statusMenu"></div>
+                        </div>
                         <button id="btnCloseDossier" onclick="toggleCloseDossier()" class="btn-red" style="font-size: 0.75rem;">Clôturer</button>
                     </div>
                     <button onclick="showActiveForm()" class="btn-gray" style="font-size: 0.75rem;">⬅️ Retour Création</button>
@@ -1189,10 +1193,13 @@
         }
 
         function isElementComplete(el) {
-            const bomOk = (el.bom || []).every(isItemComplete);
+            // Les pièces SAV sont hors nomenclature : elles ne conditionnent pas
+            // l'achèvement, comme pour les compteurs et la barre d'avancement.
+            const bomItems = (el.bom || []).filter(i => i.category !== 'SAV');
+            const bomOk = bomItems.every(isItemComplete);
             const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
             const subOk = subs.every(s => s.done);
-            const hasSomething = (el.bom || []).length > 0 || subs.length > 0;
+            const hasSomething = bomItems.length > 0 || subs.length > 0;
             return hasSomething && bomOk && subOk;
         }
 
@@ -1209,14 +1216,15 @@
             TERMINE: { label: 'TERMINÉ', color: '#dc2626', desc: 'Dossier clôturé et figé' }
         };
 
+        // Statuts modifiables à la main (TERMINÉ reste piloté par « Clôturer »).
+        const MANUAL_STATUSES = ['CREE', 'PROD', 'MER', 'EXPE'];
+
         function computeStatus(el) {
             if (!el) return 'CREE';
             if (el.closed) return 'TERMINE';
-            if (el.merValidation) return 'EXPE';
-            if (isElementComplete(el)) return 'MER';
-            const anyScanned = (el.bom || []).some(i => i.scanned);
-            const anySub = (el.subassemblies || []).some(s => s.done);
-            return (anyScanned || anySub) ? 'PROD' : 'CREE';
+            // Un statut forcé manuellement prime sur le calcul automatique.
+            if (el.statusOverride && STATUS_DEFS[el.statusOverride]) return el.statusOverride;
+            return autoStatus(el);
         }
 
         function statusTagHtml(el) {
@@ -2077,11 +2085,67 @@
             const pct = totAll > 0 ? Math.round((doneAll / totAll) * 100) : 0;
             document.getElementById('activeProgressBar').style.width = `${pct}%`;
 
-            const st = STATUS_DEFS[computeStatus(el)];
+            const current = computeStatus(el);
+            const st = STATUS_DEFS[current];
             const badge = document.getElementById('statusBadge');
             badge.textContent = st.label;
             badge.style.backgroundColor = st.color;
-            badge.title = st.desc;
+            badge.title = el.statusOverride ? st.desc + ' (forcé manuellement)' : st.desc;
+
+            renderStatusMenu(el, current);
+        }
+
+        // Menu de changement manuel du statut.
+        function renderStatusMenu(el, current) {
+            const menu = document.getElementById('statusMenu');
+            if (!menu) return;
+            const locked = !!el.closed;
+
+            if (locked) {
+                menu.innerHTML = `<button disabled style="cursor: not-allowed; color: #94a3b8;">
+                    Dossier clôturé — rouvrez-le pour changer le statut</button>`;
+                return;
+            }
+
+            let html = `
+                <button onclick="setStatusOverride('')">
+                    ${!el.statusOverride ? '✓ ' : ''}Automatique
+                    <span style="color: #94a3b8; font-weight: 400;">(${STATUS_DEFS[autoStatus(el)].label})</span>
+                </button>
+                <div style="border-top: 1px solid #e2e8f0;"></div>
+            `;
+            MANUAL_STATUSES.forEach(key => {
+                const s = STATUS_DEFS[key];
+                html += `
+                    <button onclick="setStatusOverride('${key}')">
+                        ${el.statusOverride === key ? '✓ ' : ''}
+                        <span class="status-tag" style="background-color: ${s.color};">${s.label}</span>
+                    </button>
+                `;
+            });
+            menu.innerHTML = html;
+        }
+
+        // Statut qu'aurait le dossier sans forçage manuel.
+        function autoStatus(el) {
+            if (!el) return 'CREE';
+            if (el.closed) return 'TERMINE';
+            if (el.merValidation) return 'EXPE';
+            if (isElementComplete(el)) return 'MER';
+            const anyScanned = (el.bom || []).some(i => i.scanned);
+            const anySub = (el.subassemblies || []).some(s => s.done);
+            return (anyScanned || anySub) ? 'PROD' : 'CREE';
+        }
+
+        function setStatusOverride(key) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            el.statusOverride = key || null;
+            el.updatedAt = Date.now();
+            renderScanTables();
+            renderMerPane();
+            renderSidebarList();
+            scheduleSave();
         }
 
         // ---- Onglets du dossier ---------------------------------------------
