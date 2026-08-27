@@ -455,6 +455,11 @@
 
             <div class="search-container">
                 <input id="searchElement" type="text" oninput="renderSidebarList()" placeholder="Rechercher...">
+                <select id="sortModeSelect" onchange="setSortMode(this.value)"
+                        style="margin-top: 0.4rem; font-size: 0.7rem; padding: 0.3rem 0.5rem;">
+                    <option value="default">Tri : ordre de création</option>
+                    <option value="status">Tri : par statut</option>
+                </select>
             </div>
 
             <div id="finishedToggleWrap" style="padding: 0 0.65rem 0.5rem; display: none;">
@@ -1046,6 +1051,7 @@
         let activeBatteryRowIndex = null;
         let editingIndex = null;
         let showFinished = false;
+        let sortMode = 'default';
         let scanTypingTimer = null;
         let lastKeyTime = 0;
         let activeSubIndex = null;
@@ -1218,6 +1224,14 @@
 
         // Statuts modifiables à la main (TERMINÉ reste piloté par « Clôturer »).
         const MANUAL_STATUSES = ['CREE', 'PROD', 'MER', 'EXPE'];
+
+        // Ordre du flux de production, utilisé pour le tri de la liste.
+        const STATUS_RANK = { CREE: 0, PROD: 1, MER: 2, EXPE: 3, TERMINE: 4 };
+
+        function setSortMode(mode) {
+            sortMode = mode;
+            renderSidebarList();
+        }
 
         function computeStatus(el) {
             if (!el) return 'CREE';
@@ -2923,6 +2937,7 @@
             if (!el.closed) {
                 if (!confirm("Clôturer ce dossier ? Les données seront figées (plus aucune modification possible tant qu'il n'est pas rouvert).")) return;
                 el.closed = true;
+                el.closedAt = Date.now();
             } else {
                 if (!confirm("Rouvrir ce dossier pour autoriser à nouveau les modifications ?")) return;
                 el.closed = false;
@@ -3079,6 +3094,21 @@
                 container.innerHTML = '<p style="text-align: center; font-size: 0.75rem; color: #94a3b8; font-style: italic; padding: 1rem;">Aucun élément à afficher</p>';
                 return;
             }
+
+            // Les dossiers clôturés remontent en tête, le dernier clôturé en
+            // premier. Le reste suit le tri choisi (le tri natif est stable,
+            // donc renvoyer 0 conserve l'ordre de création).
+            const closedAtOf = (el) => el.closedAt || el.updatedAt || 0;
+            filtered.sort((a, b) => {
+                const ac = !!a.closed, bc = !!b.closed;
+                if (ac !== bc) return ac ? -1 : 1;
+                if (ac && bc) return closedAtOf(b) - closedAtOf(a);
+                if (sortMode === 'status') {
+                    const d = STATUS_RANK[computeStatus(a)] - STATUS_RANK[computeStatus(b)];
+                    if (d !== 0) return d;
+                }
+                return 0;
+            });
 
             filtered.forEach(el => {
                 const isSelected = el.id === activeElementId;
