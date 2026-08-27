@@ -1,0 +1,14 @@
+[
+  {
+    "nom": "Câblage",
+    "couleur": "bg-indigo-500"
+  },
+  {
+    "nom": "Montage",
+    "couleur": "bg-teal-500"
+  },
+  {
+    "nom": "Composant",
+    "couleur": "bg-purple-500"
+  }
+]

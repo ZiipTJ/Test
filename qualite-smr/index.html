@@ -1,0 +1,3078 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qualité SMR · v2.0</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* ── RESET & BASE ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#eef0f6;
+  --surface:#ffffff;
+  --surface2:#f5f6fa;
+  --border:#e2e5ef;
+  --sidebar:#0d0f1a;
+  --sidebar2:#161827;
+  --sidebar-hover:#1e2035;
+  --accent:#2563eb;
+  --accent-light:#dbeafe;
+  --accent-dim:rgba(37,99,235,.12);
+  --orange:#ea580c;
+  --orange-light:#fff7ed;
+  --red:#dc2626;
+  --red-light:#fef2f2;
+  --green:#16a34a;
+  --green-light:#f0fdf4;
+  --amber:#d97706;
+  --amber-light:#fffbeb;
+  --purple:#7c3aed;
+  --purple-light:#f5f3ff;
+  --indigo:#4f46e5;
+  --indigo-light:#eef2ff;
+  --slate:#64748b;
+  --text:#0f172a;
+  --text2:#475569;
+  --text3:#94a3b8;
+  --mono:'Cascadia Mono',Consolas,'SF Mono',ui-monospace,'Courier New',monospace;
+  --sans:'Segoe UI',system-ui,-apple-system,Roboto,'Helvetica Neue',Arial,sans-serif;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow:0 4px 12px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.04);
+  --shadow-lg:0 12px 32px rgba(0,0,0,.1),0 4px 8px rgba(0,0,0,.06);
+  --r:10px;
+  --r-sm:6px;
+  --sidebar-w:248px;
+}
+html,body{height:100%;overflow:hidden;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);display:flex;font-size:14px;line-height:1.5;}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px;}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8;}
+
+/* ── INIT OVERLAY ── */
+#init-overlay {
+  position:fixed;inset:0;background:var(--sidebar);z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:#fff;transition:opacity 0.5s ease;
+}
+.init-box { text-align:center;max-width:400px; }
+.init-box h1 { font-size:24px;margin-bottom:10px; }
+.init-box p { color:var(--text3);font-size:14px;margin-bottom:24px; }
+.hidden { display:none !important; }
+
+/* ── SIDEBAR ── */
+#sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  background:var(--sidebar);
+  display:flex;flex-direction:column;
+  height:100vh;overflow:hidden;
+  border-right:1px solid rgba(255,255,255,.04);
+  position:relative;z-index:20;
+}
+.sidebar-logo{
+  padding:20px 20px 16px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;gap:12px;
+}
+.logo-mark{
+  width:36px;height:36px;border-radius:8px;
+  display:grid;place-items:center;flex-shrink:0;background:transparent;
+}
+.logo-mark img { width:100%; height:100%; object-fit:contain; }
+.logo-text{display:flex;flex-direction:column;gap:1px;}
+.logo-title{color:#fff;font-size:14px;font-weight:600;letter-spacing:-.2px;}
+.logo-ver{color:var(--accent);font-family:var(--mono);font-size:9px;font-weight:500;letter-spacing:1px;text-transform:uppercase;}
+
+.nav-section{padding:16px 12px 4px;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.25);}
+.nav-btn{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:7px;cursor:pointer;
+  color:rgba(255,255,255,.5);font-size:13px;font-weight:500;
+  border:none;background:none;width:100%;text-align:left;
+  transition:all .15s ease;margin-bottom:2px;
+}
+.nav-btn:hover{background:var(--sidebar-hover);color:rgba(255,255,255,.8);}
+.nav-btn.active{background:var(--accent);color:#fff;}
+.nav-btn svg{width:16px;height:16px;flex-shrink:0;opacity:.8;}
+.nav-btn.active svg{opacity:1;}
+.nav-btn#nav-mer.active{background:var(--indigo);}
+
+.nav-area{flex:1;overflow-y:auto;padding:8px 10px;}
+.sidebar-footer{
+  padding:12px;border-top:1px solid rgba(255,255,255,.06);
+  font-size:11px;color:rgba(255,255,255,.25);
+  font-family:var(--mono);
+}
+
+/* ── MAIN & TOPBAR ── */
+#main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+#topbar{
+  height:56px;background:var(--surface);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 24px;gap:16px;
+  flex-shrink:0;
+}
+.search-wrap{flex:1;max-width:380px;position:relative;}
+.search-wrap input{
+  width:100%;background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:7px 12px 7px 34px;font-size:13px;font-family:var(--sans);
+  color:var(--text);outline:none;transition:all .15s;
+}
+.search-wrap input:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-dim);}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none;}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.topbar-badge{
+  background:var(--surface2);border:1px solid var(--border);border-radius:7px;
+  padding:5px 10px;font-size:12px;font-weight:600;color:var(--text2);display:flex;align-items:center;gap:6px;
+}
+.topbar-badge .dot{width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0;box-shadow:0 0 0 2px rgba(34,197,94,.2);}
+
+/* ── CONTENT & TABLES ── */
+#content{flex:1;overflow:hidden;padding:20px 24px;display:flex;flex-direction:column;}
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-shrink:0;}
+.page-title{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.4px;}
+.page-sub{font-size:12px;color:var(--text3);margin-top:2px;font-weight:400;}
+.page-actions{display:flex;align-items:center;gap:10px;}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;font-family:var(--sans);cursor:pointer;border:none;transition:all .15s;text-decoration:none;white-space:nowrap;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#1d4ed8;box-shadow:0 4px 12px rgba(37,99,235,.3);}
+.btn-primary:disabled{background:var(--slate);cursor:not-allowed;box-shadow:none;}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border);}
+.btn-ghost:hover{background:var(--surface2);border-color:#c8cfe0;}
+.btn-sm{padding:6px 10px;font-size:12px;}
+.btn-green{background:var(--green-light);color:var(--green);border:1px solid #bbf7d0;}
+.btn-green:hover{background:#dcfce7;}
+.btn-indigo{background:var(--indigo);color:#fff;}
+.btn-indigo:hover{background:#4338ca;box-shadow:0 4px 12px rgba(79,70,229,.3);}
+
+.select-styled{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:7px 28px 7px 12px;font-size:13px;font-family:var(--sans);
+  color:var(--text2);outline:none;cursor:pointer;font-weight:500;
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+  transition:all .15s;
+}
+.select-styled:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+
+.table-wrap{flex:1;overflow:auto;min-height:0;}
+.table-outer{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead{position:sticky;top:0;z-index:5;}
+thead th{
+  padding:10px 14px;text-align:left;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.8px;color:var(--text3);
+  background:var(--surface2);border-bottom:1px solid var(--border);
+  cursor:pointer;user-select:none;white-space:nowrap;
+  transition:color .12s;
+}
+thead th:hover{color:var(--text2);}
+thead th.sorted{color:var(--accent);}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:#f8f9fc;cursor:pointer;}
+tbody tr.closed{opacity:.6;}
+tbody td{padding:11px 14px;vertical-align:middle;}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:5px;font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;}
+.badge-nc{background:#fff4ed;color:#c2410c;border:1px solid #fed7aa;}
+.badge-rc{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;}
+.badge-mer{background:var(--indigo-light);color:#4338ca;border:1px solid #c7d2fe;}
+.badge-open{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;}
+.badge-done{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;}
+.dot-cat{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.mono-id{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text);}
+.mono-id.closed{text-decoration:line-through;color:var(--text3);}
+
+/* ── MODAL SYSTEM ── */
+#modal-overlay{
+  position:fixed;inset:0;background:rgba(10,12,22,.5);backdrop-filter:blur(3px);
+  z-index:100;display:none;padding:20px;overflow-y:auto;
+  display:none;
+}
+#modal-overlay.open{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+#modal{
+  background:var(--surface);border-radius:14px;box-shadow:var(--shadow-lg);
+  width:100%;max-height:92vh;display:flex;flex-direction:column;
+  border:1px solid var(--border);overflow:hidden;
+  animation:slideUp .2s ease;
+}
+@keyframes slideUp{from{transform:translateY(12px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
+/* Standard Modal Elements */
+.modal-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 22px;border-bottom:1px solid var(--border);flex-shrink:0;
+  background:var(--surface);
+}
+.modal-title{font-size:15px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:10px;}
+.modal-close{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px;cursor:pointer;color:var(--text3);transition:all .12s;}
+.modal-close:hover{background:#fee2e2;border-color:#fca5a5;color:#dc2626;}
+.modal-body{padding:22px;overflow-y:auto;flex:1;background:var(--surface2);}
+
+/* ── ERP DETAIL MODAL (NEW DESIGN) ── */
+#modal.erp-modal { max-width: 1240px; width: 92vw; max-height: 92vh; background: #f3f4f6; border-radius: 8px; }
+.erp-modal-body { padding: 0; background: transparent; overflow-y: auto; display: flex; flex-direction: column; flex: 1; }
+
+.erp-header {
+  padding: 6px 18px;
+  border-bottom: 1px solid #d1d5db;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.erp-header-left { display: flex; align-items: center; gap: 10px; }
+.erp-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: -0.3px;
+  margin: 0;
+  display:flex;
+  align-items:center;
+  flex-wrap: wrap;
+}
+.erp-header-actions { display: flex; align-items: center; gap: 8px; }
+
+.erp-btn { display: inline-flex; align-items: center; padding: 6px 12px; font-size: 13px; font-weight: 600; border-radius: 4px; transition: background .15s; cursor: pointer; border: 1px solid transparent; background: transparent; }
+.erp-btn svg { margin-right: 6px; width:14px; height:14px;}
+.erp-btn-ghost { color: #374151; border-color: #d1d5db; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.erp-btn-ghost:hover { background: #f9fafb; border-color: #9ca3af; }
+.erp-btn-primary { color: #fff; background: #2563eb; border-color: #1d4ed8; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.erp-btn-primary:hover { background: #1d4ed8; }
+.erp-btn-green { color: #15803d; background: #f0fdf4; border-color: #16a34a; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.erp-btn-green:hover { background: #dcfce7; }
+
+/* ERP Grid Layout for perfect vertical alignment */
+.erp-row { display: flex; flex-direction: column; width: 100%; }
+@media(min-width: 900px) { .erp-row { flex-direction: row; } }
+
+/* Strict 66.66% / 33.33% split */
+.erp-left { flex: 0 0 66.666%; max-width: 66.666%; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; min-width: 0; }
+.erp-right { flex: 0 0 33.333%; max-width: 33.333%; display: flex; flex-direction: column; min-width: 0; }
+
+/* Ribbon - En-tête compact en ligne */
+.erp-ribbon-wrapper {
+  background: #f9fafb;
+  border-bottom: 1px solid #d1d5db;
+  padding: 4px 18px;
+  flex-shrink: 0;
+}
+.erp-ribbon-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #4b5563;
+}
+.erp-ribbon-item strong {
+  font-weight: 700;
+  font-size: 12px;
+}
+.erp-ribbon-item a {
+  color: #2563eb;
+  font-family: var(--mono);
+  font-weight: 700;
+  text-decoration: none;
+}
+.erp-ribbon-item a:hover {
+  text-decoration: underline;
+}
+.erp-ribbon-sep {
+  color: #9ca3af;
+}
+.erp-dp-val.bold { font-weight: 700; }
+.erp-dp-val.link { color: #2563eb; cursor: pointer; }
+.erp-dp-val.link:hover { text-decoration: underline; }
+
+.erp-body { flex: 1; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+@media(min-width: 900px) { .erp-body { flex-direction: row; } }
+.erp-col-left { padding: 24px; overflow-y: auto; gap: 24px; background: #fff; }
+.erp-col-right { padding: 24px; overflow-y: auto; gap: 24px; background: #f9fafb; }
+
+.erp-sec-title { font-size: 14px; font-weight: 700; color: #111827; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; margin-bottom: 12px; }
+.erp-sec-title .cnt { margin-left: 8px; padding: 2px 8px; background: #e5e7eb; color: #4b5563; font-size: 11px; border-radius: 99px; }
+
+.erp-text { font-size: 14px; color: #374151; line-height: 1.6; white-space: pre-wrap; }
+.erp-box { padding: 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 14px; color: #1f2937; line-height: 1.5; white-space: pre-wrap; }
+
+/* ERP Files */
+.erp-file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.erp-file { display: inline-flex; align-items: center; padding: 6px 12px; background: #fff; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px; color: #374151; cursor: pointer; transition: all .15s; overflow:hidden; }
+.erp-file svg { margin-right: 8px; color: #9ca3af; width: 14px; height: 14px;}
+.erp-file:hover { background: #f9fafb; border-color: #9ca3af; }
+
+/* Preview des PJ en création/édition */
+.erp-file-thumb {
+  width: 60px;
+  height: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-right: 1px solid #e5e7eb;
+}
+.erp-file-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ERP Tech Rows */
+.erp-tech-card { background: #fff; border: 1px solid #e5e7eb; padding: 16px; border-radius: 4px; }
+.erp-tech-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
+.erp-tech-row:last-child { border-bottom: none; padding-bottom: 0; }
+.erp-tech-lbl { font-size: 13px; color: #6b7280; font-weight: 500; }
+.erp-tech-val { font-size: 13px; color: #111827; font-weight: 600; text-align: right; }
+
+/* ERP Actions List */
+.erp-act-list { display: flex; flex-direction: column; gap: 8px; }
+.erp-act-item { border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px; background: #fff; cursor: pointer; transition: border .15s; }
+.erp-act-item:hover { border-color: #9ca3af; }
+.erp-act-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.erp-act-id { font-family: var(--mono); font-size: 12px; font-weight: 600; color: #111827; }
+.erp-act-desc { font-size: 13px; color: #4b5563; line-height: 1.5; margin-bottom: 8px; }
+.erp-act-foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f3f4f6; padding-top: 8px; font-size: 11px; color: #6b7280; }
+
+/* ERP Timeline */
+.erp-timeline { position: relative; margin-top: 16px; }
+.erp-timeline::before { content: ''; position: absolute; left: 15px; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, transparent, #e5e7eb 2%, #e5e7eb 98%, transparent); }
+.erp-tl-item { position: relative; padding-left: 44px; margin-bottom: 20px; }
+.erp-tl-avatar { position: absolute; left: 0; top: 0; width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; border: 4px solid #f9fafb; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #4b5563; z-index: 2; }
+.erp-tl-head { margin-bottom: 4px; }
+.erp-tl-author { font-size: 13px; font-weight: 700; color: #111827; margin-right: 8px; }
+.erp-tl-date { font-size: 11px; color: #6b7280; }
+.erp-tl-body { padding: 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; font-size: 13px; color: #374151; line-height: 1.5; white-space: pre-wrap; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+
+/* Custom Comment Form */
+.erp-cmt-form { background: #fff; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-top: 16px; transition: border .15s; }
+.erp-cmt-form:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.erp-cmt-text { width: 100%; border: none; padding: 12px; font-size: 13px; font-family: var(--sans); color: #111827; outline: none; resize: vertical; min-height: 60px; display: block; background: transparent; }
+.erp-cmt-tools { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid #f3f4f6; background: #f9fafb; }
+.erp-cmt-trig-wrap { display: flex; align-items: center; background: #fff; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden; }
+.erp-cmt-trig-lbl { font-size: 10px; font-weight: 700; color: #6b7280; padding: 5px 8px; text-transform: uppercase; background: #f3f4f6; border-right: 1px solid #d1d5db; }
+.erp-cmt-trig-input { width: 60px; padding: 5px; border: none; font-family: var(--mono); font-size: 12px; font-weight: 700; text-align: center; outline: none; color: #111827; background: transparent;}
+
+/* Empty States */
+.empty-box { border: 2px dashed #e5e7eb; border-radius: 8px; background: #f9fafb; padding: 32px 20px; text-align: center; color: #6b7280; }
+.empty-box svg { margin: 0 auto 8px; width: 24px; height: 24px; color: #9ca3af; }
+.empty-box p { font-size: 13px; margin: 0; }
+
+/* ── NEW FORMS DESIGN (CREATE/EDIT) ── */
+#modal.form-modal { max-width: 900px; width: 90vw; height: 90vh; background: #f9fafb; border-radius: 8px; }
+.form-section { background:#fff; padding:24px; border-radius:6px; border:1px solid #e5e7eb; box-shadow:0 1px 2px rgba(0,0,0,0.02); margin-bottom:24px; }
+.form-section-title { font-size:14px; font-weight:700; color:#111827; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; margin-bottom:16px; }
+.form-section-title svg { margin-right:8px; color:#9ca3af; width: 18px; height: 18px; }
+.form-group { display:flex; flex-direction:column; gap:6px; }
+.form-group label { font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; display: flex; justify-content: space-between; }
+.form-input, .form-textarea, .form-select { border:1px solid #d1d5db; border-radius:4px; padding:8px 12px; font-size:13px; font-family:var(--sans); color:#111827; outline:none; transition:all .15s; background:#fff; width: 100%; }
+.form-input:focus, .form-textarea:focus, .form-select:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,0.1); }
+.form-textarea { resize:vertical; }
+.rc-box { background:#fff7ed; border:1px solid #fed7aa; border-left:4px solid #fb923c; padding:20px; border-radius:0 4px 4px 0; margin-bottom:24px; }
+.mer-box { background:var(--indigo-light); border:1px solid #c7d2fe; border-left:4px solid var(--indigo); padding:20px; border-radius:0 4px 4px 0; margin-bottom:24px; }
+.form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.form-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+.form-grid-4 { display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; }
+
+/* ── CHARTS / KPI ── */
+.kpi-row{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(185px,1fr));
+  gap:14px;
+  margin-bottom:14px;
+}
+.kpi{
+  position:relative;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px 16px 12px 16px;
+  box-shadow:0 10px 25px rgba(15,23,42,.06);
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.kpi-accent-bar{
+  position:absolute;
+  inset-inline-start:0;
+  top:0;
+  bottom:0;
+  width:3px;
+  border-radius:999px;
+}
+.kpi-label{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--text3);
+}
+.kpi-value{
+  font-size:22px;
+  font-weight:700;
+  letter-spacing:-.03em;
+  color:var(--text);
+}
+.kpi-sub{
+  font-size:12px;
+  color:var(--text2);
+}
+
+.charts-row{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:14px;
+}
+.chart-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:18px;
+  box-shadow:0 12px 30px rgba(15,23,42,.05);
+}
+.chart-title{
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+  color:var(--text3);
+  margin-bottom:14px;
+}
+.chart-inner{
+  height:220px;
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.progress-wrap{
+  background:var(--border);
+  border-radius:99px;
+  height:5px;
+  overflow:hidden;
+  margin-top:8px;
+}
+.progress-bar{
+  height:100%;
+  border-radius:99px;
+  background:var(--green);
+  transition:width .4s ease;
+}
+
+/* ── NOTIFICATION & LIGHTBOX ── */
+#notif{ position:fixed;bottom:24px;right:24px;z-index:999; background:#0f172a;color:#fff;border-radius:10px; padding:12px 16px;font-size:13px;font-weight:500; display:flex;align-items:center;gap:10px; box-shadow:var(--shadow-lg); transform:translateY(80px);opacity:0; transition:all .25s ease;pointer-events:none; }
+#notif.show{transform:translateY(0);opacity:1;}
+#notif .n-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;}
+#notif.error{background:#7f1d1d;}
+#notif.error .n-dot{background:#ef4444;}
+
+#lightbox{ position:fixed;inset:0;z-index:200;background:rgba(9,11,21,.95); display:none;flex-direction:column; }
+#lightbox.open{display:flex;}
+.lb-head{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;}
+.lb-title{color:#fff;font-weight:600;font-size:14px;}
+.lb-body{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.lb-img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;}
+.lb-nav{ position:absolute;top:50%;transform:translateY(-50%); background:rgba(255,255,255,.1);border:none;border-radius:50%; width:44px;height:44px;display:grid;place-items:center; cursor:pointer;color:#fff;transition:background .15s; }
+.lb-nav:hover{background:rgba(255,255,255,.2);}
+.lb-nav.prev{left:16px;}
+.lb-nav.next{right:16px;}
+.lb-foot{padding:12px;text-align:center;color:rgba(255,255,255,.4);font-size:12px;font-family:var(--mono);}
+
+.fade-in{animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.confirm-pending{animation:pulse-border .5s ease infinite alternate;}
+@keyframes pulse-border{from{box-shadow:0 0 0 0 rgba(234,88,12,.3);}to{box-shadow:0 0 0 6px rgba(234,88,12,.0);}}
+
+.lucide { width: 1em; height: 1em; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+
+/* ── SEGMENTED CONTROL (filtre statut) ── */
+.seg{display:inline-flex;background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px;}
+.seg-btn{display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;border-radius:7px;padding:5px 11px;font-size:12px;font-weight:600;font-family:var(--sans);color:var(--text3);cursor:pointer;transition:all .15s;white-space:nowrap;}
+.seg-btn:hover{color:var(--text2);}
+.seg-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm);}
+.seg-cnt{font-family:var(--mono);font-size:10px;font-weight:700;background:var(--border);color:var(--text2);border-radius:99px;padding:1px 6px;min-width:16px;text-align:center;}
+.seg-btn.active .seg-cnt{background:var(--accent-dim);color:var(--accent);}
+
+/* ── COMPTEURS NAV SIDEBAR ── */
+.nav-count{margin-left:auto;font-family:var(--mono);font-size:10px;font-weight:700;background:rgba(255,255,255,.1);color:rgba(255,255,255,.7);border-radius:99px;padding:1px 7px;}
+.nav-btn.active .nav-count{background:rgba(255,255,255,.25);color:#fff;}
+
+/* ── RECHERCHE : raccourci + effacer ── */
+.search-kbd{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text3);background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 6px;pointer-events:none;}
+.search-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--border);border:none;border-radius:50%;width:18px;height:18px;display:none;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:11px;line-height:1;padding:0;}
+.search-clear:hover{background:var(--text3);color:#fff;}
+.search-wrap.has-text .search-clear{display:flex;}
+.search-wrap.has-text .search-kbd{display:none;}
+
+/* ── AIDE RACCOURCIS ── */
+.kbd{font-family:var(--mono);font-size:9px;font-weight:700;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:1px 5px;color:rgba(255,255,255,.55);}
+.sc-row{display:flex;align-items:center;justify-content:space-between;margin-top:5px;color:rgba(255,255,255,.35);font-size:10px;}
+
+/* ── ÉTAT VIDE ── */
+.empty-state{padding:56px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.empty-state svg{width:40px;height:40px;color:var(--text3);opacity:.5;margin-bottom:8px;}
+.empty-title{font-size:15px;font-weight:600;color:var(--text2);margin:0;}
+.empty-sub{font-size:12.5px;color:var(--text3);margin:0 0 14px;}
+</style>
+</head>
+<body>
+
+<div id="init-overlay">
+    <div class="init-box">
+        <img src="Assets/logo.png" alt="SMR Logo" style="width:64px; height:64px; margin: 0 auto 20px; display:block; border-radius:8px;">
+        <h1>Initialisation Qualité SMR</h1>
+        <p id="init-message">Veuillez autoriser l'accès au répertoire de travail pour charger et sauvegarder les données.</p>
+
+        <button id="btn-select-folder" onclick="requestFolderAccess()" class="btn btn-primary hidden" style="width:100%; justify-content:center; padding:12px;">
+            Sélectionner le dossier
+        </button>
+        <button id="btn-verify-folder" onclick="verifyFolderAccess()" class="btn btn-green hidden" style="width:100%; justify-content:center; padding:12px;">
+            Confirmer l'accès
+        </button>
+
+        <div id="init-loader" class="hidden" style="margin-top:20px;">
+            <div style="font-size:12px; color:var(--text3); text-transform:uppercase; letter-spacing:1px;">Chargement des données...</div>
+        </div>
+    </div>
+</div>
+
+<aside id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark"><img src="Assets/logo.png" alt="SMR Logo"></div>
+    <div class="logo-text">
+      <div class="logo-title">Qualité SMR</div>
+      <div class="logo-ver">v 2.0</div>
+    </div>
+  </div>
+  <nav class="nav-area">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn active" id="nav-qualite" onclick="navigate('qualite')">
+      <svg class="lucide" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Suivi Qualité
+      <span class="nav-count" id="nav-cnt-q" title="Fiches en cours" style="display:none">0</span>
+    </button>
+    <button class="nav-btn" id="nav-actions" onclick="navigate('actions')">
+      <svg class="lucide" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Suivi Actions
+      <span class="nav-count" id="nav-cnt-a" title="Actions ouvertes" style="display:none">0</span>
+    </button>
+    <button class="nav-btn" id="nav-mer" onclick="navigate('mer')">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+      Suivi MER
+      <span class="nav-count" id="nav-cnt-m" title="Fiches MER en cours" style="display:none">0</span>
+    </button>
+    <button class="nav-btn" id="nav-statistiques" onclick="navigate('statistiques')">
+      <svg class="lucide" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Statistiques
+    </button>
+  </nav>
+  <div class="sidebar-footer">
+    <div>Session active · Données locales</div>
+    <div class="sc-row"><span>Rechercher</span><span class="kbd">/</span></div>
+    <div class="sc-row"><span>Nouvelle fiche</span><span class="kbd">N</span></div>
+    <div class="sc-row"><span>Fermer / naviguer</span><span><span class="kbd">Échap</span> <span class="kbd">←</span><span class="kbd">→</span></span></div>
+  </div>
+</aside>
+
+<div id="main">
+  <header id="topbar">
+    <div class="search-wrap">
+      <svg class="search-icon lucide" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="search-input" placeholder="Rechercher : numéro, motif, trigramme, robot…" oninput="handleSearch(this.value)">
+      <span class="search-kbd">/</span>
+      <button class="search-clear" onclick="clearSearch()" title="Effacer la recherche">✕</button>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-badge">
+        <span class="dot"></span>
+        <span id="topbar-count">— fiches</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="content"></main>
+</div>
+
+<div id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div id="modal">
+    <div class="modal-head" id="default-modal-head">
+      <div class="modal-title" id="modal-title">Modal</div>
+      <button class="modal-close" onclick="closeModal()">
+        <svg class="lucide" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<div id="lightbox">
+  <div class="lb-head">
+    <span class="lb-title" id="lb-title"></span>
+    <div style="display:flex;gap:10px;">
+        <a id="lb-download" href="#" download style="background:rgba(255,255,255,.1);border:none;border-radius:7px;padding:7px;cursor:pointer;color:#fff;display:inline-flex;">
+            <svg class="lucide" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </a>
+        <button onclick="closeLightbox()" style="background:rgba(255,255,255,.1);border:none;border-radius:7px;padding:7px;cursor:pointer;color:#fff;">
+            <svg class="lucide" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+    </div>
+  </div>
+  <div class="lb-body">
+    <button class="lb-nav prev" onclick="lbNav(-1)">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    <div id="lb-content" style="max-width:90%;max-height:90%;display:flex;align-items:center;justify-content:center;width:100%;height:100%;"></div>
+    <button class="lb-nav next" onclick="lbNav(1)">
+      <svg class="lucide" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+    </button>
+  </div>
+  <div class="lb-foot" id="lb-counter"></div>
+</div>
+
+<div id="notif"><span class="n-dot"></span><span id="notif-text">Sauvegardé</span></div>
+
+<script>
+// ══════════════════════════════════════════
+// VARIABLES & ÉTAT APP
+// ══════════════════════════════════════════
+let currentView = 'qualite';
+let searchText = '';
+let filterNC = 'ouvert'; 
+let filterType = 'tous';
+let filterCat = 'tous';
+let filterTrig = 'tous';
+let filterAction = 'ouvert'; 
+let filterActionTrig = 'tous';
+// Filtres onglet MER
+let filterMER = 'ouvert';
+let filterMerCat = 'tous';
+let filterMerTrig = 'tous';
+let sortConfig = { key: 'date', dir: 'desc' };
+let chartInstances = [];
+
+// Données d'application
+let workingDirHandle = null;
+let listeConfig = { Type: [] };
+let merConfig = [];            // catégories MER (Assets/MER.json)
+let ncs = [];
+
+// État Visionneuse
+let lbPhotos = [], lbIndex = 0, lbNcId = null;
+
+const $ = id => document.getElementById(id);
+const getTodayISO = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+const colorMap = { blue: '#3b82f6', emerald: '#10b981', green: '#10b981', amber: '#f59e0b', yellow: '#f59e0b', violet: '#8b5cf6', purple: '#8b5cf6', cyan: '#06b6d4', pink: '#ec4899', fuchsia: '#ec4899', gray: '#64748b', slate: '#64748b', orange: '#f97316', red: '#ef4444', indigo: '#6366f1', teal: '#14b8a6', lime: '#84cc16', sky: '#0ea5e9', rose: '#f43f5e', stone: '#78716c' };
+function mapColor(c) {
+    if(!c) return '#94a3b8';
+    c = c.toLowerCase();
+    for (const [k, v] of Object.entries(colorMap)) {
+        if (c.includes(k)) return v;
+    }
+    return c.startsWith('#') ? c : '#6366f1';
+}
+
+// Une fiche est-elle issue de la MER ?
+const isMER = n => !!(n && n.mer);
+
+function getCatConf(name) {
+    if (!name) return null;
+    if (listeConfig.Type) {
+        for (const t of listeConfig.Type) {
+            if(t.categories) {
+                for (const c of t.categories) {
+                    if (c.nom === name) return { nom: c.nom, couleur: mapColor(c.couleur) };
+                }
+            }
+        }
+    }
+    for (const c of (merConfig || [])) {
+        if (c.nom === name) return { nom: c.nom, couleur: mapColor(c.couleur) };
+    }
+    return null;
+}
+
+// Nom du type "NC" issu de Liste.json (les fiches MER sont des NC)
+function getNCTypeName() {
+    const t = (listeConfig.Type || []).find(x => {
+        const n = (x.nom || '').toUpperCase();
+        return n === 'NC' || n.startsWith('NON');
+    });
+    return t ? t.nom : 'NC';
+}
+
+// ══════════════════════════════════════════
+// GESTION INDEXEDDB & ACCÈS FICHIERS
+// ══════════════════════════════════════════
+const dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open('QualiteSMR_DB', 1);
+    request.onupgradeneeded = (e) => { e.target.result.createObjectStore('handles'); };
+    request.onsuccess = (e) => resolve(e.target.result);
+    request.onerror = (e) => reject(e.target.error);
+});
+
+async function saveHandle(handle) {
+    const db = await dbPromise;
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('handles', 'readwrite');
+        const req = tx.objectStore('handles').put(handle, 'workingDir');
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject();
+    });
+}
+
+async function getHandle() {
+    const db = await dbPromise;
+    return new Promise((resolve) => {
+        const tx = db.transaction('handles', 'readonly');
+        const req = tx.objectStore('handles').get('workingDir');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        workingDirHandle = await getHandle();
+        if (workingDirHandle) {
+            $('btn-verify-folder').classList.remove('hidden');
+            $('init-message').innerText = "Veuillez confirmer l'accès au dossier précédemment sélectionné.";
+        } else {
+            $('btn-select-folder').classList.remove('hidden');
+        }
+    } catch (e) {
+        console.error("Erreur IndexedDB:", e);
+        $('btn-select-folder').classList.remove('hidden');
+    }
+});
+
+async function requestFolderAccess() {
+    try {
+        workingDirHandle = await window.showDirectoryPicker();
+        await saveHandle(workingDirHandle);
+        await proceedToLoad();
+    } catch (e) {
+        console.warn("Sélection de dossier annulée:", e);
+    }
+}
+
+async function verifyFolderAccess() {
+    try {
+        const perm = await workingDirHandle.requestPermission({ mode: 'readwrite' });
+        if (perm === 'granted') {
+            await proceedToLoad();
+        }
+    } catch (e) {
+        console.warn("Permission refusée:", e);
+    }
+}
+
+async function proceedToLoad() {
+    $('btn-select-folder').classList.add('hidden');
+    $('btn-verify-folder').classList.add('hidden');
+    $('init-loader').classList.remove('hidden');
+    $('init-message').innerText = "Lecture des fichiers en cours...";
+    
+    await loadData();
+    
+    $('init-overlay').style.opacity = '0';
+    setTimeout(() => {
+        $('init-overlay').style.display = 'none';
+        navigate('qualite');
+    }, 500);
+}
+
+// Lit un fichier JSON dans Assets (essaie plusieurs casses de nom)
+async function readAssetJSON(names) {
+    const assetsDirHandle = await workingDirHandle.getDirectoryHandle('Assets');
+    let lastErr = null;
+    for (const n of names) {
+        try {
+            const fileHandle = await assetsDirHandle.getFileHandle(n);
+            const file = await fileHandle.getFile();
+            return JSON.parse(await file.text());
+        } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('Fichier introuvable');
+}
+
+async function loadData() {
+    ncs = [];
+    try {
+        listeConfig = await readAssetJSON(['Liste.json', 'liste.json', 'LISTE.json']);
+    } catch(e) {
+        console.error("Fichier config introuvable.", e);
+        listeConfig = { Type: [ { nom: "NC", couleur: "orange", categories: [] }, { nom: "RECLAMATION CLIENT", couleur: "red", categories: [] } ] };
+    }
+
+    // Catégories spécifiques MER
+    try {
+        const parsed = await readAssetJSON(['MER.json', 'mer.json', 'Mer.json']);
+        merConfig = Array.isArray(parsed) ? parsed : (parsed.categories || parsed.Categories || parsed.MER || []);
+    } catch(e) {
+        console.warn("MER.json introuvable dans Assets, catégories MER vides.", e);
+        merConfig = [];
+    }
+
+    for await (const entry of workingDirHandle.values()) {
+        if (entry.kind === 'directory' && (entry.name.startsWith('NC-') || entry.name.startsWith('RC-'))) {
+            try {
+                let dataHandle;
+                try { dataHandle = await entry.getFileHandle('donnees.json'); }
+                catch (err) { dataHandle = await entry.getFileHandle('data.json'); }
+
+                const file = await dataHandle.getFile();
+                const ncData = JSON.parse(await file.text());
+                
+                if (ncData && typeof ncData === 'object') {
+                    if (!ncData.actions) ncData.actions = [];
+                    if (!ncData.photos) ncData.photos = [];
+                    if (!ncData.commentaires) ncData.commentaires = [];
+                    ncData.mer = !!ncData.mer;
+                    ncData._lastModified = file.lastModified;
+                    ncs.push(ncData);
+                }
+            } catch(e) { }
+        }
+    }
+}
+
+async function getFileUrl(ncId, fileName) {
+    try {
+        const ncDir = await workingDirHandle.getDirectoryHandle(ncId);
+        const fileHandle = await ncDir.getFileHandle(fileName);
+        const file = await fileHandle.getFile();
+        return URL.createObjectURL(file);
+    } catch(e) {
+        return null;
+    }
+}
+
+async function updateNCDataFile(nc) {
+    try {
+        const ncDirHandle = await workingDirHandle.getDirectoryHandle(nc.id);
+        
+        if (nc._lastModified) {
+            let existingHandle;
+            try { existingHandle = await ncDirHandle.getFileHandle('donnees.json'); }
+            catch(err) { try { existingHandle = await ncDirHandle.getFileHandle('data.json'); } catch(e){} }
+            if (existingHandle) {
+                const existingFile = await existingHandle.getFile();
+                if (existingFile.lastModified > nc._lastModified) {
+                    notify("Attention: Fiche modifiée par un autre utilisateur. Actualisation...", true);
+                    await loadData();
+                    render();
+                    return false;
+                }
+            }
+        }
+        
+        const dataHandle = await ncDirHandle.getFileHandle('donnees.json', { create: true });
+        const writable = await dataHandle.createWritable();
+        const dataToSave = { ...nc };
+        delete dataToSave._lastModified;
+        await writable.write(JSON.stringify(dataToSave, null, 2));
+        await writable.close();
+        const newFile = await dataHandle.getFile();
+        nc._lastModified = newFile.lastModified;
+        return true;
+    } catch(e) { 
+        console.error("Échec maj:", e); 
+        notify("Erreur lors de la sauvegarde !", true);
+        return false;
+    }
+}
+
+// ══════════════════════════════════════════
+// GLOBAL ACTIONS HELPER
+// ══════════════════════════════════════════
+function getAllUniqueActions() {
+    const actMap = new Map();
+    for (let i = 0; i < ncs.length; i++) {
+        const nc = ncs[i];
+        if (!nc.actions) continue;
+        for (let j = 0; j < nc.actions.length; j++) {
+            const a = nc.actions[j];
+            let existing = actMap.get(a.id);
+            if (!existing) actMap.set(a.id, {...a, ncIds: [nc.id]});
+            else existing.ncIds.push(nc.id);
+        }
+    }
+    return Array.from(actMap.values());
+}
+
+// ══════════════════════════════════════════
+// CAPTURE D'ÉCRAN & COLLAGE
+// ══════════════════════════════════════════
+async function captureScreen(inputId) {
+    try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "window" }, audio: false });
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        await new Promise((resolve) => { video.onloadedmetadata = () => { resolve(); }; });
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        stream.getTracks().forEach(track => track.stop());
+        
+        canvas.toBlob((blob) => {
+            if (!blob) return;
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-');
+            const file = new File([blob], `Capture_${timestamp}.png`, { type: 'image/png' });
+            const input = document.getElementById(inputId);
+            if (input) {
+                const dt = new DataTransfer();
+                for (let i = 0; i < input.files.length; i++) dt.items.add(input.files[i]);
+                dt.items.add(file);
+                input.files = dt.files;
+                if (typeof renderFilePreview === 'function') {
+                    const containerId = inputId === 'c-pj' ? 'c-pj-preview' : 'e-pj-preview';
+                    renderFilePreview(inputId, containerId);
+                }
+                notify('Capture ajoutée aux pièces jointes !');
+            }
+        }, 'image/png');
+    } catch (err) {
+        console.warn("Capture annulée:", err);
+    }
+}
+
+document.addEventListener('paste', (e) => {
+    if (!$('modal-overlay').classList.contains('open')) return;
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    let input = $('c-pj') || $('e-pj');
+    if (!input) return;
+    
+    const dt = new DataTransfer();
+    for (let i = 0; i < input.files.length; i++) dt.items.add(input.files[i]);
+    
+    let pasted = false;
+    for (let index in items) {
+        const item = items[index];
+        if (item.kind === 'file') {
+            const blob = item.getAsFile();
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-');
+            const file = new File([blob], `Colle_${timestamp}.png`, { type: blob.type });
+            dt.items.add(file);
+            pasted = true;
+        }
+    }
+    if (pasted) {
+        input.files = dt.files;
+        if (typeof renderFilePreview === 'function') {
+            const containerId = input.id === 'c-pj' ? 'c-pj-preview' : 'e-pj-preview';
+            renderFilePreview(input.id, containerId);
+        }
+        notify('Image collée ajoutée !');
+    }
+});
+
+function removeFile(inputId, index, containerId) {
+    const input = $(inputId);
+    const dt = new DataTransfer();
+    const { files } = input;
+    for (let i = 0; i < files.length; i++) {
+        if (i !== index) dt.items.add(files[i]);
+    }
+    input.files = dt.files;
+    renderFilePreview(inputId, containerId);
+}
+
+function renderFilePreview(inputId, containerId) {
+    const input = $(inputId);
+    const container = $(containerId);
+    if (!input || !container) return;
+    const files = input.files || [];
+    container.innerHTML = '';
+    if (!files.length) return;
+
+    container.innerHTML = Array.from(files).map((f, i) => {
+        const isImg = (f.type && f.type.startsWith('image/')) || ['jpg','jpeg','png','gif','webp','jfif'].includes((f.name.split('.').pop()||'').toLowerCase());
+        const iconOrThumb = isImg ? `<div class="erp-file-thumb"><img src="${URL.createObjectURL(f)}" alt="${f.name}"></div>` : `<svg class="lucide" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+        return `
+          <div class="erp-file" style="position:relative; padding-right:32px;">
+            ${iconOrThumb}
+            <div style="padding:6px 8px; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px;">
+              ${f.name}
+            </div>
+            <button type="button" onclick="removeFile('${inputId}', ${i}, '${containerId}')" style="position:absolute; right:4px; top:50%; transform:translateY(-50%); background:#fee2e2; border:none; border-radius:4px; color:#ef4444; cursor:pointer; padding:4px; display:flex; transition: background 0.2s;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
+              <svg class="lucide" viewBox="0 0 24 24" style="width:12px; height:12px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        `;
+    }).join('');
+}
+
+// ══════════════════════════════════════════
+// NAVIGATION & RENDU
+// ══════════════════════════════════════════
+function navigate(view) {
+  currentView = view;
+  sortConfig = { key: 'date', dir: 'desc' };
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('nav-' + view)?.classList.add('active');
+  render();
+}
+
+function handleSearch(val) {
+  searchText = val.toLowerCase();
+  document.querySelector('.search-wrap')?.classList.toggle('has-text', !!val);
+  render();
+}
+
+function clearSearch() {
+  const si = $('search-input');
+  if (si) si.value = '';
+  handleSearch('');
+  si?.focus();
+}
+
+function resetFilters() {
+  filterNC = 'ouvert'; filterType = 'tous'; filterCat = 'tous'; filterTrig = 'tous';
+  const si = $('search-input'); if (si) si.value = '';
+  handleSearch('');
+}
+
+function resetActionFilters() {
+  filterAction = 'ouvert'; filterActionTrig = 'tous';
+  const si = $('search-input'); if (si) si.value = '';
+  handleSearch('');
+}
+
+function resetMerFilters() {
+  filterMER = 'ouvert'; filterMerCat = 'tous'; filterMerTrig = 'tous';
+  const si = $('search-input'); if (si) si.value = '';
+  handleSearch('');
+}
+
+function updateNavCounts() {
+  const q = ncs.filter(nc => !nc.dateCloture && !isMER(nc)).length;
+  const m = ncs.filter(nc => !nc.dateCloture && isMER(nc)).length;
+  const a = getAllUniqueActions().filter(x => x.statut === 'Ouvert').length;
+  const eq = $('nav-cnt-q'), ea = $('nav-cnt-a'), em = $('nav-cnt-m');
+  if (eq) { eq.textContent = q; eq.style.display = q ? '' : 'none'; }
+  if (ea) { ea.textContent = a; ea.style.display = a ? '' : 'none'; }
+  if (em) { em.textContent = m; em.style.display = m ? '' : 'none'; }
+}
+
+let statsFilter = { period: 'tout', start: '', end: '', ncType: 'tous' };
+let statsMerScope = 'tous'; // 'tous' | 'mer'
+
+function render() {
+  updateNavCounts();
+  chartInstances.forEach(c => c.destroy());
+  chartInstances = [];
+  const el = document.getElementById('content');
+  el.className = 'fade-in';
+  void el.offsetWidth;
+
+  if (currentView === 'qualite') renderQualite(el);
+  else if (currentView === 'actions') renderActions(el);
+  else if (currentView === 'mer') renderMER(el);
+  else renderStats(el);
+}
+
+function matchSearchNC(n) {
+  if (!searchText) return true;
+  return [n.id, n.motif, n.trigramme, n.type, n.categorie, n.numRobot, n.typeRobot]
+    .some(v => v && String(v).toLowerCase().includes(searchText));
+}
+
+// ══════════════════════════════════════════
+// VIEW: QUALITÉ (hors fiches MER)
+// ══════════════════════════════════════════
+function getFilteredNCs(skipStatus = false) {
+  let data = ncs.filter(n => {
+      if (isMER(n)) return false;
+      if (!skipStatus && filterNC === 'ouvert' && n.dateCloture) return false;
+      if (!skipStatus && filterNC === 'cloture' && !n.dateCloture) return false;
+      if (filterType !== 'tous' && n.type !== filterType) return false;
+      if (filterCat !== 'tous' && n.categorie !== filterCat) return false;
+      if (filterTrig !== 'tous' && n.trigramme !== filterTrig) return false;
+      if (!matchSearchNC(n)) return false;
+      return true;
+  });
+  if (sortConfig.key) data.sort((a,b) => doSort(a,b));
+  return data;
+}
+
+function getFilteredMER(skipStatus = false) {
+  let data = ncs.filter(n => {
+      if (!isMER(n)) return false;
+      if (!skipStatus && filterMER === 'ouvert' && n.dateCloture) return false;
+      if (!skipStatus && filterMER === 'cloture' && !n.dateCloture) return false;
+      if (filterMerCat !== 'tous' && n.categorie !== filterMerCat) return false;
+      if (filterMerTrig !== 'tous' && n.trigramme !== filterMerTrig) return false;
+      if (!matchSearchNC(n)) return false;
+      return true;
+  });
+  if (sortConfig.key) data.sort((a,b) => doSort(a,b));
+  return data;
+}
+
+function exportCSV(data, prefixFichier) {
+  data = data || getFilteredNCs();
+  if (!data.length) { notify('Aucune fiche à exporter', true); return; }
+  const cols = [
+    ['Numéro', n => n.id], ['Type', n => n.type], ['Origine MER', n => isMER(n) ? 'Oui' : 'Non'],
+    ['Catégorie', n => n.categorie],
+    ['N° Robot', n => n.numRobot], ['Type Robot', n => n.typeRobot],
+    ['Motif', n => n.motif], ['Date', n => n.date ? fmtDatePlain(n.date) : ''],
+    ['Temps NQ (h)', n => n.tempsNQ], ['Coût (€)', n => n.cout],
+    ['Recette associée', n => n.recette || ''],
+    ['Clôture', n => n.dateCloture ? fmtDatePlain(n.dateCloture) : ''],
+    ['Âge (j)', n => n.dateCloture ? '' : ncAgeDays(n)],
+    ['Pilote', n => n.trigramme],
+    ['Nb PJ', n => n.photos?.length || 0], ['Nb Actions', n => n.actions?.length || 0],
+    ['Actions ouvertes', n => (n.actions||[]).filter(a => a.statut === 'Ouvert').length]
+  ];
+  const escCsv = v => { v = (v == null ? '' : String(v)).replace(/"/g, '""'); return /[;"\n\r]/.test(v) ? `"${v}"` : v; };
+  const rows = [cols.map(c => c[0]).join(';')];
+  data.forEach(n => rows.push(cols.map(c => escCsv(c[1](n))).join(';')));
+  const blob = new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${prefixFichier || 'Qualite_SMR'}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  notify(`${data.length} fiche(s) exportée(s) en CSV`);
+}
+
+function renderQualite(el) {
+  let data = getFilteredNCs();
+
+  const allTrigs = Array.from(new Set(ncs.filter(n => !isMER(n)).map(n => n.trigramme).filter(Boolean))).sort();
+  const allTypes = (listeConfig.Type || []).map(t => t.nom);
+  
+  let catOpts = [];
+  if (filterType !== 'tous') {
+      const tObj = (listeConfig.Type || []).find(t => t.nom === filterType);
+      if (tObj && tObj.categories) catOpts = tObj.categories.map(c => c.nom);
+  } else {
+      const cSet = new Set();
+      (listeConfig.Type || []).forEach(t => (t.categories||[]).forEach(c => cSet.add(c.nom)));
+      catOpts = Array.from(cSet).sort();
+  }
+
+  updateTopbar(data.length + ' fiche' + (data.length !== 1 ? 's' : ''));
+
+  const base = getFilteredNCs(true);
+  const cOuv = base.filter(nc => !nc.dateCloture).length;
+  const cClo = base.length - cOuv;
+  const hasFilters = filterType !== 'tous' || filterCat !== 'tous' || filterTrig !== 'tous' || !!searchText || filterNC !== 'ouvert';
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Suivi Qualité</div>
+        <div class="page-sub">Non-conformités & réclamations · ${data.length} résultat${data.length !== 1 ? 's' : ''} <span style="color:var(--text3)">· hors fiches MER</span></div>
+      </div>
+      <div class="page-actions" style="flex-wrap:wrap;justify-content:flex-end;">
+        <div class="seg" role="tablist" title="Filtrer par statut">
+          <button class="seg-btn ${filterNC==='ouvert'?'active':''}" onclick="filterNC='ouvert';render()">En cours <span class="seg-cnt">${cOuv}</span></button>
+          <button class="seg-btn ${filterNC==='cloture'?'active':''}" onclick="filterNC='cloture';render()">Clôturées <span class="seg-cnt">${cClo}</span></button>
+          <button class="seg-btn ${filterNC==='tous'?'active':''}" onclick="filterNC='tous';render()">Toutes <span class="seg-cnt">${base.length}</span></button>
+        </div>
+        ${hasFilters ? `<button class="btn btn-ghost" onclick="resetFilters()" title="Réinitialiser tous les filtres" style="padding:7px 10px;font-size:12px;">✕ Filtres</button>` : ''}
+        <select class="select-styled" onchange="filterTrig=this.value;render()">
+          <option value="tous">Tous Pilotes</option>
+          ${allTrigs.map(t => `<option value="${t}" ${filterTrig===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <select class="select-styled" onchange="filterType=this.value;filterCat='tous';render()">
+          <option value="tous">Tous Types</option>
+          ${allTypes.map(t => `<option value="${t}" ${filterType===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <select class="select-styled" onchange="filterCat=this.value;render()">
+          <option value="tous">Toutes Catégories</option>
+          ${catOpts.map(c => `<option value="${c}" ${filterCat===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost" onclick="exportCSV()" title="Exporter la vue filtrée (CSV Excel)">
+          <svg class="lucide" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          CSV
+        </button>
+        <button class="btn btn-primary" onclick="openCreateModal()">
+          <svg class="lucide" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nouvelle fiche
+        </button>
+      </div>
+    </div>
+
+    <div class="table-outer">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              ${th('Numéro','id')}${th('Type','type')}${th('Catégorie','categorie')}
+              ${th('Robot','numRobot')}${th('Motif','motif')}${th('Date','date')}
+              ${th('P.J.','_pj',false)}${th('Actions','_act',false)}${th('Tps NQ','tempsNQ')}
+              ${th('Clôture','dateCloture')}${th('Par','trigramme')}
+              <th style="text-align:center">Mail</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.length === 0 ? `<tr><td colspan="12"><div class="empty-state">
+              <svg class="lucide" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+              <p class="empty-title">Aucune fiche ne correspond</p>
+              <p class="empty-sub">${hasFilters ? 'Essayez d\'élargir la recherche ou de réinitialiser les filtres.' : 'Créez votre première fiche pour démarrer le suivi.'}</p>
+              <div style="display:flex;gap:10px;">
+                ${hasFilters ? '<button class="btn btn-ghost" onclick="resetFilters()">Réinitialiser les filtres</button>' : ''}
+                <button class="btn btn-primary" onclick="openCreateModal()">Nouvelle fiche</button>
+              </div>
+            </div></td></tr>` : data.map(nc => rowNC(nc)).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function rowNC(nc, opts) {
+  opts = opts || {};
+  const closed = !!nc.dateCloture;
+  const nbPj = nc.photos?.length || 0;
+  const nbAct = nc.actions?.length || 0;
+  const isRC = (nc.type.toUpperCase() === 'RECLAMATION CLIENT' || nc.type.toUpperCase() === 'RC');
+  const typeB = isMER(nc)
+    ? '<span class="badge badge-mer">MER</span>'
+    : (isRC ? '<span class="badge badge-rc">RC</span>' : '<span class="badge badge-nc">NC</span>');
+  const catConf = getCatConf(nc.categorie);
+  const catDot = `<span class="dot-cat" style="background:${catConf?.couleur||'#94a3b8'}"></span>`;
+  
+  return `<tr class="${closed?'closed':''}" onclick="openNCDetail('${nc.id}')">
+    <td><span class="mono-id ${closed?'closed':''}">${nc.id}</span></td>
+    ${opts.hideType ? '' : `<td>${typeB}</td>`}
+    <td><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text2)">${catDot}${nc.categorie}</span></td>
+    <td><span style="font-family:var(--mono);font-size:11px;color:var(--text2)">${nc.numRobot||'—'}</span></td>
+    <td style="max-width:280px"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text2);font-size:13px" title="${esc(nc.motif)}">${nc.motif}</span></td>
+    <td style="white-space:nowrap;color:var(--text3);font-size:12px">${fmtDate(nc.date)}</td>
+    <td style="text-align:center">
+      <button onclick="event.stopPropagation();openPJModal('${nc.id}')" style="background:${nbPj?'var(--accent-dim)':'transparent'};border:1px solid ${nbPj?'#bfdbfe':'var(--border)'};border-radius:6px;padding:4px 8px;cursor:pointer;color:${nbPj?'var(--accent)':'var(--text3)'};font-size:11px;font-weight:700;font-family:var(--mono)" title="${nbPj} pièce(s)">${nbPj}</button>
+    </td>
+    <td style="text-align:center">
+      <span style="background:${nbAct?'var(--surface2)':'transparent'};border:1px solid ${nbAct?'var(--border)':'transparent'};border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700;font-family:var(--mono);color:${nbAct?'var(--text2)':'var(--text3)'}">${nbAct}</span>
+    </td>
+    <td style="white-space:nowrap;font-size:12px;font-family:var(--mono);color:var(--text2)">${nc.tempsNQ != null && nc.tempsNQ !== '' ? nc.tempsNQ + ' h' : '—'}</td>
+    <td style="white-space:nowrap;font-size:12px;font-weight:600;color:${closed?'var(--green)':'var(--text3)'}">${closed ? fmtDate(nc.dateCloture) : ageBadge(nc)}</td>
+    <td style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent)">${nc.trigramme}</td>
+    <td style="text-align:center">
+      <button onclick="event.stopPropagation();sendEmail('${nc.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);padding:6px;border-radius:6px;transition:all .12s" onmouseover="this.style.background='var(--surface2)';this.style.color='var(--accent)'" onmouseout="this.style.background='none';this.style.color='var(--text3)'" title="Envoyer par email">
+        <svg class="lucide" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </td>
+  </tr>`;
+}
+
+// ══════════════════════════════════════════
+// VIEW: MER (NC détectées lors de la mise en route)
+// ══════════════════════════════════════════
+function renderMER(el) {
+  const data = getFilteredMER();
+  const base = getFilteredMER(true);
+  const cOuv = base.filter(nc => !nc.dateCloture).length;
+  const cClo = base.length - cOuv;
+
+  const allTrigs = Array.from(new Set(ncs.filter(isMER).map(n => n.trigramme).filter(Boolean))).sort();
+  const catSet = new Set((merConfig || []).map(c => c.nom));
+  ncs.filter(isMER).forEach(n => { if (n.categorie) catSet.add(n.categorie); });
+  const catOpts = Array.from(catSet).sort();
+
+  const hasFilters = filterMerCat !== 'tous' || filterMerTrig !== 'tous' || !!searchText || filterMER !== 'ouvert';
+  updateTopbar(data.length + ' fiche' + (data.length !== 1 ? 's' : '') + ' MER');
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Suivi MER</div>
+        <div class="page-sub">Non-conformités détectées lors de la mise en route · ${data.length} résultat${data.length !== 1 ? 's' : ''}</div>
+      </div>
+      <div class="page-actions" style="flex-wrap:wrap;justify-content:flex-end;">
+        <div class="seg" role="tablist" title="Filtrer par statut">
+          <button class="seg-btn ${filterMER==='ouvert'?'active':''}" onclick="filterMER='ouvert';render()">En cours <span class="seg-cnt">${cOuv}</span></button>
+          <button class="seg-btn ${filterMER==='cloture'?'active':''}" onclick="filterMER='cloture';render()">Clôturées <span class="seg-cnt">${cClo}</span></button>
+          <button class="seg-btn ${filterMER==='tous'?'active':''}" onclick="filterMER='tous';render()">Toutes <span class="seg-cnt">${base.length}</span></button>
+        </div>
+        ${hasFilters ? `<button class="btn btn-ghost" onclick="resetMerFilters()" title="Réinitialiser tous les filtres" style="padding:7px 10px;font-size:12px;">✕ Filtres</button>` : ''}
+        <select class="select-styled" onchange="filterMerTrig=this.value;render()">
+          <option value="tous">Tous Pilotes</option>
+          ${allTrigs.map(t => `<option value="${t}" ${filterMerTrig===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <select class="select-styled" onchange="filterMerCat=this.value;render()">
+          <option value="tous">Toutes Catégories MER</option>
+          ${catOpts.map(c => `<option value="${c}" ${filterMerCat===c?'selected':''}>${c}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost" onclick="exportCSV(getFilteredMER(),'Qualite_SMR_MER')" title="Exporter la vue filtrée (CSV Excel)">
+          <svg class="lucide" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          CSV
+        </button>
+        <button class="btn btn-indigo" onclick="openCreateModal(true)">
+          <svg class="lucide" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nouvelle fiche MER
+        </button>
+      </div>
+    </div>
+
+    ${merConfig.length === 0 ? `<div style="background:var(--amber-light);border:1px solid #fde68a;border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:#92400e">
+      Aucune catégorie MER chargée : placez un fichier <strong>MER.json</strong> dans le dossier <strong>Assets</strong> (même emplacement que Liste.json).
+    </div>` : ''}
+
+    <div class="table-outer">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              ${th('Numéro','id')}${th('Catégorie MER','categorie')}
+              ${th('Robot','numRobot')}${th('Motif','motif')}${th('Date','date')}
+              ${th('P.J.','_pj',false)}${th('Actions','_act',false)}${th('Tps NQ','tempsNQ')}
+              ${th('Clôture','dateCloture')}${th('Par','trigramme')}
+              <th style="text-align:center">Mail</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.length === 0 ? `<tr><td colspan="11"><div class="empty-state">
+              <svg class="lucide" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+              <p class="empty-title">Aucune fiche MER ne correspond</p>
+              <p class="empty-sub">${hasFilters ? 'Essayez d\'élargir la recherche ou de réinitialiser les filtres.' : 'Créez une fiche pour tracer une NC détectée lors de la mise en route.'}</p>
+              <div style="display:flex;gap:10px;">
+                ${hasFilters ? '<button class="btn btn-ghost" onclick="resetMerFilters()">Réinitialiser les filtres</button>' : ''}
+                <button class="btn btn-indigo" onclick="openCreateModal(true)">Nouvelle fiche MER</button>
+              </div>
+            </div></td></tr>` : data.map(nc => rowNC(nc, {hideType:true})).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ══════════════════════════════════════════
+// VIEW: ACTIONS
+// ══════════════════════════════════════════
+function renderActions(el) {
+  let data = getAllUniqueActions().filter(a => {
+      if (filterAction === 'ouvert' && a.statut !== 'Ouvert') return false;
+      if (filterAction === 'cloture' && a.statut !== 'Terminé') return false;
+      if (filterActionTrig !== 'tous' && a.trigramme !== filterActionTrig) return false;
+      if (searchText && ![a.id, a.description, a.trigramme, ...a.ncIds].some(v => v && v.toLowerCase().includes(searchText))) return false;
+      return true;
+  });
+  if (sortConfig.key) data.sort((a,b) => doSort(a,b));
+
+  const ouv = data.filter(a => a.statut === 'Ouvert').length;
+  const done = data.filter(a => a.statut === 'Terminé').length;
+  const baseA = getAllUniqueActions().filter(a => {
+      if (filterActionTrig !== 'tous' && a.trigramme !== filterActionTrig) return false;
+      if (searchText && ![a.id, a.description, a.trigramme, ...a.ncIds].some(v => v && v.toLowerCase().includes(searchText))) return false;
+      return true;
+  });
+  const allActTrigs = Array.from(new Set(getAllUniqueActions().map(a => a.trigramme).filter(Boolean))).sort();
+  updateTopbar(`${data.length} action${data.length !== 1 ? 's' : ''}`);
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Suivi Actions</div>
+        <div class="page-sub">${ouv} en cours · ${done} terminées</div>
+      </div>
+      <div class="page-actions">
+        <div class="seg" role="tablist" title="Filtrer par statut">
+          <button class="seg-btn ${filterAction==='ouvert'?'active':''}" onclick="filterAction='ouvert';render()">En cours <span class="seg-cnt">${baseA.filter(x=>x.statut==='Ouvert').length}</span></button>
+          <button class="seg-btn ${filterAction==='cloture'?'active':''}" onclick="filterAction='cloture';render()">Terminées <span class="seg-cnt">${baseA.filter(x=>x.statut==='Terminé').length}</span></button>
+          <button class="seg-btn ${filterAction==='tous'?'active':''}" onclick="filterAction='tous';render()">Toutes <span class="seg-cnt">${baseA.length}</span></button>
+        </div>
+        ${(filterActionTrig !== 'tous' || !!searchText || filterAction !== 'ouvert') ? `<button class="btn btn-ghost" onclick="resetActionFilters()" title="Réinitialiser tous les filtres" style="padding:7px 10px;font-size:12px;">✕ Filtres</button>` : ''}
+        <select class="select-styled" onchange="filterActionTrig=this.value;render()">
+          <option value="tous">Tous Pilotes</option>
+          ${allActTrigs.map(t => `<option value="${t}" ${filterActionTrig===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="table-outer">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              ${th('N° Action','id')}${th('Fiches liées','ncId',false)}${th('Date','date')}
+              ${th('Description','description')}${th('Statut','statut')}
+              ${th('Clôture','dateCloture')}${th('Pilote','trigramme')}
+            </tr>
+          </thead>
+          <tbody>
+            ${data.length === 0 ? `<tr><td colspan="7"><div class="empty-state">
+              <svg class="lucide" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              <p class="empty-title">Aucune action ne correspond</p>
+              <p class="empty-sub">Les actions se créent depuis le détail d'une fiche NC / RC / MER.</p>
+              ${(filterActionTrig !== 'tous' || !!searchText || filterAction !== 'ouvert') ? '<button class="btn btn-ghost" onclick="resetActionFilters()">Réinitialiser les filtres</button>' : ''}
+            </div></td></tr>` : data.map(a => rowAction(a)).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function rowAction(a) {
+  const done = a.statut === 'Terminé';
+  const badge = done
+    ? '<span class="badge badge-done">Terminé</span>'
+    : '<span class="badge badge-open">En cours</span>';
+  
+  const ncLinks = a.ncIds.map(id => {
+    const linked = ncs.find(n => n.id === id);
+    const merTag = isMER(linked) ? '<span class="badge badge-mer" style="margin-left:4px;padding:1px 5px;font-size:9px">MER</span>' : '';
+    return `<span onclick="event.stopPropagation();openNCDetail('${id}')" style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px">${id}</span>${merTag}`;
+  }).join(', ');
+
+  return `<tr class="${done?'closed':''}" onclick="openActionDetail('${a.ncIds[0]}','${a.id}')">
+    <td><span class="mono-id ${done?'closed':''}">${a.id}</span></td>
+    <td>${ncLinks}</td>
+    <td style="white-space:nowrap;font-size:12px;color:var(--text3)">${fmtDate(a.date)}</td>
+    <td style="max-width:360px"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:var(--text2)" title="${esc(a.description)}">${a.description}</span></td>
+    <td>${badge}</td>
+    <td style="white-space:nowrap;font-size:12px;color:${done?'var(--green)':'var(--text3)'}">${a.dateCloture ? fmtDate(a.dateCloture) : '—'}</td>
+    <td><span style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent)">${a.trigramme}</span></td>
+  </tr>`;
+}
+
+// ══════════════════════════════════════════
+// VIEW: STATS
+// ══════════════════════════════════════════
+function renderStats(el) {
+  let data = [...ncs];
+  let actions = getAllUniqueActions();
+
+  // Bouton : uniquement les NC détectées lors de la MER
+  if (statsMerScope === 'mer') {
+    data = data.filter(isMER);
+    const idSet = new Set(data.map(n => n.id));
+    actions = actions.filter(a => a.ncIds.some(id => idSet.has(id)));
+  }
+
+  if (statsFilter.ncType !== 'tous') data = data.filter(n => n.type === statsFilter.ncType);
+
+  if (statsFilter.period !== 'tout') {
+    let s, e;
+    const now = new Date();
+    if (statsFilter.period === 'semaine') {
+      const d = now.getDay() || 7;
+      s = new Date(now); s.setDate(now.getDate() - d + 1); s.setHours(0,0,0,0);
+      e = new Date(s); e.setDate(s.getDate() + 6); e.setHours(23,59,59,999);
+    } else if (statsFilter.period === 'mois') {
+      s = new Date(now.getFullYear(), now.getMonth(), 1);
+      e = new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59,999);
+    } else if (statsFilter.period === 'custom') {
+      s = statsFilter.start ? new Date(statsFilter.start) : new Date('2000-01-01');
+      e = statsFilter.end ? new Date(statsFilter.end + 'T23:59:59') : new Date('2099-12-31');
+    }
+    const sTime = s.getTime(), eTime = e.getTime();
+    data = data.filter(n => { const t=new Date(n.date).getTime(); return t>=sTime && t<=eTime; });
+    actions = actions.filter(a => { const t=new Date(a.date).getTime(); return t>=sTime && t<=eTime; });
+  }
+
+  const total = data.length;
+  const ouv = data.filter(n => !n.dateCloture).length;
+  const totalAct = actions.length;
+  const ouvAct = actions.filter(a => a.statut === 'Ouvert').length;
+  const tempsTotal = data.reduce((s,n) => s + (parseFloat(n.tempsNQ)||0), 0);
+  const tauxAct = totalAct > 0 ? Math.round((totalAct-ouvAct)/totalAct*100) : 0;
+  const nbMerGlobal = ncs.filter(isMER).length;
+
+  const byCat = {}, byType = {}, bySta = {En_cours: 0, Clôturée: 0};
+  data.forEach(n => {
+    byCat[n.categorie] = (byCat[n.categorie]||0) + 1;
+    byType[n.type] = (byType[n.type]||0) + 1;
+    if (n.dateCloture) bySta['Clôturée']++; else bySta['En_cours']++;
+  });
+
+  // Délai moyen de clôture (fiches clôturées de la période)
+  const closedNcs = data.filter(n => n.dateCloture);
+  const delaiMoyen = closedNcs.length ? Math.round(closedNcs.reduce((s,n) => s + Math.max(0,(new Date(n.dateCloture)-new Date(n.date))/86400000), 0) / closedNcs.length) : 0;
+  const ageMoyenOuv = ouv ? Math.round(data.filter(n=>!n.dateCloture).reduce((s,n)=>s+ncAgeDays(n),0)/ouv) : 0;
+
+  // Pareto catégories
+  const parEntries = Object.entries(byCat).sort((a,b) => b[1]-a[1]);
+  const totalCat = parEntries.reduce((s,e) => s+e[1], 0);
+  let _cum = 0;
+  const parCum = parEntries.map(e => { _cum += e[1]; return Math.round(_cum/totalCat*100); });
+
+  // Évolution mensuelle (créées vs clôturées)
+  const evoMap = {};
+  data.forEach(n => {
+    const k = (n.date||'').slice(0,7);
+    if (k) { evoMap[k] = evoMap[k] || {c:0,f:0}; evoMap[k].c++; }
+    if (n.dateCloture) { const k2 = n.dateCloture.slice(0,7); evoMap[k2] = evoMap[k2] || {c:0,f:0}; evoMap[k2].f++; }
+  });
+  const evoKeys = Object.keys(evoMap).sort().slice(-12);
+
+  updateTopbar('Statistiques');
+  const availTypes = (listeConfig.Type || []).map(t => t.nom);
+  const merOn = statsMerScope === 'mer';
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Statistiques</div>
+        <div class="page-sub">${merOn ? 'Périmètre : NC détectées lors de la MER uniquement' : 'Tableau de bord qualité global (MER incluse)'}</div>
+      </div>
+      <div class="page-actions" style="flex-wrap:wrap;justify-content:flex-end;">
+        <button class="btn ${merOn?'btn-indigo':'btn-ghost'}" onclick="statsMerScope = (statsMerScope==='mer' ? 'tous' : 'mer'); render()" title="Afficher uniquement les NC détectées lors de la mise en route">
+          <svg class="lucide" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          NC détectées en MER
+          <span style="font-family:var(--mono);font-size:10px;font-weight:700;background:${merOn?'rgba(255,255,255,.25)':'var(--border)'};color:${merOn?'#fff':'var(--text2)'};border-radius:99px;padding:1px 6px">${nbMerGlobal}</span>
+        </button>
+        <select class="select-styled" onchange="statsFilter.ncType=this.value;render()">
+          <option value="tous">Tous les types</option>
+          ${availTypes.map(t=>`<option value="${t}" ${statsFilter.ncType===t?'selected':''}>${t}</option>`).join('')}
+        </select>
+        <select class="select-styled" onchange="statsFilter.period=this.value;render()">
+          <option value="tout" ${statsFilter.period==='tout'?'selected':''}>Toutes les dates</option>
+          <option value="semaine" ${statsFilter.period==='semaine'?'selected':''}>Cette semaine</option>
+          <option value="mois" ${statsFilter.period==='mois'?'selected':''}>Ce mois</option>
+          <option value="custom" ${statsFilter.period==='custom'?'selected':''}>Personnalisé</option>
+        </select>
+        ${statsFilter.period === 'custom' ? `
+          <input type="date" value="${statsFilter.start}" onchange="statsFilter.start=this.value;render()" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--sans);outline:none">
+          <span style="color:var(--text3);font-size:12px">au</span>
+          <input type="date" value="${statsFilter.end}" onchange="statsFilter.end=this.value;render()" style="border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;font-family:var(--sans);outline:none">
+        ` : ''}
+      </div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;min-height:0">
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-accent-bar" style="background:${merOn?'var(--indigo)':'var(--accent)'}"></div>
+          <div class="kpi-label">${merOn ? 'Fiches MER' : 'Total fiches'}</div>
+          <div class="kpi-value">${total}</div>
+          <div class="kpi-sub"><span style="color:var(--amber);font-weight:700">${ouv}</span> en cours</div>
+        </div>
+        <div class="kpi"><div class="kpi-accent-bar" style="background:var(--green)"></div>
+          <div class="kpi-label">Taux traitement</div>
+          <div class="kpi-value">${total > 0 ? Math.round((total-ouv)/total*100) : 0}<span style="font-size:16px;font-weight:500;color:var(--text3)">%</span></div>
+          <div class="progress-wrap"><div class="progress-bar" style="width:${total > 0 ? Math.round((total-ouv)/total*100) : 0}%"></div></div>
+        </div>
+        <div class="kpi"><div class="kpi-accent-bar" style="background:var(--purple)"></div>
+          <div class="kpi-label">Actions</div>
+          <div class="kpi-value">${totalAct}</div>
+          <div class="kpi-sub"><span style="color:var(--amber);font-weight:700">${ouvAct}</span> en cours · ${tauxAct}% terminées</div>
+        </div>
+        <div class="kpi"><div class="kpi-accent-bar" style="background:var(--amber)"></div>
+          <div class="kpi-label">Délai moyen clôture</div>
+          <div class="kpi-value">${delaiMoyen}<span style="font-size:16px;font-weight:500;color:var(--text3)"> j</span></div>
+          <div class="kpi-sub">Âge moyen en cours : <span style="font-weight:700;color:${ageMoyenOuv>30?'var(--red)':ageMoyenOuv>15?'var(--amber)':'var(--text2)'}">${ageMoyenOuv} j</span></div>
+        </div>
+        <div class="kpi"><div class="kpi-accent-bar" style="background:var(--red)"></div>
+          <div class="kpi-label">Temps NQ cumulé</div>
+          <div class="kpi-value">${tempsTotal}<span style="font-size:16px;font-weight:500;color:var(--text3)"> h</span></div>
+          <div class="kpi-sub">Non-qualité estimée</div>
+        </div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-title">Par catégorie</div>
+          <div class="chart-inner">${Object.keys(byCat).length ? '<canvas id="chCat"></canvas>' : '<span style="color:var(--text3);font-size:12px">Aucune donnée</span>'}</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">${merOn ? 'Répartition Type' : 'Origine des fiches'}</div>
+          <div class="chart-inner">${Object.keys(byType).length ? '<canvas id="chType"></canvas>' : '<span style="color:var(--text3);font-size:12px">Aucune donnée</span>'}</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Statut fiches</div>
+          <div class="chart-inner">${total > 0 ? '<canvas id="chSta"></canvas>' : '<span style="color:var(--text3);font-size:12px">Aucune donnée</span>'}</div>
+        </div>
+      </div>
+
+      <div class="charts-row" style="grid-template-columns:3fr 2fr">
+        <div class="chart-card">
+          <div class="chart-title">Pareto catégories <span style="font-weight:500;color:var(--text3);font-size:11px">· % cumulé</span></div>
+          <div class="chart-inner">${parEntries.length ? '<canvas id="chPareto"></canvas>' : '<span style="color:var(--text3);font-size:12px">Aucune donnée</span>'}</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Évolution mensuelle <span style="font-weight:500;color:var(--text3);font-size:11px">· créées vs clôturées</span></div>
+          <div class="chart-inner">${evoKeys.length ? '<canvas id="chEvo"></canvas>' : '<span style="color:var(--text3);font-size:12px">Aucune donnée</span>'}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    const opts = { responsive:true, maintainAspectRatio:false, cutout:'65%',
+      plugins:{ legend:{ position:'bottom', labels:{ boxWidth:8, usePointStyle:true, font:{size:11,weight:'600'}, padding:12 }}}};
+    const barOpts = { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'#f1f5f9'}}, x:{grid:{display:false}} }};
+
+    if (document.getElementById('chCat')) {
+      const catColors = Object.keys(byCat).map(k => getCatConf(k)?.couleur || '#94a3b8');
+      chartInstances.push(new Chart($('chCat'), {type:'doughnut', data:{labels:Object.keys(byCat), datasets:[{data:Object.values(byCat), backgroundColor:catColors, borderWidth:2, borderColor:'#fff'}]}, options:opts}));
+    }
+    if ($('chType')) {
+      const typeColors = Object.keys(byType).map((_, i) => ['#ea580c','#dc2626','#2563eb'][i % 3]);
+      chartInstances.push(new Chart($('chType'), {type:'bar', data:{labels:Object.keys(byType), datasets:[{label:'Fiches', data:Object.values(byType), backgroundColor:typeColors, borderRadius:6}]}, options:barOpts}));
+    }
+    if ($('chSta')) {
+      chartInstances.push(new Chart($('chSta'), {type:'doughnut', data:{labels:['En cours','Clôturées'], datasets:[{data:[bySta['En_cours'],bySta['Clôturée']], backgroundColor:['#fbbf24','#22c55e'], borderWidth:2, borderColor:'#fff'}]}, options:opts}));
+    }
+    if ($('chPareto')) {
+      chartInstances.push(new Chart($('chPareto'), { data:{
+        labels: parEntries.map(e => e[0]),
+        datasets: [
+          { type:'bar', label:'Fiches', data:parEntries.map(e => e[1]), backgroundColor:parEntries.map(e => getCatConf(e[0])?.couleur || '#94a3b8'), borderRadius:6, yAxisID:'y' },
+          { type:'line', label:'Cumul %', data:parCum, borderColor:'#0f172a', borderWidth:2, pointRadius:3, pointBackgroundColor:'#0f172a', tension:.3, yAxisID:'y1' }
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c => c.dataset.type==='line' ? `Cumul : ${c.parsed.y}%` : `${c.parsed.y} fiche(s)`}}},
+          scales:{ y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'#f1f5f9'}}, y1:{position:'right',min:0,max:100,ticks:{callback:v=>v+'%',font:{size:10}},grid:{display:false}}, x:{grid:{display:false},ticks:{font:{size:10},maxRotation:35}} } }
+      }));
+    }
+    if ($('chEvo')) {
+      const moisFR = k => { const [y,m] = k.split('-'); return ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'][+m-1] + ' ' + y.slice(2); };
+      chartInstances.push(new Chart($('chEvo'), { type:'bar', data:{
+        labels: evoKeys.map(moisFR),
+        datasets: [
+          { label:'Créées', data:evoKeys.map(k => evoMap[k].c), backgroundColor:'#fbbf24', borderRadius:5 },
+          { label:'Clôturées', data:evoKeys.map(k => evoMap[k].f), backgroundColor:'#22c55e', borderRadius:5 }
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{boxWidth:8,usePointStyle:true,font:{size:11,weight:'600'},padding:10}}},
+          scales:{ y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'#f1f5f9'}}, x:{grid:{display:false},ticks:{font:{size:10}}} } }
+      }));
+    }
+  }, 30);
+}
+
+
+// ══════════════════════════════════════════
+// UTILS MODAL DE BASE (Reset design par défaut)
+// ══════════════════════════════════════════
+function resetModalState() {
+  const mod = $('modal');
+  mod.className = '';
+  mod.style.maxWidth = '';
+  mod.style.height = '';
+  mod.style.maxHeight = '';
+  $('default-modal-head').style.display = 'flex';
+  const body = $('modal-body');
+  body.className = 'modal-body';
+  body.style.padding = '';
+  body.style.overflow = '';
+  body.style.display = '';
+  body.style.flexDirection = '';
+}
+
+// ══════════════════════════════════════════
+// MODAL: DÉTAIL NC (NOUVEAU DESIGN ERP)
+// ══════════════════════════════════════════
+async function openNCDetail(ncId) {
+  resetModalState();
+  const nc = ncs.find(n => n.id === ncId);
+  const closed = !!nc.dateCloture;
+  const isRC = (nc.type.toUpperCase() === 'RECLAMATION CLIENT' || nc.type.toUpperCase() === 'RC');
+  const mer = isMER(nc);
+  let pjHtml = '', actionsHtml = '', timelineHtml = '';
+  
+  const mod = $('modal');
+  mod.className = 'erp-modal';
+  $('default-modal-head').style.display = 'none';
+  
+  // --- GÉNÉRER HTML PIÈCES JOINTES ---
+  if (nc.photos?.length) {
+    pjHtml = `<div class="erp-file-list">${nc.photos.map((p, i) => `
+      <div class="erp-file" onclick="openLightbox('${ncId}',${i})" title="${p.originalName||p.name}">
+        <svg class="lucide" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        ${p.originalName||p.name}
+      </div>
+    `).join('')}</div>`;
+  } else {
+      pjHtml = `<div style="font-size:13px;color:#6b7280;font-style:italic;margin-top:8px;">Aucune pièce jointe</div>`;
+  }
+
+  // --- GÉNÉRER HTML ACTIONS ---
+  if ((nc.actions||[]).length === 0) {
+      actionsHtml = `
+        <div class="empty-box" style="margin-bottom: 16px; padding: 24px 20px;">
+          <svg class="lucide" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p>Aucune action rattachée</p>
+        </div>`;
+  } else {
+      actionsHtml = `<div class="erp-act-list" style="margin-bottom: 16px;">${nc.actions.map(a => {
+          const aDone = a.statut === 'Terminé';
+          return `
+          <div class="erp-act-item" onclick="openActionDetail('${ncId}','${a.id}')">
+            <div class="erp-act-head">
+              <span class="erp-act-id ${aDone?'closed':''}">${a.id}</span>
+              <span class="badge ${aDone?'badge-done':'badge-open'}">${aDone?'Fait':'À faire'}</span>
+            </div>
+            <div class="erp-act-desc">${esc(a.description)}</div>
+            <div class="erp-act-foot">
+              <span style="font-weight:700;color:var(--accent);font-family:var(--mono)">${a.trigramme}</span>
+              ${a.commentaires?.length ? `<span>💬 ${a.commentaires.length} com.</span>` : ''}
+            </div>
+          </div>`;
+      }).join('')}</div>`;
+  }
+
+  // --- HTML TIMELINE COMMENTAIRES FICHES ---
+  if ((nc.commentaires || []).length === 0) {
+      timelineHtml = `
+        <div class="empty-box" style="margin-top:16px;">
+          <svg class="lucide" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <p>Aucun événement dans l'historique.</p>
+        </div>`;
+  } else {
+      timelineHtml = `<div class="erp-timeline">${nc.commentaires.map(c => `
+        <div class="erp-tl-item">
+          <div class="erp-tl-avatar">${c.trigramme.substring(0,2).toUpperCase()}</div>
+          <div class="erp-tl-head">
+            <span class="erp-tl-author">${c.trigramme}</span>
+            <span class="erp-tl-date">${fmtDatePlain(c.date)}</span>
+          </div>
+          <div class="erp-tl-body">${esc(c.texte)}</div>
+        </div>
+      `).join('')}</div>`;
+  }
+
+  const body = $('modal-body');
+  body.className = 'erp-modal-body';
+  body.style.overflow = 'auto'; 
+  
+  body.innerHTML = `
+    <header class="erp-header">
+      <div class="erp-header-left">
+        <h1 class="erp-title">${nc.id}</h1>
+        <div style="display:flex; gap:8px;">
+          <span class="badge ${isRC?'badge-rc':'badge-nc'}">${isRC?'RC':'NC'}</span>
+          ${mer ? '<span class="badge badge-mer">Détectée en MER</span>' : ''}
+          <span class="badge ${closed?'badge-done':'badge-open'}">${closed?'Clôturée':'En cours'}</span>
+        </div>
+      </div>
+      <div class="erp-header-actions">
+        ${!closed ? `
+          <button class="erp-btn erp-btn-ghost" onclick="openEditModal('${ncId}')">
+            <svg class="lucide" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Modifier
+          </button>
+          <button class="erp-btn erp-btn-primary" onclick="cloturerNC('${ncId}',this)">
+            <svg class="lucide" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            Marquer comme traitée
+          </button>
+          <div style="width:1px; height:24px; background:#d1d5db; margin:0 8px;"></div>
+        ` : ''}
+        <button class="erp-btn erp-btn-ghost" onclick="closeModal()" style="padding:6px; color:#6b7280; border:none; box-shadow:none;">
+          <svg class="lucide" style="margin:0; width:18px; height:18px;" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="erp-ribbon-wrapper">
+      <div class="erp-ribbon-line">
+        <span class="erp-ribbon-item"><strong>Type</strong> ${nc.type}${mer ? ' <span style="color:var(--indigo);font-weight:700">(MER)</span>' : ''}</span>
+        <span class="erp-ribbon-sep">·</span>
+        <span class="erp-ribbon-item"><strong>Catégorie</strong> ${nc.categorie}</span>
+        <span class="erp-ribbon-sep">·</span>
+        <span class="erp-ribbon-item"><strong>Créée le</strong> ${fmtDatePlain(nc.date)}</span>
+        <span class="erp-ribbon-sep">·</span>
+        <span class="erp-ribbon-item"><strong>Par</strong> <a href="mailto:">${nc.trigramme}</a></span>
+        <span class="erp-ribbon-sep">·</span>
+        <span class="erp-ribbon-item"><strong>Temps NQ</strong> ${nc.tempsNQ != null && nc.tempsNQ !== '' ? nc.tempsNQ + ' h' : '—'}</span>
+      </div>
+    </div>
+
+    <div class="erp-layout">
+      <div class="erp-row" style="flex:1; min-height:0;">
+        
+        <div class="erp-left erp-col-left">
+          <section>
+            <h3 class="erp-sec-title">Motif de la fiche</h3>
+            <div class="erp-text">${esc(nc.motif)}</div>
+            
+            <div style="margin-top:24px;">
+              <h4 class="erp-dp-lbl">Pièces jointes (${(nc.photos||[]).length})</h4>
+              ${pjHtml}
+            </div>
+          </section>
+
+          <hr style="border-color:#e5e7eb; margin:0">
+
+          <section>
+            <h3 class="erp-sec-title">Actions immédiates</h3>
+            <div class="erp-box">${esc(nc.actionsImmediates) || '<span style="color:#9ca3af;font-style:italic">Aucune renseignée.</span>'}</div>
+          </section>
+
+          ${nc.analyse ? `
+          <section>
+            <h3 class="erp-sec-title" style="color:var(--orange)">Analyse / Cause racine</h3>
+            <div class="erp-text" style="padding-left:12px; border-left:3px solid var(--orange);">${esc(nc.analyse)}</div>
+          </section>
+          ` : ''}
+
+          <hr style="border-color:#e5e7eb; margin:0">
+
+          <section style="display:flex; flex-direction:column; flex:1;">
+            <h3 class="erp-sec-title">
+              <svg class="lucide" viewBox="0 0 24 24" style="margin-right:8px;color:#9ca3af;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Fil de discussion
+            </h3>
+            ${timelineHtml}
+            
+            ${!closed ? `
+              <form class="erp-cmt-form" onsubmit="addNCComment(event,'${ncId}')">
+                <textarea id="nc-cmt-text" rows="2" class="erp-cmt-text" required placeholder="Ajouter une note ou un compte rendu sur la fiche..."></textarea>
+                <div class="erp-cmt-tools">
+                  <div class="erp-cmt-trig-wrap">
+                    <span class="erp-cmt-trig-lbl">Trig.</span>
+                    <input type="text" id="nc-cmt-trig" maxlength="3" required oninput="this.value=this.value.toUpperCase()" placeholder="Ex: JWA" class="erp-cmt-trig-input">
+                  </div>
+                  <button type="submit" class="erp-btn erp-btn-primary" style="padding: 6px 16px;">
+                    <svg class="lucide" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    Publier
+                  </button>
+                </div>
+              </form>
+            ` : ''}
+          </section>
+        </div>
+
+        <div class="erp-right erp-col-right">
+          <section>
+            <h3 class="erp-sec-title">Actions liées <span class="cnt">${(nc.actions||[]).length}</span></h3>
+            ${actionsHtml}
+            
+            ${!closed ? `
+              <div class="erp-tech-card" style="margin-top:16px;">
+                <h4 class="erp-dp-lbl" style="color:var(--accent); margin-bottom:12px;">+ Nouvelle action corrective</h4>
+                <form onsubmit="createAction(event,'${ncId}')" style="display:flex; flex-direction:column; gap:10px;">
+                  <textarea id="action-desc" rows="2" required placeholder="Description de l'action..." style="width:100%; border:1px solid #d1d5db; border-radius:4px; padding:8px; font-size:13px; font-family:var(--sans); outline:none; resize:vertical;"></textarea>
+                  <input type="text" id="action-trig" maxlength="3" required oninput="this.value=this.value.toUpperCase()" placeholder="PILOTE (Ex: JWA)" style="width:100%; border:1px solid #d1d5db; text-align:center; font-family:var(--mono); font-size:12px; font-weight:700; outline:none; padding:8px; border-radius:4px;">
+                  <button type="submit" class="erp-btn erp-btn-primary" style="width:100%; justify-content:center;">Créer l'action</button>
+                </form>
+              </div>
+            ` : ''}
+          </section>
+
+          <section>
+            <h3 class="erp-sec-title">Informations Robot</h3>
+            <div class="erp-tech-card">
+              <div class="erp-tech-row"><span class="erp-tech-lbl">Numéro</span><span class="erp-tech-val mono">${nc.numRobot||'—'}</span></div>
+              <div class="erp-tech-row"><span class="erp-tech-lbl">Type</span><span class="erp-tech-val">${nc.typeRobot||'—'}</span></div>
+              <div class="erp-tech-row"><span class="erp-tech-lbl">Top</span><span class="erp-tech-val">${nc.topRobot||'—'}</span></div>
+              <div class="erp-tech-row"><span class="erp-tech-lbl">Version HW</span><span class="erp-tech-val">${nc.versionHW||'—'}</span></div>
+            </div>
+          </section>
+
+          ${isRC ? `
+          <section>
+            <h3 class="erp-sec-title">Références Client</h3>
+            <div class="erp-tech-card">
+              ${rcRow(ncId,'numOPP','N° OPP', nc.numOPP)}
+              <div class="erp-tech-row"><span class="erp-tech-lbl">N° Projet</span><span class="erp-tech-val mono">${nc.numProjet||'—'}</span></div>
+              ${rcRow(ncId,'projetRec','Projet Rec.', nc.projetRec)}
+              ${rcRow(ncId,'recette','Recette associée', nc.recette)}
+              <div class="erp-tech-row"><span class="erp-tech-lbl">Coût</span><span class="erp-tech-val" style="color:var(--red)">${nc.cout!=null?nc.cout+' €':'—'}</span></div>
+            </div>
+          </section>
+          ` : ''}
+        </div>
+
+      </div>
+    </div>
+  `;
+  openModal();
+}
+
+// ══════════════════════════════════════════
+// MODAL: DÉTAIL ACTION (NOUVEAU DESIGN ERP)
+// ══════════════════════════════════════════
+function openActionDetail(sourceNcId, actId) {
+  resetModalState();
+  const currentNc = ncs.find(n => n.id === sourceNcId);
+  const a = currentNc.actions.find(x => x.id === actId);
+  const done = a.statut === 'Terminé';
+
+  // Afficher toutes les fiches associées à cette action
+  const linkedNcs = ncs.filter(n => (n.actions||[]).some(x => x.id === actId));
+  const linkedNcIds = linkedNcs.map(n => n.id);
+  const ncLinks = linkedNcIds.map(id => `<span class="mono-id" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:3px" onclick="openNCDetail('${id}')">${id}</span>`).join(', ');
+
+  // Générer les blocs de contexte dynamique (1 bloc par NC liée)
+  let contextsHtml = linkedNcs.map(linkedNc => `
+    <div style="margin-bottom: 16px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <span class="erp-sec-title" style="margin:0;">Contexte Fiche ${linkedNc.id} ${isMER(linkedNc) ? '<span class="badge badge-mer" style="margin-left:6px">MER</span>' : ''}</span>
+        <button class="erp-btn erp-btn-ghost" style="padding:2px 6px; font-size:11px;" onclick="openNCDetail('${linkedNc.id}')">Ouvrir fiche</button>
+      </div>
+      <div style="background:#fff; border:1px solid #e5e7eb; border-radius:4px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,0.05); margin-bottom: 8px;">
+        <div style="background:#f9fafb; border-bottom:1px solid #e5e7eb; padding:6px 12px; font-size:10px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px;">Motif initial</div>
+        <div style="padding:12px; font-size:13px; color:#374151; line-height:1.5;">${esc(linkedNc.motif)}</div>
+      </div>
+      ${linkedNc.analyse ? `
+      <div style="background:#fff; border:1px solid #e5e7eb; border-radius:4px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+        <div style="background:#f9fafb; border-bottom:1px solid #e5e7eb; padding:6px 12px; font-size:10px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px;">Analyse</div>
+        <div style="padding:12px; font-size:13px; color:#374151; line-height:1.5; white-space:pre-wrap;">${esc(linkedNc.analyse)}</div>
+      </div>
+      ` : ''}
+    </div>
+  `).join('<hr style="border-color:#e5e7eb; margin:16px 0;">');
+
+  // Menu to link this action to other open NCs
+  const unlinkedNCs = ncs.filter(n => !n.dateCloture && !linkedNcIds.includes(n.id));
+  let linkNewNcHtml = '';
+  if (unlinkedNCs.length > 0 && !done) {
+      const opts = unlinkedNCs.map(n => `<option value="${n.id}">${n.id}${isMER(n)?' [MER]':''} - ${n.motif.substring(0, 30)}...</option>`).join('');
+      linkNewNcHtml = `
+        <div class="erp-tech-card" style="margin-top:24px; background:var(--surface2);">
+          <div class="erp-sec-title" style="color:var(--accent); font-size:12px; margin-bottom:10px;">Lier cette action à une autre fiche</div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+                <select id="sel-link-nc-to-act" class="select-styled" style="width:100%;">
+              <option value="">-- Sélectionner une fiche --</option>
+              ${opts}
+            </select>
+            <button class="erp-btn erp-btn-ghost" style="width:100%; justify-content:center;" onclick="linkActionToNewNC('${actId}', '${sourceNcId}')">Lier à la fiche</button>
+          </div>
+        </div>
+      `;
+  }
+
+  const mod = $('modal');
+  mod.className = 'erp-modal';
+  $('default-modal-head').style.display = 'none';
+
+  let timelineHtml = '';
+  if ((a.commentaires || []).length === 0) {
+      timelineHtml = `
+        <div class="empty-box" style="margin-top:16px;">
+          <svg class="lucide" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <p>Aucun commentaire d'avancement pour le moment.</p>
+        </div>`;
+  } else {
+      timelineHtml = `<div class="erp-timeline">${a.commentaires.map(c => `
+        <div class="erp-tl-item">
+          <div class="erp-tl-avatar">${c.trigramme.substring(0,2).toUpperCase()}</div>
+          <div class="erp-tl-head">
+            <span class="erp-tl-author">${c.trigramme}</span>
+            <span class="erp-tl-date">${fmtDatePlain(c.date)}</span>
+          </div>
+          <div class="erp-tl-body">${esc(c.texte)}</div>
+        </div>
+      `).join('')}</div>`;
+  }
+
+  const body = $('modal-body');
+  body.className = 'erp-modal-body';
+  body.style.overflow = 'hidden';
+
+  body.innerHTML = `
+    
+    <header class="erp-header">
+      <div class="erp-header-left">
+        <h1 class="erp-title" style="display:flex; align-items:center;">
+          ${a.id}
+          <span style="margin:0 12px; color:#d1d5db; font-weight:300;">|</span>
+          <span style="font-size:14px; font-weight:500; color:#6b7280; display:flex; align-items:center;">
+            <svg class="lucide" style="margin-right:6px;width:14px;height:14px;" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            liée à <span style="margin-left:6px; font-family:var(--mono);">${ncLinks}</span>
+          </span>
+        </h1>
+        <div style="display:flex; gap:8px; margin-left:16px;">
+          <span class="badge ${done?'badge-done':'badge-open'}">${done?'Terminée':'En cours'}</span>
+        </div>
+      </div>
+      <div class="erp-header-actions">
+        ${!done ? `
+          <button class="erp-btn erp-btn-green" onclick="cloturerAction('${sourceNcId}','${actId}',this)">
+            <svg class="lucide" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            Marquer comme fait
+          </button>
+          <div style="width:1px; height:24px; background:#d1d5db; margin:0 8px;"></div>
+        ` : ''}
+        <button class="erp-btn erp-btn-ghost" onclick="closeModal()" style="padding:6px; color:#6b7280; border:none; box-shadow:none;" title="Fermer">
+          <svg class="lucide" style="margin:0; width:18px; height:18px;" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="erp-ribbon-wrapper">
+      <div class="erp-ribbon-line">
+        <span class="erp-ribbon-item"><strong>Statut</strong> <span style="color:${done?'var(--green)':'var(--amber)'}">${done?'Terminée':'En cours'}</span></span>
+        <span class="erp-ribbon-sep">·</span>
+        <span class="erp-ribbon-item"><strong>Créée le</strong> ${fmtDatePlain(a.date)}</span>
+        <span class="erp-ribbon-sep">·</span>
+        <span class="erp-ribbon-item"><strong>Pilote</strong> <span style="font-family:var(--mono);font-weight:700">${a.trigramme}</span></span>
+      </div>
+    </div>
+
+    <div class="erp-layout">
+      <div class="erp-row" style="flex:1; min-height:0;">
+        
+        <div class="erp-left erp-col-left">
+          
+          <section>
+            <h3 class="erp-sec-title">Description de l'action</h3>
+            <div class="erp-text" style="background:#fff; font-size:15px;">${esc(a.description)}</div>
+          </section>
+
+          <hr style="border-color:#e5e7eb; margin:0">
+
+          <section style="display:flex; flex-direction:column; flex:1;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h3 class="erp-sec-title" style="margin:0;">
+                <svg class="lucide" viewBox="0 0 24 24" style="margin-right:8px;color:#9ca3af;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Fil d'avancement partagé
+              </h3>
+              <span class="cnt" style="background:#f3f4f6; color:#4b5563; font-size:11px; padding:2px 8px; border-radius:99px; font-weight:700;">${(a.commentaires||[]).length} commentaire(s)</span>
+            </div>
+            
+            ${timelineHtml}
+            
+            <div style="margin-top:auto;">
+            ${!done ? `
+              <form class="erp-cmt-form" onsubmit="addComment(event,'${sourceNcId}','${actId}')">
+                <textarea id="cmt-text" rows="2" class="erp-cmt-text" required placeholder="Ajouter une note d'avancement..."></textarea>
+                <div class="erp-cmt-tools">
+                  <div class="erp-cmt-trig-wrap">
+                    <span class="erp-cmt-trig-lbl">Trig.</span>
+                    <input type="text" id="cmt-trig" maxlength="3" required oninput="this.value=this.value.toUpperCase()" placeholder="Ex: JWA" class="erp-cmt-trig-input">
+                  </div>
+                  <button type="submit" class="erp-btn erp-btn-primary" style="padding: 6px 16px;">
+                    <svg class="lucide" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    Envoyer
+                  </button>
+                </div>
+              </form>
+            ` : ''}
+            </div>
+          </section>
+
+        </div>
+
+        <div class="erp-right erp-col-right">
+          <section>
+            
+            <div style="display:flex; flex-direction:column;">
+              ${contextsHtml}
+            </div>
+
+            ${linkNewNcHtml}
+
+          </section>
+        </div>
+
+      </div>
+    </div>
+  `;
+  openModal();
+}
+
+async function linkActionToNewNC(actId, sourceNcId) {
+    const targetNcId = $('sel-link-nc-to-act').value;
+    if(!targetNcId) return;
+
+    const allActs = getAllUniqueActions();
+    const actionToLink = allActs.find(a => a.id === actId);
+    if(!actionToLink) return;
+
+    const targetNc = ncs.find(n => n.id === targetNcId);
+    if(!targetNc) return;
+
+    if(!targetNc.actions) targetNc.actions = [];
+    
+    const cleanAction = { ...actionToLink };
+    delete cleanAction.ncIds; 
+
+    targetNc.actions.push(JSON.parse(JSON.stringify(cleanAction)));
+    
+    if (await updateNCDataFile(targetNc)) {
+        render();
+        openActionDetail(sourceNcId, actId);
+        notify(`Action liée à la fiche ${targetNcId}`);
+    }
+}
+
+// ══════════════════════════════════════════
+// MODAL: CRÉER FICHE (NOUVEAU DESIGN)
+// mer = true  →  fiche NC détectée lors de la MER (catégories Assets/MER.json)
+// ══════════════════════════════════════════
+let createMerMode = false;
+
+function openCreateModal(mer) {
+  createMerMode = !!mer;
+  resetModalState();
+  const mod = document.getElementById('modal');
+  mod.className = 'form-modal';
+  document.getElementById('default-modal-head').style.display = 'none';
+
+  const typeOpts = (listeConfig.Type || []).map(t => `<option value="${t.nom}">${t.nom}</option>`).join('');
+  const merCatOpts = (merConfig || []).map(c => `<option value="${c.nom}">${c.nom}</option>`).join('');
+  
+  const body = document.getElementById('modal-body');
+  body.style.padding = '0';
+  body.style.overflow = 'hidden';
+  body.style.display = 'flex';
+  body.style.flexDirection = 'column';
+
+  const identSection = createMerMode ? `
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <svg class="lucide" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            Identification · Mise en route
+          </h2>
+          <div class="mer-box" style="margin-bottom:16px;">
+            <div style="font-size:12.5px;color:#3730a3;">
+              Cette fiche est enregistrée comme une <strong>NC classique</strong> (dossier <span style="font-family:var(--mono)">NC-AA-XXX</span>),
+              avec le marqueur <strong>MER</strong> pour l'affichage dans cet onglet.
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label>Type</label>
+              <input type="text" class="form-input" value="${getNCTypeName()} · MER" disabled style="background:#f3f4f6;font-weight:600;">
+            </div>
+            <div class="form-group">
+              <label>Catégorie MER <span style="color:#ef4444">*</span></label>
+              <select id="c-cat" required class="form-select">
+                <option value="" disabled selected>— Choisir une catégorie —</option>
+                ${merCatOpts}
+              </select>
+            </div>
+          </div>
+  ` : `
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <svg class="lucide" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+            Identification
+          </h2>
+          <div class="form-grid-2">
+              <div class="form-group">
+              <label>Type <span style="color:#ef4444">*</span></label>
+              <select id="c-type" required onchange="onTypeChange(this.value)" class="form-select">
+                <option value="" disabled selected>— Sélectionner —</option>
+                ${typeOpts}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Catégorie <span style="color:#ef4444">*</span></label>
+              <select id="c-cat" required class="form-select" style="background-color:#f9fafb" disabled>
+                <option value="">Sélectionner un type d'abord</option>
+              </select>
+            </div>
+          </div>
+  `;
+
+  body.innerHTML = `
+    <header class="erp-header" style="flex-shrink:0; border-radius:8px 8px 0 0;">
+      <h1 class="erp-title">${createMerMode ? 'Nouvelle NC détectée en MER' : 'Nouvelle fiche NC / RC'}</h1>
+      <button class="erp-btn erp-btn-ghost" onclick="closeModal()" style="padding:6px; color:#6b7280; border:none; box-shadow:none;">
+        <svg class="lucide" style="margin:0; width:20px; height:20px;" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <div style="flex:1; overflow-y:auto; padding: 24px 32px;">
+      <form id="create-form" onsubmit="submitCreate(event)" style="display:flex; flex-direction:column; gap:24px;">
+        
+        ${identSection}
+          <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:16px; border-radius:4px; margin-top:16px;">
+            <div class="form-grid-4">
+              <div class="form-group"><label>Type robot</label>
+                <select id="c-rtype" class="form-select" onchange="onRobotTypeChange(this.value)">
+                  <option value="" selected>—</option>
+                  <option value="D">D</option>
+                  <option value="B">B</option>
+                  <option value="P">P</option>
+                  <option value="F">F</option>
+                  <option value="FL">FL</option>
+                </select>
+              </div>
+              <div class="form-group"><label>N° Robot</label><input type="text" id="c-rnum" placeholder="350" inputmode="numeric" maxlength="3" pattern="^[0-9]{3}$" title="3 chiffres (ex : 350)" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="form-input"></div>
+              <div class="form-group" id="c-rtop-wrap" style="display:none"><label>Top</label><input type="text" id="c-rtop" placeholder="T3…" class="form-input"></div>
+              <div class="form-group"><label>Version HW</label><input type="text" id="c-rhw" placeholder="HW2.4" class="form-input"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="c-rc" style="display:none;" class="fade-in">
+          <div class="rc-box">
+            <h2 class="form-section-title" style="color:#ea580c; margin-bottom:12px;">
+              <svg class="lucide" style="color:#ea580c;" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Données Réclamation Client
+            </h2>
+            <div class="form-grid-4">
+              <div class="form-group"><label>N° OPP</label><input type="text" id="c-opp" placeholder="Ex: OPP25-05673" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>N° Projet <span style="color:#ef4444">*</span></label><input type="text" id="c-proj" placeholder="Ex: PR2504934" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>N° Projet Réc.</label><input type="text" id="c-rec" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>Recette associée <span style="color:#9ca3af;font-weight:400;font-size:10px;text-transform:none;">(optionnel)</span></label><input type="text" id="c-recette" placeholder="Ex: REC-2025-014" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>Coût (€) <span style="color:#9ca3af;font-weight:400;font-size:10px;text-transform:none;">(optionnel)</span></label><input type="text" id="c-cout" placeholder="0,00" pattern="^[0-9]+([,\.][0-9]+)?$" class="form-input text-right" style="border-color:#fed7aa; font-weight:500;"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <svg class="lucide" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+            Description & Analyse
+          </h2>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label>Motif Détaillé <span style="color:#ef4444">*</span></label>
+            <textarea id="c-motif" rows="3" required placeholder="Description précise du problème constaté..." class="form-textarea"></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label>Actions Immédiates</label>
+            <textarea id="c-ai" rows="2" placeholder="Sécurisation, tri, mise en quarantaine..." class="form-textarea"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Analyse / Cause Racine</label>
+            <textarea id="c-analyse" rows="2" placeholder="Investigation préliminaire (5 Pourquoi, Ishikawa...)" class="form-textarea"></textarea>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <svg class="lucide" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Méta-données & Fichiers
+          </h2>
+          <div class="form-grid-3">
+            <div style="display:flex; flex-direction:column; gap:16px; grid-column: span 2;">
+              <div class="form-group"><label>Temps NQ (H)</label><input type="text" id="c-temps" placeholder="Ex: 1,5" pattern="^[0-9]+([,\.][0-9]+)?$" class="form-input"></div>
+              <div class="form-group"><label>Saisi par (Trig.) <span style="color:#ef4444">*</span></label><input type="text" id="c-trig" maxlength="3" required oninput="this.value=this.value.toUpperCase()" placeholder="Ex: JWA" class="form-input uppercase font-mono font-bold" style="font-family:var(--mono); font-weight:700;"></div>
+            </div>
+            
+            <div class="form-group">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                Pièces jointes
+                <button type="button" onclick="captureScreen('c-pj')" class="erp-btn erp-btn-ghost" style="padding:2px 6px; font-size:9px;">
+                  <svg class="lucide" viewBox="0 0 24 24" style="width:10px;height:10px;margin-right:4px;"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                  Capture
+                </button>
+              </label>
+              <div style="border:2px dashed #d1d5db; border-radius:4px; padding:16px; text-align:center; background:#f9fafb; position:relative; transition:all .15s; height:100%; display:flex; flex-direction:column; justify-content:center;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='#d1d5db'">
+                <svg class="lucide" viewBox="0 0 24 24" style="color:#9ca3af; margin:0 auto 8px; width:24px; height:24px;"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/></svg>
+                <span style="font-size:12px; font-weight:600; color:#374151; display:block;">Sélectionner un fichier</span>
+                <span style="font-size:10px; color:#6b7280; display:block; margin-top:4px;">ou Ctrl+V pour coller</span>
+                <input type="file" id="c-pj" multiple onchange="renderFilePreview('c-pj','c-pj-preview')" style="position:absolute; inset:0; opacity:0; cursor:pointer; width:100%;">
+              </div>
+              <div id="c-pj-preview" class="erp-file-list"></div>
+            </div>
+          </div>
+        </section>
+      </form>
+    </div>
+
+    <footer style="flex-shrink:0; background:#f9fafb; border-top:1px solid #d1d5db; padding:16px 32px; display:flex; justify-content:flex-end; gap:12px; border-radius:0 0 8px 8px;">
+      <button type="button" class="erp-btn erp-btn-ghost" onclick="closeModal()">Annuler</button>
+      <button type="submit" form="create-form" id="btn-submit-c" class="erp-btn erp-btn-primary" ${createMerMode ? '' : 'style="opacity:0.5; cursor:not-allowed;" disabled'}>
+        <svg class="lucide" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        ${createMerMode ? 'Créer la fiche MER' : 'Créer la fiche'}
+      </button>
+    </footer>
+  `;
+  openModal();
+}
+
+function onTypeChange(val) {
+  const catSel = $('c-cat');
+  const rcBlock = $('c-rc');
+  const btn = $('btn-submit-c');
+
+  if(!val) {
+      catSel.innerHTML = `<option value="">Sélectionner un type d'abord</option>`;
+      catSel.disabled = true;
+      catSel.style.backgroundColor = '#f9fafb';
+      rcBlock.style.display = 'none';
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      return;
+  }
+
+  btn.disabled = false;
+  btn.style.opacity = '1';
+  btn.style.cursor = 'pointer';
+
+  const typeObj = listeConfig.Type?.find(t => t.nom === val);
+  catSel.disabled = false;
+  catSel.style.backgroundColor = '#fff';
+  catSel.innerHTML = '<option value="" disabled selected>— Choisir une catégorie —</option>' +
+    (typeObj?.categories || []).map(c => `<option value="${c.nom}">${c.nom}</option>`).join('');
+  
+  if (rcBlock) {
+    const showRC = (val === 'RECLAMATION CLIENT' || val === 'RC');
+    rcBlock.style.display = showRC ? 'block' : 'none';
+    const f = $('c-proj'); if (f) f.required = showRC;
+  }
+}
+
+// Top uniquement pour les robots type B
+function onRobotTypeChange(val) {
+  const wrap = $('c-rtop-wrap');
+  if (!wrap) return;
+  const show = (val === 'B');
+  wrap.style.display = show ? '' : 'none';
+  if (!show && $('c-rtop')) $('c-rtop').value = '';
+}
+
+// Prochain numéro libre pour un préfixe (NC / RC) sur l'année en cours
+function nextFicheId(prefix, year) {
+  let maxNum = 0;
+  ncs.forEach(n => {
+    if (n.id && n.id.startsWith(prefix + '-' + year + '-')) {
+      const v = parseInt(n.id.split('-')[2], 10);
+      if (!isNaN(v)) maxNum = Math.max(maxNum, v);
+    }
+  });
+  return `${prefix}-${year}-${String(maxNum + 1).padStart(3,'0')}`;
+}
+
+async function submitCreate(e) {
+  e.preventDefault();
+  const btn = $('btn-submit-c');
+  btn.disabled = true;
+  btn.innerHTML = 'Création...';
+
+  const mer = createMerMode;
+  const type = mer ? getNCTypeName() : $('c-type').value;
+  const isRC = !mer && (type === 'RECLAMATION CLIENT' || type === 'RC');
+  const prefix = isRC ? 'RC' : 'NC';
+  const today = getTodayISO();
+  const year = today.substring(2, 4);
+  const newId = nextFicheId(prefix, year);
+
+  const nc = {
+    id: newId, type: type, categorie: $('c-cat').value,
+    mer: mer,
+    motif: $('c-motif').value,
+    actionsImmediates: $('c-ai').value,
+    analyse: $('c-analyse').value,
+    date: today, dateCloture: '',
+    trigramme: $('c-trig').value.toUpperCase(),
+    tempsNQ: parseFloat(($('c-temps').value||'').replace(',','.')) || null,
+    numRobot: $('c-rnum').value,
+    typeRobot: $('c-rtype').value.toUpperCase(),
+    topRobot: $('c-rtop') ? $('c-rtop').value : '',
+    versionHW: $('c-rhw').value,
+    numOPP: isRC ? $('c-opp').value : '',
+    numProjet: isRC ? $('c-proj').value : '',
+    projetRec: isRC ? $('c-rec').value : '',
+    recette: isRC ? $('c-recette').value : '',
+    cout: isRC ? (parseFloat(($('c-cout').value||'').replace(',','.')) || null) : null,
+    photos: [], actions: [], commentaires: []
+  };
+
+  try {
+      const ncDirHandle = await workingDirHandle.getDirectoryHandle(newId, { create: true });
+      const pjInput = $('c-pj');
+      let pjIndex = 1;
+      if (pjInput.files && pjInput.files.length > 0) {
+          for (const file of pjInput.files) {
+              const ext = file.name.split('.').pop() || 'png';
+              const newName = `pj_${pjIndex}.${ext}`;
+              const fileHandle = await ncDirHandle.getFileHandle(newName, { create: true });
+              const writable = await fileHandle.createWritable();
+              await writable.write(file);
+              await writable.close();
+              nc.photos.push({ name: newName, originalName: file.name });
+              pjIndex++;
+          }
+      }
+
+      const success = await updateNCDataFile(nc);
+      if (success) {
+          ncs.push(nc);
+          closeModal();
+          render();
+          notify(`Fiche ${newId} créée avec succès${mer ? ' (MER)' : ''}`);
+      } else {
+          btn.disabled = false;
+          btn.innerHTML = mer ? 'Créer la fiche MER' : 'Créer la fiche';
+      }
+  } catch(err) {
+      console.error(err);
+      notify("Erreur lors de la création !", true);
+      btn.disabled = false;
+      btn.innerHTML = mer ? 'Créer la fiche MER' : 'Créer la fiche';
+  }
+}
+
+// ══════════════════════════════════════════
+// MODAL: ÉDITER FICHE (NOUVEAU DESIGN)
+// ══════════════════════════════════════════
+function openEditModal(ncId) {
+  resetModalState();
+  const nc = ncs.find(n => n.id === ncId);
+  const isRC = (nc.type.toUpperCase() === 'RECLAMATION CLIENT' || nc.type.toUpperCase() === 'RC');
+  const mer = isMER(nc);
+  
+  const mod = $('modal');
+  mod.className = 'form-modal';
+  mod.style.maxWidth = '850px';
+  mod.style.height = 'fit-content';
+  mod.style.maxHeight = '95vh';
+  $('default-modal-head').style.display = 'none';
+  
+  const typeOpts = (listeConfig.Type || []).map(t => `<option value="${t.nom}" ${nc.type===t.nom?'selected':''}>${t.nom}</option>`).join('');
+  const typeObj = listeConfig.Type?.find(t => t.nom === nc.type);
+  const stdCatOpts = (typeObj?.categories || []).map(c => `<option value="${c.nom}" ${nc.categorie===c.nom?'selected':''}>${c.nom}</option>`).join('');
+  const merCatNames = Array.from(new Set([...(merConfig||[]).map(c => c.nom), nc.categorie].filter(Boolean)));
+  const merCatOpts = merCatNames.map(c => `<option value="${c}" ${nc.categorie===c?'selected':''}>${c}</option>`).join('');
+  const catOpts = mer ? merCatOpts : stdCatOpts;
+  
+  const tempsVal = nc.tempsNQ != null ? String(nc.tempsNQ).replace('.',',') : '';
+  const coutVal = nc.cout != null ? String(nc.cout).replace('.',',') : '';
+  
+  const body = $('modal-body');
+  body.style.padding = '0';
+  body.style.overflow = 'hidden';
+  body.style.display = 'flex';
+  body.style.flexDirection = 'column';
+
+  body.innerHTML = `
+    <header class="erp-header" style="flex-shrink:0; border-radius:8px 8px 0 0;">
+      <h1 class="erp-title">Modifier la fiche <span class="mono-id" style="margin-left:8px; font-size:18px;">${nc.id}</span>${mer ? ' <span class="badge badge-mer" style="margin-left:8px">MER</span>' : ''}</h1>
+      <button class="erp-btn erp-btn-ghost" onclick="openNCDetail('${ncId}')" style="padding:6px; color:#6b7280; border:none; box-shadow:none;">
+        <svg class="lucide" style="margin:0; width:20px; height:20px;" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <div style="flex:1; overflow-y:auto; padding: 24px 32px;">
+      <form id="edit-form" onsubmit="submitEdit(event,'${ncId}')" style="display:flex; flex-direction:column; gap:24px;">
+        
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <svg class="lucide" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+            Identification
+          </h2>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label>Type *</label>
+              <select id="e-type" ${mer ? 'disabled style="background:#f3f4f6"' : 'required onchange="onTypeChangeEdit(this.value)"'} class="form-select">
+                ${typeOpts}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>${mer ? 'Catégorie MER *' : 'Catégorie *'}</label>
+              <select id="e-cat" required class="form-select">${catOpts}</select>
+            </div>
+          </div>
+          
+          <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:16px; border-radius:4px; margin-top:16px;">
+            <div class="form-grid-4">
+              <div class="form-group"><label>N° Robot</label><input type="text" id="e-rnum" value="${nc.numRobot||''}" class="form-input"></div>
+              <div class="form-group"><label>Type robot</label><input type="text" id="e-rtype" value="${nc.typeRobot||''}" oninput="this.value=this.value.toUpperCase()" class="form-input"></div>
+              <div class="form-group"><label>Top</label><input type="text" id="e-rtop" value="${nc.topRobot||''}" class="form-input"></div>
+              <div class="form-group"><label>Version HW</label><input type="text" id="e-rhw" value="${nc.versionHW||''}" class="form-input"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="e-rc" style="display:${isRC?'block':'none'};" class="fade-in">
+          <div class="rc-box">
+            <h2 class="form-section-title" style="color:#ea580c; margin-bottom:12px;">
+              <svg class="lucide" style="color:#ea580c;" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Données Réclamation Client
+            </h2>
+            <div class="form-grid-4">
+              <div class="form-group"><label>N° OPP</label><input type="text" id="e-opp" value="${nc.numOPP||''}" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>N° Projet</label><input type="text" id="e-proj" value="${nc.numProjet||''}" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>N° Projet Réc.</label><input type="text" id="e-rec" value="${nc.projetRec||''}" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>Recette associée <span style="color:#9ca3af;font-weight:400;font-size:10px;text-transform:none;">(optionnel)</span></label><input type="text" id="e-recette" value="${esc(nc.recette||'')}" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>Coût (€)</label><input type="text" id="e-cout" value="${coutVal}" pattern="^[0-9]+([,\.][0-9]+)?$" class="form-input text-right" style="border-color:#fed7aa; font-weight:500;"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <svg class="lucide" viewBox="0 0 24 24"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+            Description & Analyse
+          </h2>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label>Motif Détaillé *</label>
+            <textarea id="e-motif" rows="3" required class="form-textarea">${nc.motif}</textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label>Actions Immédiates</label>
+            <textarea id="e-ai" rows="2" class="form-textarea">${nc.actionsImmediates||''}</textarea>
+          </div>
+          <div class="form-group">
+            <label>Analyse / Cause Racine</label>
+            <textarea id="e-analyse" rows="2" class="form-textarea">${nc.analyse||''}</textarea>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2 class="form-section-title">
+            <svg class="lucide" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Méta-données & Fichiers
+          </h2>
+          <div class="form-grid-3">
+            <div style="display:flex; flex-direction:column; gap:16px; grid-column: span 2;">
+              <div class="form-group"><label>Temps NQ (H)</label><input type="text" id="e-temps" value="${tempsVal}" pattern="^[0-9]+([,\.][0-9]+)?$" class="form-input"></div>
+              <div class="form-group"><label>Saisi par (Trig.) *</label><input type="text" id="e-trig" value="${nc.trigramme}" maxlength="3" required oninput="this.value=this.value.toUpperCase()" class="form-input uppercase font-mono font-bold" style="font-family:var(--mono); font-weight:700;"></div>
+            </div>
+            
+            <div class="form-group">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                Ajout de Pièces Jointes
+                <button type="button" onclick="captureScreen('e-pj')" class="erp-btn erp-btn-ghost" style="padding:2px 6px; font-size:9px;">
+                  <svg class="lucide" viewBox="0 0 24 24" style="width:10px;height:10px;margin-right:4px;"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                  Capture
+                </button>
+              </label>
+              <div style="border:2px dashed #d1d5db; border-radius:4px; padding:16px; text-align:center; background:#f9fafb; position:relative; transition:all .15s; height:100%; display:flex; flex-direction:column; justify-content:center;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='#d1d5db'">
+                <svg class="lucide" viewBox="0 0 24 24" style="color:#9ca3af; margin:0 auto 8px; width:24px; height:24px;"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><polyline points="16 16 12 12 8 16"/></svg>
+                <span style="font-size:12px; font-weight:600; color:#374151; display:block;">Sélectionner un fichier</span>
+                <span style="font-size:10px; color:#6b7280; display:block; margin-top:4px;">ou Ctrl+V pour coller</span>
+                <input type="file" id="e-pj" multiple onchange="renderFilePreview('e-pj','e-pj-preview')" style="position:absolute; inset:0; opacity:0; cursor:pointer; width:100%;">
+              </div>
+              <div id="e-pj-preview" class="erp-file-list"></div>
+            </div>
+          </div>
+        </section>
+      </form>
+    </div>
+
+    <footer style="flex-shrink:0; background:#f9fafb; border-top:1px solid #d1d5db; padding:16px 32px; display:flex; justify-content:flex-end; gap:12px; border-radius:0 0 8px 8px;">
+      <button type="button" class="erp-btn erp-btn-ghost" onclick="openNCDetail('${ncId}')">Annuler</button>
+      <button type="submit" form="edit-form" id="btn-submit-e" class="erp-btn erp-btn-primary">
+        <svg class="lucide" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Sauvegarder
+      </button>
+    </footer>
+  `;
+  openModal();
+}
+
+function onTypeChangeEdit(val) {
+  const catSel = $('e-cat');
+  const rcBlock = $('e-rc');
+  
+  const typeObj = listeConfig.Type?.find(t => t.nom === val);
+  catSel.innerHTML = (typeObj?.categories || []).map(c => `<option value="${c.nom}">${c.nom}</option>`).join('');
+  if (rcBlock) rcBlock.style.display = (val === 'RECLAMATION CLIENT' || val === 'RC') ? 'block' : 'none';
+}
+
+let editConfirmStep = false;
+async function submitEdit(e, ncId) {
+  e.preventDefault();
+  const btn = $('btn-submit-e');
+  
+  if (!editConfirmStep) {
+      editConfirmStep = true;
+      btn.textContent = 'Confirmer la modification';
+      btn.classList.add('confirm-pending');
+      btn.style.background = 'var(--orange)';
+      btn.style.borderColor = 'var(--orange)';
+      return;
+  }
+  editConfirmStep = false;
+  btn.disabled = true;
+
+  const nc = ncs.find(n => n.id === ncId);
+  const isRC = ($('e-type').value === 'RECLAMATION CLIENT' || $('e-type').value === 'RC');
+  
+  nc.type = $('e-type').value;
+  nc.categorie = $('e-cat').value;
+  nc.motif = $('e-motif').value;
+  nc.actionsImmediates = $('e-ai').value;
+  nc.analyse = $('e-analyse').value;
+  nc.tempsNQ = parseFloat(($('e-temps').value||'').replace(',','.')) || null;
+  nc.trigramme = $('e-trig').value.toUpperCase();
+  nc.numRobot = $('e-rnum').value;
+  nc.typeRobot = $('e-rtype').value.toUpperCase();
+  nc.topRobot = $('e-rtop').value;
+  nc.versionHW = $('e-rhw').value;
+  
+  if (isRC) {
+    nc.numOPP = $('e-opp').value;
+    nc.numProjet = $('e-proj').value;
+    nc.projetRec = $('e-rec').value;
+    nc.recette = $('e-recette').value;
+    nc.cout = parseFloat(($('e-cout').value||'').replace(',','.')) || null;
+  } else {
+    nc.numOPP = ''; nc.numProjet = ''; nc.projetRec = ''; nc.recette = ''; nc.cout = null;
+  }
+
+  try {
+      const ncDirHandle = await workingDirHandle.getDirectoryHandle(nc.id);
+      const pjInput = $('e-pj');
+      if (pjInput.files && pjInput.files.length > 0) {
+          if(!nc.photos) nc.photos = [];
+          let pjIndex = nc.photos.length + 1;
+          for (const file of pjInput.files) {
+              const ext = file.name.split('.').pop() || 'png';
+              const newName = `pj_${pjIndex}.${ext}`;
+              const fileHandle = await ncDirHandle.getFileHandle(newName, { create: true });
+              const writable = await fileHandle.createWritable();
+              await writable.write(file);
+              await writable.close();
+              nc.photos.push({ name: newName, originalName: file.name });
+              pjIndex++;
+          }
+      }
+      const success = await updateNCDataFile(nc);
+      if (success) {
+          render();
+          openNCDetail(ncId);
+          notify('Fiche modifiée');
+      } else { btn.disabled = false; }
+  } catch(err) {
+      console.error(err);
+      notify("Erreur lors de la mise à jour !", true);
+  }
+}
+
+// ══════════════════════════════════════════
+// ACTIONS MÉTIER
+// ══════════════════════════════════════════
+let cloturerNCStep = false;
+async function cloturerNC(ncId, btn) {
+  if (!cloturerNCStep) {
+    cloturerNCStep = true;
+    btn.textContent = '⚠️ Confirmer ?';
+    btn.classList.add('confirm-pending');
+    btn.style.background = 'var(--orange-light)';
+    btn.style.color = 'var(--orange)';
+    btn.style.borderColor = '#fed7aa';
+    return;
+  }
+  cloturerNCStep = false;
+  const nc = ncs.find(n => n.id === ncId);
+  const today = getTodayISO();
+  
+  nc.dateCloture = today;
+  
+  // Clôture aussi les actions en cours
+  for (let a of (nc.actions||[])) {
+      if (a.statut==='Ouvert') { 
+          a.statut='Terminé'; 
+          a.dateCloture=today; 
+          for (const otherNc of ncs) {
+              if (otherNc.id !== nc.id) {
+                  const sharedAction = (otherNc.actions || []).find(x => x.id === a.id);
+                  if (sharedAction) {
+                      sharedAction.statut = 'Terminé';
+                      sharedAction.dateCloture = today;
+                      await updateNCDataFile(otherNc);
+                  }
+              }
+          }
+      }
+  }
+  
+  if (await updateNCDataFile(nc)) {
+      render();
+      openNCDetail(ncId);
+      notify(`Fiche ${ncId} clôturée`);
+  }
+}
+
+async function cloturerAction(ncId, actId, btn) {
+  const today = getTodayISO();
+  
+  let allSuccess = true;
+  for (const nc of ncs) {
+      const a = (nc.actions || []).find(x => x.id === actId);
+      if (a) {
+          a.statut = 'Terminé';
+          a.dateCloture = today;
+          if (!await updateNCDataFile(nc)) allSuccess = false;
+      }
+  }
+  
+  if (allSuccess) {
+      render();
+      openActionDetail(ncId, actId);
+      notify(`Action ${actId} terminée pour toutes les fiches liées`);
+  }
+}
+
+async function createAction(e, ncId) {
+  e.preventDefault();
+  const today = getTodayISO();
+  const year = today.substring(2, 4);
+  
+  const desc = $('action-desc').value;
+  const trig = $('action-trig').value.toUpperCase();
+  
+  let maxAct = 0;
+  ncs.forEach(n => {
+      (n.actions || []).forEach(a => {
+          const parts = a.id.split('-');
+          if (parts.length === 3 && parts[1] === year) {
+              maxAct = Math.max(maxAct, parseInt(parts[2], 10));
+          }
+      });
+  });
+  const newId = `ACT-${year}-${String(maxAct + 1).padStart(3,'0')}`;
+  
+  const newAction = {
+    id: newId, date: today,
+    description: desc,
+    statut: 'Ouvert', trigramme: trig,
+    dateCloture: '', commentaires: []
+  };
+
+  const targetNc = ncs.find(n => n.id === ncId);
+  if (targetNc) {
+      if (!targetNc.actions) targetNc.actions = [];
+      targetNc.actions.push(JSON.parse(JSON.stringify(newAction))); 
+      if (await updateNCDataFile(targetNc)) {
+          render();
+          openNCDetail(ncId);
+          notify(`Action ${newId} créée`);
+      }
+  }
+}
+
+async function linkActionToNC(ncId) {
+    const actId = $('sel-link-act').value;
+    if(!actId) return;
+    
+    const allActs = getAllUniqueActions();
+    const actionToLink = allActs.find(a => a.id === actId);
+    if(!actionToLink) return;
+
+    const targetNc = ncs.find(n => n.id === ncId);
+    if(!targetNc) return;
+
+    if(!targetNc.actions) targetNc.actions = [];
+    
+    const cleanAction = { ...actionToLink };
+    delete cleanAction.ncIds; 
+
+    targetNc.actions.push(JSON.parse(JSON.stringify(cleanAction)));
+    
+    if (await updateNCDataFile(targetNc)) {
+        render();
+        openNCDetail(ncId);
+        notify(`Action ${actId} ajoutée à la fiche ${ncId}`);
+    }
+}
+
+async function addComment(e, ncId, actId) {
+  e.preventDefault();
+  const today = getTodayISO();
+  const trig = $('cmt-trig').value.toUpperCase();
+  const text = $('cmt-text').value;
+
+  const newCmt = { date: today, trigramme: trig, texte: text };
+
+  let allSuccess = true;
+  for (const nc of ncs) {
+      const a = (nc.actions || []).find(x => x.id === actId);
+      if (a) {
+          if (!a.commentaires) a.commentaires = [];
+          a.commentaires.push(newCmt);
+          if (!await updateNCDataFile(nc)) allSuccess = false;
+      }
+  }
+  
+  if (allSuccess) {
+      render();
+      openActionDetail(ncId, actId);
+      notify('Commentaire ajouté sur toutes les fiches');
+  }
+}
+
+async function addNCComment(e, ncId) {
+  e.preventDefault();
+  const nc = ncs.find(n => n.id === ncId);
+  if (!nc.commentaires) nc.commentaires = [];
+  
+  const today = getTodayISO();
+  const trig = $('nc-cmt-trig').value.toUpperCase();
+  const text = $('nc-cmt-text').value;
+
+  nc.commentaires.push({ date: today, trigramme: trig, texte: text });
+  
+  if (await updateNCDataFile(nc)) {
+      render();
+      openNCDetail(ncId);
+      notify('Commentaire ajouté à la fiche');
+  }
+}
+
+// ══════════════════════════════════════════
+// MODAL: PJ GLOBAL
+// ══════════════════════════════════════════
+async function openPJModal(ncId) {
+  resetModalState();
+  const nc = ncs.find(n => n.id === ncId);
+  $('modal').className = '';
+  $('modal-title').innerHTML = `Pièces jointes · <span class="mono-id">${nc.id}</span>`;
+  
+  let thumbs = [];
+  if (nc.photos) {
+      for (let i = 0; i < nc.photos.length; i++) {
+          let p = nc.photos[i];
+          const url = await getFileUrl(ncId, p.name);
+          if (url) {
+              const ext = p.name.split('.').pop().toLowerCase();
+              const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'jfif'].includes(ext);
+              if (isImg) {
+                  thumbs.push(`<div onclick="openLightbox('${ncId}',${i})" style="cursor:pointer;border-radius:10px;overflow:hidden;border:1px solid var(--border);transition:transform .15s" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                    <img src="${url}" style="width:100%;height:160px;object-fit:cover;display:block">
+                    <div style="padding:10px;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.originalName||p.name}</div>
+                  </div>`);
+              } else {
+                  thumbs.push(`<div onclick="openLightbox('${ncId}',${i})" style="cursor:pointer;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:var(--surface2);display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;transition:transform .15s" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                    <svg class="lucide" style="width:32px;height:32px;stroke:var(--text3);" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <div style="padding:10px;font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center;">${p.originalName||p.name}</div>
+                  </div>`);
+              }
+          }
+      }
+  }
+  
+  $('modal-body').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">${thumbs.join('')}</div>`;
+  openModal();
+}
+
+// ══════════════════════════════════════════
+// LIGHTBOX
+// ══════════════════════════════════════════
+async function openLightbox(ncId, idx) {
+  const nc = ncs.find(n => n.id === ncId);
+  lbPhotos = nc.photos || [];
+  lbNcId = ncId;
+  lbIndex = idx;
+  await renderLightbox();
+  $('lightbox').classList.add('open');
+}
+
+async function renderLightbox() {
+  const p = lbPhotos[lbIndex];
+  const url = await getFileUrl(lbNcId, p.name);
+  const ext = p.name.split('.').pop().toLowerCase();
+  const isImg = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'jfif'].includes(ext);
+  const isPdf = ['pdf'].includes(ext);
+  
+  $('lb-title').textContent = p.originalName || p.name;
+  $('lb-counter').textContent = `${lbIndex + 1} / ${lbPhotos.length}`;
+  
+  const dlBtn = $('lb-download');
+  dlBtn.href = url;
+  dlBtn.download = p.originalName || p.name;
+
+  const content = $('lb-content');
+  if (isImg) {
+      content.innerHTML = `<img src="${url}" class="lb-img">`;
+  } else if (isPdf) {
+      content.innerHTML = `<iframe src="${url}" style="width:100%;height:100%;border:none;border-radius:6px;background:#fff;"></iframe>`;
+  } else {
+      content.innerHTML = `<div style="text-align:center;color:#fff;">
+          <svg class="lucide" style="margin:auto;opacity:0.5;margin-bottom:20px;width:64px;height:64px;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <p style="font-size:18px;font-weight:600;margin-bottom:10px;">${p.originalName || p.name}</p>
+          <p style="color:rgba(255,255,255,0.6);font-size:14px;max-width:300px;">Ce type de fichier ne peut pas être prévisualisé. Veuillez le télécharger pour l'ouvrir.</p>
+      </div>`;
+  }
+}
+
+function lbNav(d) {
+  lbIndex = (lbIndex + d + lbPhotos.length) % lbPhotos.length;
+  renderLightbox();
+}
+
+function closeLightbox() {
+  $('lightbox').classList.remove('open');
+}
+
+// ══════════════════════════════════════════
+// EMAIL
+// ══════════════════════════════════════════
+function sendEmail(ncId) {
+  const nc = ncs.find(n => n.id === ncId);
+  const isRC = (nc.type.toUpperCase() === 'RECLAMATION CLIENT' || nc.type.toUpperCase() === 'RC');
+  const subj = encodeURIComponent(`Fiche ${nc.id} - ${nc.type}${isMER(nc) ? ' (MER)' : ''}`);
+
+  let body = `Fiche ${nc.id}\n`;
+  if (nc.type) body += `Type : ${nc.type}\n`;
+  if (isMER(nc)) body += `Origine : NC détectée lors de la MER\n`;
+  if (nc.categorie) body += `Catégorie : ${nc.categorie}\n`;
+  if (nc.date) body += `Date : ${fmtDatePlain(nc.date)}\n`;
+  if (nc.trigramme) body += `Saisi par : ${nc.trigramme}\n`;
+
+  if (isRC) {
+    if (nc.numOPP) body += `N° OPP : ${nc.numOPP}\n`;
+    if (nc.numProjet) body += `N° Projet : ${nc.numProjet}\n`;
+    if (nc.projetRec) body += `N° Projet réclamation : ${nc.projetRec}\n`;
+    if (nc.recette) body += `Recette associée : ${nc.recette}\n`;
+    if (nc.numRobot) body += `N° Robot : ${nc.numRobot}\n`;
+    if (nc.typeRobot) body += `Type robot : ${nc.typeRobot}\n`;
+    if (nc.topRobot) body += `Top : ${nc.topRobot}\n`;
+    if (nc.versionHW) body += `Version : ${nc.versionHW}\n`;
+  } else {
+    if (nc.typeRobot) body += `Type de robot : ${nc.typeRobot}\n`;
+    if (nc.topRobot) body += `Top : ${nc.topRobot}\n`;
+    if (nc.versionHW) body += `Version : ${nc.versionHW}\n`;
+  }
+
+  if (nc.motif) body += `\nMOTIF :\n${nc.motif}\n`;
+
+  if (nc.actionsImmediates) {
+    if (isRC) {
+      body += `\nAction immédiate :\n${nc.actionsImmediates}\n`;
+    } else {
+      body += `\nACTIONS IMMÉDIATES :\n${nc.actionsImmediates}\n`;
+    }
+  }
+
+  window.location.href = `mailto:?subject=${subj}&body=${encodeURIComponent(body)}`;
+}
+
+// ══════════════════════════════════════════
+// UTILITAIRES
+// ══════════════════════════════════════════
+function openModal() { $('modal-overlay').classList.add('open'); }
+function closeModal() { $('modal-overlay').classList.remove('open'); cloturerNCStep = false; editConfirmStep = false; }
+function handleOverlayClick(e) { if (e.target === $('modal-overlay')) closeModal(); }
+
+function ncAgeDays(nc) { return Math.max(0, Math.floor((Date.now() - new Date(nc.date).getTime()) / 86400000)); }
+function ageBadge(nc) {
+  const d = ncAgeDays(nc);
+  const col = d > 30 ? 'var(--red)' : d > 15 ? 'var(--amber)' : 'var(--text3)';
+  return `<span style="color:var(--amber)">En cours</span><span style="font-family:var(--mono);font-size:10px;font-weight:700;color:${col};background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:1px 5px;margin-left:6px" title="Âge de la fiche : ${d} jour(s)">${d}j</span>`;
+}
+
+function fmtDate(s) {
+  if (!s) return '—';
+  const [d,t] = s.split('T');
+  const [y,m,dd] = d.split('-');
+  return `${dd}/${m}/${y}${t?' <span style="color:var(--text3);font-size:11px">'+t.slice(0,5)+'</span>':''}`;
+}
+function fmtDatePlain(s) {
+  if (!s) return '—';
+  const [d,t] = s.split('T');
+  const [y,m,dd] = d.split('-');
+  return `${dd}/${m}/${y}${t?' '+t.slice(0,5):''}`;
+}
+const RC_FIELD_LABELS = { numOPP: 'N° OPP', projetRec: 'Projet Rec.', recette: 'Recette associée' };
+function rcRow(ncId, field, label, value) {
+  return `<div class="erp-tech-row" id="rcrow-${field}">
+    <span class="erp-tech-lbl">${label}</span>
+    <span style="display:flex; align-items:center; gap:6px;">
+      <span class="erp-tech-val mono">${value||'—'}</span>
+      <button type="button" class="erp-btn erp-btn-ghost" style="padding:2px 4px; box-shadow:none; border:none;" onclick="toggleRCEdit('${ncId}','${field}')" title="Modifier">
+        <svg class="lucide" viewBox="0 0 24 24" style="width:12px;height:12px; color:#9ca3af;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+    </span>
+  </div>`;
+}
+
+function toggleRCEdit(ncId, field) {
+  const nc = ncs.find(n => n.id === ncId);
+  const row = document.getElementById(`rcrow-${field}`);
+  const label = RC_FIELD_LABELS[field] || field;
+  row.innerHTML = `
+    <span class="erp-tech-lbl">${label}</span>
+    <span style="display:flex; align-items:center; gap:6px;">
+      <input type="text" id="rcedit-${field}" value="${esc(nc[field]||'')}" class="form-input" style="height:26px; font-size:12px; padding:2px 6px; width:150px;" onkeydown="if(event.key==='Enter'){saveRCField('${ncId}','${field}')}if(event.key==='Escape'){openNCDetail('${ncId}')}">
+      <button type="button" class="erp-btn erp-btn-ghost" style="padding:2px 6px; box-shadow:none;" onclick="saveRCField('${ncId}','${field}')" title="Enregistrer">
+        <svg class="lucide" viewBox="0 0 24 24" style="width:14px;height:14px; color:var(--accent);"><polyline points="20 6 9 17 4 12"/></svg>
+      </button>
+    </span>
+  `;
+  const inp = document.getElementById(`rcedit-${field}`);
+  inp.focus();
+  inp.select();
+}
+
+async function saveRCField(ncId, field) {
+  const nc = ncs.find(n => n.id === ncId);
+  const input = document.getElementById(`rcedit-${field}`);
+  const prevValue = nc[field];
+  nc[field] = input.value;
+  try {
+    const success = await updateNCDataFile(nc);
+    if (success) {
+      render();
+      openNCDetail(ncId);
+      notify('Champ mis à jour');
+    } else {
+      nc[field] = prevValue;
+      notify("Erreur lors de la mise à jour !", true);
+    }
+  } catch(err) {
+    nc[field] = prevValue;
+    console.error(err);
+    notify("Erreur lors de la mise à jour !", true);
+  }
+}
+
+function esc(s) { return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function updateTopbar(txt) { $('topbar-count').textContent = txt; }
+
+function detailCard(label, val) {
+  return `<div class="detail-card"><div class="detail-label">${label}</div><div class="detail-value">${val}</div></div>`;
+}
+
+// SORT
+function th(label, key, sortable=true) {
+  const active = sortConfig.key === key;
+  const arrow = active ? (sortConfig.dir === 'asc' ? '↑' : '↓') : '';
+  if (!sortable) return `<th>${label}</th>`;
+  return `<th class="${active?'sorted':''}" onclick="setSort('${key}')">${label} ${arrow?`<span style="font-size:10px;color:var(--accent)">${arrow}</span>`:''}</th>`;
+}
+function setSort(key) {
+  if (sortConfig.key === key) sortConfig.dir = sortConfig.dir === 'asc' ? 'desc' : 'asc';
+  else { sortConfig.key = key; sortConfig.dir = 'asc'; }
+  render();
+}
+function doSort(a, b) {
+  let va = a[sortConfig.key] ?? '', vb = b[sortConfig.key] ?? '';
+  if (typeof va === 'number' && typeof vb === 'number') return sortConfig.dir==='asc' ? va-vb : vb-va;
+  va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+  if (va < vb) return sortConfig.dir==='asc' ? -1 : 1;
+  if (va > vb) return sortConfig.dir==='asc' ? 1 : -1;
+  return 0;
+}
+
+// ══════════════════════════════════════════
+// RACCOURCIS CLAVIER
+// Échap : fermer · ←/→ : navigation lightbox · / ou Ctrl+K : recherche · N : nouvelle fiche
+// ══════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  // Lightbox prioritaire
+  if ($('lightbox')?.classList.contains('open')) {
+    if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); lbNav(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); lbNav(1); }
+    return;
+  }
+  const modalOpen = $('modal-overlay')?.classList.contains('open');
+  if (e.key === 'Escape' && modalOpen) { closeModal(); return; }
+  if (!workingDirHandle || modalOpen) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+  if (e.key === '/' || (e.ctrlKey && e.key.toLowerCase() === 'k')) { e.preventDefault(); $('search-input')?.focus(); }
+  else if (e.key.toLowerCase() === 'n') {
+    e.preventDefault();
+    if (currentView === 'mer') { openCreateModal(true); }
+    else { navigate('qualite'); openCreateModal(); }
+  }
+});
+
+// NOTIFY
+function notify(txt, isError = false) {
+  const el = $('notif');
+  $('notif-text').textContent = txt;
+  el.className = isError ? 'show error' : 'show';
+  setTimeout(() => el.classList.remove('show', 'error'), 2800);
+}
+
+</script>
+</body>
+</html>
