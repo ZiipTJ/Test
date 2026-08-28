@@ -1411,14 +1411,142 @@
             }
         }
 
-        // --- Fusion multi-utilisateurs (union par id, le plus récent gagne) ---
+        // ====================================================================
+        //  FUSION MULTI-UTILISATEURS, LIGNE PAR LIGNE
+        //  Deux opérateurs peuvent travailler sur le même dossier tant qu'ils
+        //  touchent des lignes différentes : chaque ligne est arbitrée
+        //  séparément, et au sein d'une ligne le S/N et la charge batterie
+        //  sont arbitrés indépendamment l'un de l'autre.
+        // ====================================================================
+        function newLineId() {
+            return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        }
+
+        // Arbitrage d'une ligne de nomenclature.
+        function mergeBomLine(x, y) {
+            if (!x) return y;
+            if (!y) return x;
+            const out = Object.assign({}, x, y);
+
+            // Numéro de série : renseigné l'emporte sur vierge ;
+            // si les deux le sont, le plus récent gagne.
+            const xs = !!x.scanned, ys = !!y.scanned;
+            let sn = null;
+            if (xs && ys) sn = (y.at || 0) >= (x.at || 0) ? y : x;
+            else if (xs) sn = x;
+            else if (ys) sn = y;
+            if (sn) {
+                out.scanned = true;
+                out.serialNum = sn.serialNum;
+                out.scanDate = sn.scanDate;
+                out.scanOperator = sn.scanOperator;
+                out.at = Math.max(x.at || 0, y.at || 0);
+            } else {
+                out.scanned = false;
+                out.serialNum = ''; out.scanDate = ''; out.scanOperator = '';
+            }
+
+            // Charge batterie : indépendante du S/N, même règle d'arbitrage.
+            const xc = !!x.charge, yc = !!y.charge;
+            let ch = null;
+            if (xc && yc) ch = (y.chargeAt || 0) >= (x.chargeAt || 0) ? y : x;
+            else if (xc) ch = x;
+            else if (yc) ch = y;
+            if (ch) {
+                out.charge = ch.charge;
+                out.charged = ch.charged;
+                out.chargeAt = ch.chargeAt;
+            }
+            return out;
+        }
+
+        // Apparie les lignes par identifiant (lid). Les dossiers créés avant
+        // cette version n'en ont pas : on retombe alors sur un appariement par
+        // position, verrouillé par la référence et la désignation pour ne
+        // jamais confondre deux ajouts manuels distincts.
+        function mergeBom(A, B) {
+            A = A || []; B = B || [];
+            const out = [];
+            const usedB = new Set();
+            const bById = new Map();
+            B.forEach((l, j) => { if (l && l.lid && !bById.has(l.lid)) bById.set(l.lid, j); });
+
+            A.forEach((la, i) => {
+                if (!la) return;
+                if (la.lid && bById.has(la.lid)) {
+                    const j = bById.get(la.lid);
+                    usedB.add(j);
+                    out.push(mergeBomLine(la, B[j]));
+                } else if (!la.lid && i < B.length && B[i] && !B[i].lid && !usedB.has(i)
+                           && B[i].ref === la.ref && B[i].designation === la.designation) {
+                    usedB.add(i);
+                    out.push(mergeBomLine(la, B[i]));
+                } else {
+                    out.push(la);
+                }
+            });
+            B.forEach((lb, j) => { if (lb && !usedB.has(j)) out.push(lb); });
+            return out;
+        }
+
+        // Sous-ensembles : appariés par identifiant, « fait » l'emporte sur
+        // « à faire », puis le plus récent.
+        function mergeSubassemblies(A, B) {
+            const map = new Map();
+            (A || []).forEach(s => { if (s && s.id) map.set(s.id, s); });
+            (B || []).forEach(s => {
+                if (!s || !s.id) return;
+                const x = map.get(s.id);
+                if (!x) { map.set(s.id, s); return; }
+                if (!!x.done !== !!s.done) map.set(s.id, x.done ? x : s);
+                else map.set(s.id, (s.at || 0) >= (x.at || 0) ? s : x);
+            });
+            return Array.from(map.values());
+        }
+
+        // Champs MER : une valeur saisie l'emporte sur une valeur vide.
+        function mergeMerFields(A, B) {
+            const map = new Map();
+            (A || []).forEach(f => { if (f && f.id) map.set(f.id, f); });
+            (B || []).forEach(f => {
+                if (!f || !f.id) return;
+                const x = map.get(f.id);
+                if (!x) { map.set(f.id, f); return; }
+                map.set(f.id, (f.value || !x.value) ? f : x);
+            });
+            return Array.from(map.values());
+        }
+
+        // Fusion d'un dossier : l'enveloppe (client, statut, clôture…) suit le
+        // plus récent, mais les listes sont fusionnées ligne à ligne.
+        function mergeElement(a, b) {
+            const base  = (b.updatedAt || 0) >= (a.updatedAt || 0) ? b : a;
+            const other = base === b ? a : b;
+            const out = Object.assign({}, other, base);
+
+            out.bom = mergeBom(a.bom, b.bom);
+            if (Array.isArray(a.subassemblies) || Array.isArray(b.subassemblies)) {
+                out.subassemblies = mergeSubassemblies(a.subassemblies, b.subassemblies);
+            }
+            if (Array.isArray(a.merFields) || Array.isArray(b.merFields)) {
+                out.merFields = mergeMerFields(a.merFields, b.merFields);
+            }
+            out.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
+
+            // Première atteinte du 100 % : on garde la plus ancienne des deux.
+            const done = [a.completedAt, b.completedAt].filter(Boolean).sort((x, y) => x - y);
+            out.completedAt = done.length ? done[0] : null;
+            updateCompletion(out);
+            return out;
+        }
+
         function mergeElements(base, incoming) {
             const map = new Map();
             (base || []).forEach(el => { if (el && el.id) map.set(el.id, el); });
             (incoming || []).forEach(el => {
                 if (!el || !el.id) return;
                 const ex = map.get(el.id);
-                if (!ex || (el.updatedAt || 0) >= (ex.updatedAt || 0)) map.set(el.id, el);
+                map.set(el.id, ex ? mergeElement(ex, el) : el);
             });
             return Array.from(map.values());
         }
@@ -2283,7 +2411,7 @@
 
             if (se.done) {
                 se.done = false; se.doneTime = ''; se.doneOperator = '';
-                se.durationMin = 0; se.note = '';
+                se.durationMin = 0; se.note = ''; se.at = Date.now();
                 el.updatedAt = Date.now();
                 updateCompletion(el);
                 renderSubassemblies();
@@ -2323,6 +2451,7 @@
             se.doneOperator = operator;
             se.durationMin = duration;
             se.note = document.getElementById('subAssyNote').value.trim();
+            se.at = Date.now();
 
             el.updatedAt = Date.now();
             updateCompletion(el);
@@ -2936,6 +3065,7 @@
             el.bom[index].serialNum = serialNum;
             el.bom[index].scanDate = formatDateTime();
             el.bom[index].scanOperator = operator;
+            el.bom[index].at = Date.now();
             el.updatedAt = Date.now();
             updateCompletion(el);
 
@@ -2949,12 +3079,14 @@
             if (!el) return;
 
             el.bom.push({
+                lid: newLineId(),
                 ref, designation,
                 category: isSAV ? "SAV" : "Manuel",
                 scanned: true,
                 serialNum,
                 scanDate: formatDateTime(),
-                scanOperator: operator
+                scanOperator: operator,
+                at: Date.now()
             });
             el.updatedAt = Date.now();
             updateCompletion(el);
@@ -2988,6 +3120,7 @@
             if (!val) { alert("Veuillez saisir un S/N valide."); return; }
             el.bom[index].serialNum = val;
             el.bom[index].scanDate = formatDateTime();
+            el.bom[index].at = Date.now();
             el.updatedAt = Date.now();
             updateCompletion(el);
             editingIndex = null;
@@ -3057,14 +3190,14 @@
             if (config.robot_components && config.robot_components[type]) {
                 config.robot_components[type].forEach(comp => {
                     if (comp.option && !evaluateOptionCondition(comp.option, activeTokens)) return;
-                    bom.push({ ref: comp.ref, designation: comp.designation, category: "Base", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
+                    bom.push({ lid: newLineId(), ref: comp.ref, designation: comp.designation, category: "Base", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
                 });
             }
 
             if (topSelected && topSelected.articles) {
                 const subs = topSelected.articles.split(';');
                 for (let i = 0; i < subs.length; i += 2) {
-                    if (subs[i] && subs[i+1]) bom.push({ ref: subs[i].trim(), designation: subs[i+1].trim(), category: "Top", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
+                    if (subs[i] && subs[i+1]) bom.push({ lid: newLineId(), ref: subs[i].trim(), designation: subs[i+1].trim(), category: "Top", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
                 }
             }
 
@@ -3096,7 +3229,7 @@
             const selectedType = config.station_types.find(st => st.code === code);
             const displayName = stationDisplayName(code, autoNum);
 
-            const bom = config.station_base_components ? config.station_base_components.map(comp => ({ ref: comp.ref, designation: comp.designation, category: "Station", scanned: false, serialNum: "", scanDate: "", scanOperator: "" })) : [];
+            const bom = config.station_base_components ? config.station_base_components.map(comp => ({ lid: newLineId(), ref: comp.ref, designation: comp.designation, category: "Station", scanned: false, serialNum: "", scanDate: "", scanOperator: "" })) : [];
 
             const subassemblies = buildSubassemblies(
                 config.station_subassemblies ? config.station_subassemblies[code] : null,
@@ -3128,7 +3261,7 @@
                 const sn = row.querySelector('.row-sn').value.trim();
 
                 if (!ref || !desig || !sn) valid = false;
-                bom.push({ ref, designation: desig, category: "Envoi", scanned: true, serialNum: sn, scanDate: dateStr, scanOperator: operator });
+                bom.push({ lid: newLineId(), ref, designation: desig, category: "Envoi", scanned: true, serialNum: sn, scanDate: dateStr, scanOperator: operator, at: Date.now() });
             });
 
             if (!valid) { alert("Veuillez remplir tous les champs du tableau."); return; }
@@ -3291,6 +3424,7 @@
                 vEnd: document.getElementById('batVEnd').value.trim()
             };
             item.charged = document.getElementById('batCheckCharged').checked;
+            item.chargeAt = Date.now();
             item.scanDate = formatDateTime();
             if (currentScanOperator) item.scanOperator = currentScanOperator;
             el.updatedAt = Date.now();
@@ -3321,6 +3455,7 @@
 
             item.charge = { index: batteryDefaultIndex(el, RACK_BATTERY_REF, activeBatteryRowIndex) };
             item.charged = document.getElementById('rackCheckCharged').checked;
+            item.chargeAt = Date.now();
             item.scanDate = formatDateTime();
             if (currentScanOperator) item.scanOperator = currentScanOperator;
             el.updatedAt = Date.now();
