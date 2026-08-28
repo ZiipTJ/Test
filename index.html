@@ -1258,6 +1258,30 @@
             }
         }
 
+        // Jeton de condition dérivé du top monté (ex. "LB" -> "TOP_LB"), pour
+        // pouvoir conditionner une ligne sur le top comme sur une option.
+        function topToken(abbr) {
+            if (!abbr) return '';
+            const clean = String(abbr).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            return clean ? 'TOP_' + clean : '';
+        }
+
+        // Champs libres à renseigner à la MER, filtrés par les mêmes conditions.
+        function buildMerFields(source, activeTokens) {
+            if (!Array.isArray(source)) return [];
+            const out = [];
+            source.forEach((f, i) => {
+                if (f.option && !evaluateOptionCondition(f.option, activeTokens)) return;
+                out.push({
+                    id: f.id || `CHAMP${i}`,
+                    label: f.label || f.id || `Champ ${i + 1}`,
+                    value: ''
+                });
+            });
+            return out;
+        }
+
         // Construit la liste des sous-ensembles à réaliser, filtrée par les
         // options cochées (même logique de condition que la nomenclature).
         function buildSubassemblies(source, checkedOptionIds) {
@@ -2316,6 +2340,12 @@
                                     <td style="font-weight: 700; width: 14rem;">Temps de mise en route</td>
                                     <td style="font-weight: 700; color: #0f172a;">${formatMinutes(v.durationMin)}</td>
                                 </tr>
+                                ${(el.merFields || []).map(f => `
+                                    <tr>
+                                        <td style="font-weight: 700;">${escapeHtml(f.label)}</td>
+                                        <td style="font-family: monospace; color: #0f172a;">${f.value ? escapeHtml(f.value) : '<span style="color:#94a3b8; font-style:italic; font-family:inherit;">non renseigné</span>'}</td>
+                                    </tr>
+                                `).join('')}
                                 <tr>
                                     <td style="font-weight: 700;">MER validée par</td>
                                     <td style="font-weight: 700; color: #059669;">${escapeHtml(v.operator)}</td>
@@ -2340,7 +2370,18 @@
                             L'assemblage est terminé à 100 %. Saisissez votre trigramme pour valider la MER
                             et faire passer le dossier en <strong>EXPE</strong>.
                         </p>
-                        <form onsubmit="handleValidateMer(event)" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <form onsubmit="handleValidateMer(event)">
+                          ${(el.merFields || []).length ? `
+                            <div class="form-grid" style="margin-bottom: 1.25rem;">
+                                ${el.merFields.map((f, i) => `
+                                    <div class="form-group">
+                                        <label>${escapeHtml(f.label)}</label>
+                                        <input id="merField-${i}" type="text" value="${escapeHtml(f.value || '')}" placeholder="" ${locked ? 'disabled' : ''}>
+                                    </div>
+                                `).join('')}
+                            </div>
+                          ` : ''}
+                          <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
                             <div class="form-group">
                                 <label>* Temps de mise en route</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
@@ -2360,6 +2401,7 @@
                                        ${locked ? 'disabled' : ''}>
                             </div>
                             <button type="submit" class="btn-primary" ${locked ? 'disabled' : ''}>Valider la MER</button>
+                          </div>
                         </form>
                     </div>
                 `;
@@ -2388,6 +2430,11 @@
             const m = parseInt(document.getElementById('merMinutes').value) || 0;
             const durationMin = h * 60 + m;
             if (durationMin <= 0) { alert("Veuillez renseigner le temps de mise en route."); return; }
+
+            (el.merFields || []).forEach((f, i) => {
+                const inp = document.getElementById(`merField-${i}`);
+                if (inp) f.value = inp.value.trim();
+            });
 
             el.merValidation = { operator, date: formatDateTime(), at: Date.now(), durationMin };
             el.updatedAt = Date.now();
@@ -2980,10 +3027,17 @@
             const checkedOptionIds = [];
             document.querySelectorAll('#optionsDynamicContainer input[type="checkbox"]:checked').forEach(cb => checkedOptionIds.push(cb.dataset.optid));
 
+            // Le top monté devient un jeton évaluable au même titre qu'une option.
+            const activeTokens = checkedOptionIds.slice();
+            if (topSelected) {
+                const tok = topToken(topSelected.abbr);
+                if (tok) activeTokens.push(tok);
+            }
+
             const bom = [];
             if (config.robot_components && config.robot_components[type]) {
                 config.robot_components[type].forEach(comp => {
-                    if (comp.option && !evaluateOptionCondition(comp.option, checkedOptionIds)) return;
+                    if (comp.option && !evaluateOptionCondition(comp.option, activeTokens)) return;
                     bom.push({ ref: comp.ref, designation: comp.designation, category: "Base", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
                 });
             }
@@ -2997,11 +3051,16 @@
 
             const subassemblies = buildSubassemblies(
                 config.robot_subassemblies ? config.robot_subassemblies[type] : null,
-                checkedOptionIds
+                activeTokens
+            );
+
+            const merFields = buildMerFields(
+                config.robot_mer_fields ? config.robot_mer_fields[type] : null,
+                activeTokens
             );
 
             const id = 'R-' + Date.now();
-            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom, subassemblies, createdAt: Date.now(), updatedAt: Date.now() });
+            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom, subassemblies, merFields, createdAt: Date.now(), updatedAt: Date.now() });
             selectElement(id);
             scheduleSave();
         }

@@ -382,6 +382,35 @@
                         </table>
                     </div>
                 </div>
+
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h3>5. Champs à renseigner à la MER</h3>
+                        <button onclick="addDynamicMerField()" class="btn-success" style="padding: 0.25rem 0.5rem;">
+                            + Ajouter un Champ
+                        </button>
+                    </div>
+                    <div class="group-hint">
+                        Champs de saisie libre proposés lors de la validation de la mise en route
+                        (versions logicielles, firmwares…). Laissez la <strong>condition</strong> vide pour un champ
+                        toujours demandé, ou saisissez une formule pour ne l'afficher que dans certains cas :
+                        options cochées (<code>TRITON</code>, <code>CAM3D_BASSE OR CAM3D_HAUTE</code>)
+                        et/ou top monté, via le jeton <code>TOP_&lt;abréviation&gt;</code> (ex. <code>TOP_LB OR TOP_LBD</code>).
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 18%;">ID</th>
+                                    <th style="width: 42%;">Libellé affiché</th>
+                                    <th style="width: 30%;">Condition</th>
+                                    <th style="text-align: center; width: 10%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dynMerFieldsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
             </section>
 
             <section id="section-tops">
@@ -548,9 +577,35 @@
                 { "name": "Station de charge B", "code": "STB", "color": "#B38600" },
                 { "name": "Station de charge P", "code": "STP", "color": "#6424F9" }
             ],
+            "robot_mer_fields": {
+                "D": [
+                    { "id": "FLEXISOFT", "label": "Version maquette FlexiSoft", "option": "" },
+                    { "id": "NANOSCAN", "label": "Version NanoScan", "option": "" },
+                    { "id": "TIMS", "label": "Version TIM'S", "option": "" },
+                    { "id": "TRITON_VER", "label": "Version Triton", "option": "TRITON" },
+                    { "id": "CAM3D_FW", "label": "Firmware Cam3D (OVP 800)", "option": "CAM3D_BASSE OR CAM3D_HAUTE" }
+                ],
+                "P": [
+                    { "id": "FLEXISOFT", "label": "Version maquette FlexiSoft", "option": "" },
+                    { "id": "NANOSCAN", "label": "Version NanoScan", "option": "" },
+                    { "id": "CAM3D_FW", "label": "Firmware Cam3D (OVP 800)", "option": "CAM3D" }
+                ],
+                "BI": [
+                    { "id": "FLEXISOFT", "label": "Version maquette FlexiSoft", "option": "" },
+                    { "id": "CAM3D_FW", "label": "Firmware Cam3D (OVP 800)", "option": "CAM3D" },
+                    { "id": "FLEXICOMPACT", "label": "Version FlexiCompact (lève-bac)", "option": "TOP_LB OR TOP_LBD" }
+                ],
+                "BR": [
+                    { "id": "FLEXISOFT", "label": "Version maquette FlexiSoft", "option": "" },
+                    { "id": "CAM3D_FW", "label": "Firmware Cam3D (OVP 800)", "option": "CAM3D" },
+                    { "id": "FLEXICOMPACT", "label": "Version FlexiCompact (lève-bac)", "option": "TOP_LB OR TOP_LBD" }
+                ]
+            },
             "station_subassemblies": {},
             "tops": [
-                { "name": "Plateau", "articles": "", "abbr": "P", "calc_ht": 48, "ht_min": 569 }
+                { "name": "Plateau", "articles": "", "abbr": "P", "calc_ht": 48, "ht_min": 569 },
+                { "name": "Lève bac simple", "articles": "", "abbr": "LB", "calc_ht": 176, "ht_min": 697 },
+                { "name": "Lève bac double", "articles": "", "abbr": "LBD", "calc_ht": 176, "ht_min": 697 }
             ],
             "station_base_components": [
                 { "designation": "Plaque induction fixe SCs", "ref": "SHE-1013800" }
@@ -570,6 +625,7 @@
             if (!cfg.robot_options) cfg.robot_options = {};
             if (!cfg.robot_components) cfg.robot_components = {};
             if (!cfg.robot_subassemblies) cfg.robot_subassemblies = {};
+            if (!cfg.robot_mer_fields) cfg.robot_mer_fields = {};
             if (!cfg.station_subassemblies) cfg.station_subassemblies = {};
             if (!Array.isArray(cfg.station_types)) cfg.station_types = [];
             if (!Array.isArray(cfg.tops)) cfg.tops = [];
@@ -618,11 +674,25 @@
             }
         }
 
-        // Validation partagée entre composants et sous-ensembles
+        // Jeton de condition dérivé d'un top (ex. "LB" -> "TOP_LB").
+        function topToken(abbr) {
+            if (!abbr) return '';
+            const clean = String(abbr).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            return clean ? 'TOP_' + clean : '';
+        }
+
+        // Jetons acceptés dans les formules : options du robot + tops disponibles.
+        function validConditionTokens() {
+            const opts = (localConfig.robot_options[currentEditingRobotCode] || []).map(o => o.id);
+            const tops = (localConfig.tops || []).map(t => topToken(t.abbr)).filter(Boolean);
+            return opts.concat(tops);
+        }
+
+        // Validation partagée entre composants, sous-ensembles et champs MER
         function applyLogicFeedback(inputEl, statusEl, emptyLabel) {
             if (!inputEl || !statusEl) return;
-            const rOpts = (localConfig.robot_options[currentEditingRobotCode] || []).map(o => o.id);
-            const result = validateExpression(inputEl.value, rOpts);
+            const result = validateExpression(inputEl.value, validConditionTokens());
             const base = inputEl.className.replace(/\s*logic-(valid|invalid)/g, '');
             if (result.valid) {
                 inputEl.className = base + " logic-valid";
@@ -638,6 +708,11 @@
         function handleLogicKeyup(inputEl, idx) {
             applyLogicFeedback(inputEl, document.getElementById(`logic-status-${idx}`),
                 "Toujours visible (Composant de Base)");
+        }
+
+        function handleMerLogicKeyup(inputEl, idx) {
+            applyLogicFeedback(inputEl, document.getElementById(`merlogic-status-${idx}`),
+                "Toujours demandé");
         }
 
         function handleSubLogicKeyup(inputEl, idx) {
@@ -756,6 +831,7 @@
             localConfig.robot_options[newCode] = [];
             localConfig.robot_components[newCode] = [];
             localConfig.robot_subassemblies[newCode] = [];
+            localConfig.robot_mer_fields[newCode] = [];
 
             renderRobotTabs();
             renderRobotsList();
@@ -771,6 +847,7 @@
             delete localConfig.robot_options[code];
             delete localConfig.robot_components[code];
             delete localConfig.robot_subassemblies[code];
+            delete localConfig.robot_mer_fields[code];
 
             if (currentEditingRobotCode === code) {
                 currentEditingRobotCode = '';
@@ -855,6 +932,9 @@
 
             // 4. Sous-ensembles
             renderDynamicSubassemblies();
+
+            // 5. Champs MER
+            renderDynamicMerFields();
         }
 
         // Catégories de sous-ensembles : uniquement Partie haute / Partie basse
@@ -902,6 +982,56 @@
                 tbody.appendChild(row);
                 handleSubLogicKeyup(row.querySelector(`.sub-opt-${idx}`), idx);
             });
+        }
+
+        function renderDynamicMerFields() {
+            const tbody = document.getElementById('dynMerFieldsTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const fields = localConfig.robot_mer_fields[currentEditingRobotCode] || [];
+            if (fields.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="color: var(--slate-400); font-style: italic; padding: 1.5rem; text-align: center;">Aucun champ MER défini pour ce robot.</td></tr>`;
+                return;
+            }
+
+            fields.forEach((f, idx) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="text" value="${f.id || ''}" class="mer-id-${idx} font-code" style="text-transform: uppercase;"></td>
+                    <td><input type="text" value="${f.label || ''}" class="mer-label-${idx}"></td>
+                    <td>
+                        <div class="logic-input-wrapper">
+                            <input type="text" value="${f.option || ''}"
+                                   class="mer-opt-${idx} font-code logic-input"
+                                   placeholder="Optionnel"
+                                   onkeyup="handleMerLogicKeyup(this, ${idx})">
+                            <div id="merlogic-status-${idx}" class="logic-feedback"></div>
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <button onclick="removeDynamicMerField(${idx})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+                handleMerLogicKeyup(row.querySelector(`.mer-opt-${idx}`), idx);
+            });
+        }
+
+        function addDynamicMerField() {
+            collectCurrentViewData();
+            if (!localConfig.robot_mer_fields[currentEditingRobotCode]) localConfig.robot_mer_fields[currentEditingRobotCode] = [];
+            const n = localConfig.robot_mer_fields[currentEditingRobotCode].length + 1;
+            localConfig.robot_mer_fields[currentEditingRobotCode].push({
+                "id": `CHAMP_${n}`, "label": "Nouveau champ", "option": ""
+            });
+            renderRobotDynamicConfig();
+        }
+
+        function removeDynamicMerField(idx) {
+            collectCurrentViewData();
+            localConfig.robot_mer_fields[currentEditingRobotCode].splice(idx, 1);
+            renderRobotDynamicConfig();
         }
 
         function addDynamicRobotOption() {
@@ -1152,7 +1282,7 @@
                         robot.color = colorInput.value.trim().toUpperCase();
 
                         if (oldCode !== newCode) {
-                            ['robot_versions', 'robot_options', 'robot_components', 'robot_subassemblies'].forEach(key => {
+                            ['robot_versions', 'robot_options', 'robot_components', 'robot_subassemblies', 'robot_mer_fields'].forEach(key => {
                                 if (localConfig[key][oldCode]) {
                                     localConfig[key][newCode] = localConfig[key][oldCode];
                                     delete localConfig[key][oldCode];
@@ -1186,6 +1316,17 @@
                         comp.ref = refInp.value.trim();
                         comp.designation = desigInp.value.trim();
                         comp.option = optInp.value.trim();
+                    }
+                });
+
+                (localConfig.robot_mer_fields[code] || []).forEach((f, idx) => {
+                    const idInp = document.querySelector(`.mer-id-${idx}`);
+                    const labelInp = document.querySelector(`.mer-label-${idx}`);
+                    const optInp = document.querySelector(`.mer-opt-${idx}`);
+                    if (idInp && labelInp && optInp) {
+                        f.id = idInp.value.trim().toUpperCase();
+                        f.label = labelInp.value.trim();
+                        f.option = optInp.value.trim();
                     }
                 });
 
