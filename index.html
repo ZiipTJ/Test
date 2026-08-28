@@ -1314,6 +1314,8 @@
         let dataVersion = 0;
         let saving = false;
         let pendingSave = false;
+        let saveBlocked = false;      // interdit toute écriture (fichier illisible)
+        let lastCorruptRaw = null;    // contenu brut illisible, conservé pour secours
         let saveTimer = null;
         let syncTimer = null;
 
@@ -1364,10 +1366,10 @@
                 await idbSet('backups', null, { ts: Date.now(), data: content });
                 const all = await idbGetAllBackups();
                 all.sort((a, b) => b.ts - a.ts);
-                // On ne conserve que les 20 dernières sauvegardes locales
+                // On ne conserve que les 50 dernières sauvegardes locales
                 const db = await idbOpen();
                 const tx = db.transaction('backups', 'readwrite');
-                all.slice(20).forEach(b => tx.objectStore('backups').delete(b.ts));
+                all.slice(50).forEach(b => tx.objectStore('backups').delete(b.ts));
             } catch (e) { /* silencieux */ }
         }
         async function getLatestBackup() {
@@ -1394,12 +1396,16 @@
         async function readDataFile() {
             // Retourne l'objet parsé, {version,elements} vide si fichier vide,
             // ou null si le contenu est illisible/corrompu.
+            lastCorruptRaw = null;
             try {
                 const file = await dataHandle.getFile();
                 const text = (await file.text()).trim();
-                if (!text) return { version: 0, elements: [] };
+                if (!text) return { version: 0, elements: [] };   // fichier neuf, réellement vide
                 const parsed = JSON.parse(text);
-                if (!parsed || !Array.isArray(parsed.elements)) return { version: 0, elements: [] };
+                if (!parsed || !Array.isArray(parsed.elements)) {
+                    lastCorruptRaw = text;
+                    return null;                                  // forme inattendue = suspect, jamais "vide"
+                }
                 return parsed;
             } catch (e) {
                 return null;
@@ -1421,20 +1427,31 @@
         async function initialLoadData() {
             const disk = await readDataFile();
             if (disk === null) {
+                // Le contenu illisible est archivé avant toute autre action.
+                if (lastCorruptRaw) await pushBackup(lastCorruptRaw);
+
                 const bk = await getLatestBackup();
-                if (bk && confirm("Le fichier de données est illisible ou corrompu. Restaurer la dernière sauvegarde locale de secours ?")) {
+                if (bk && confirm("Le fichier de données est illisible ou corrompu.\n\nRestaurer la dernière sauvegarde locale de secours ?")) {
                     try {
                         const parsed = JSON.parse(bk);
                         elements = Array.isArray(parsed.elements) ? parsed.elements : [];
                         dataVersion = parsed.version || 0;
-                    } catch (e) { elements = []; dataVersion = 0; }
+                        saveBlocked = false;
+                    } catch (e) {
+                        elements = []; dataVersion = 0; saveBlocked = true;
+                    }
                 } else {
-                    // On n'écrase rien automatiquement : on démarre à vide,
-                    // la prochaine sauvegarde fusionnera avec le disque relu.
+                    // Refuser la restauration ne doit JAMAIS conduire à écraser
+                    // le fichier : on passe en lecture seule.
                     elements = [];
                     dataVersion = 0;
+                    saveBlocked = true;
+                    alert("LECTURE SEULE\n\nLe fichier de données est illisible et n'a pas été restauré.\n"
+                        + "Aucune écriture ne sera faite sur data.json : son contenu actuel est préservé.\n\n"
+                        + "Réparez ou remplacez le fichier, puis reconnectez-vous.");
                 }
             } else {
+                saveBlocked = false;
                 elements = disk.elements;
                 dataVersion = disk.version || 0;
             }
@@ -1444,19 +1461,29 @@
         // --- Sauvegarde atomique + fusion ---
         async function saveData() {
             if (!dataHandle) return;
+            if (saveBlocked) { setSync('err', 'Lecture seule — fichier illisible'); return; }
             if (saving) { pendingSave = true; return; }
             saving = true;
             setSync('saving', 'Sauvegarde…');
             try {
                 const disk = await readDataFile();
-                let diskElements = [];
-                let diskVersion = 0;
-                if (disk && Array.isArray(disk.elements)) {
-                    diskElements = disk.elements;
-                    diskVersion = disk.version || 0;
-                    // Sauvegarde de secours de l'état disque AVANT écrasement
-                    await pushBackup(JSON.stringify(disk));
+
+                // Garde-fou : ne jamais écrire par-dessus un fichier qu'on n'a
+                // pas su relire. Sans quoi un contenu illisible serait remplacé
+                // par les données en mémoire, potentiellement vides.
+                if (disk === null) {
+                    saveBlocked = true;
+                    if (lastCorruptRaw) await pushBackup(lastCorruptRaw);
+                    setSync('err', 'Écriture bloquée — fichier illisible');
+                    console.error('data.json illisible : écriture annulée pour préserver son contenu.');
+                    return;
                 }
+
+                const diskElements = disk.elements;
+                const diskVersion = disk.version || 0;
+                // Sauvegarde de secours de l'état disque AVANT écrasement
+                await pushBackup(JSON.stringify(disk));
+
                 // Fusion : le disque sert de base, nos éléments récents gagnent
                 elements = mergeElements(diskElements, elements);
                 dataVersion = Math.max(diskVersion, dataVersion) + 1;
@@ -1631,9 +1658,10 @@
             hideOverlay();
             initApp();
             startAutoSync();
-            setSync('ok', 'Connecté');
-            // Première sauvegarde pour matérialiser la fusion sur le disque
-            scheduleSave();
+            // Aucune écriture à la connexion : tant que rien n'a été modifié,
+            // il n'y a rien à sauvegarder, et donc rien à risquer.
+            setSync(saveBlocked ? 'err' : 'ok',
+                    saveBlocked ? 'Lecture seule — fichier illisible' : 'Connecté');
         }
 
         async function boot() {
