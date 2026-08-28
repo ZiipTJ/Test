@@ -423,8 +423,7 @@
                         <div id="dataStatus" class="connect-status">Aucun fichier sélectionné</div>
                     </div>
                     <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
-                        <button onclick="pickData(false)" class="btn-blue">Ouvrir data.json</button>
-                        <button onclick="pickData(true)" class="btn-gray">Créer…</button>
+                        <button onclick="pickData()" class="btn-blue">Ouvrir data.json</button>
                     </div>
                 </div>
                 <button id="connectStartBtn" onclick="startFromSetup()" class="btn-primary connect-main-btn" disabled>Ouvrir le logiciel</button>
@@ -1601,22 +1600,14 @@
             } catch (e) { /* annulé */ }
         }
 
-        async function pickData(create) {
+        // Sélection du fichier de données : ouverture uniquement. Aucune
+        // création ici — écrire un fichier vide sur une cible choisie à la
+        // souris est un moyen trop facile d'effacer un data.json existant.
+        async function pickData() {
             try {
-                let h;
-                if (create) {
-                    h = await window.showSaveFilePicker({
-                        suggestedName: 'data.json',
-                        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
-                    });
-                    const w = await h.createWritable();
-                    await w.write(JSON.stringify({ version: 0, updatedAt: new Date().toISOString(), elements: [] }, null, 2));
-                    await w.close();
-                } else {
-                    [h] = await window.showOpenFilePicker({
-                        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
-                    });
-                }
+                const [h] = await window.showOpenFilePicker({
+                    types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+                });
                 tempDataHandle = h;
                 document.getElementById('dataStatus').textContent = h.name;
                 document.getElementById('dataStatus').classList.add('ok');
