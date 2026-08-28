@@ -1455,6 +1455,13 @@ function rowAction(a) {
 // ══════════════════════════════════════════
 // VIEW: STATS
 // ══════════════════════════════════════════
+function toggleStatsMer() {
+  statsMerScope = (statsMerScope === 'mer' ? 'tous' : 'mer');
+  // Le périmètre MER est à part : le filtre par type (NC / Réclamation client) ne s'applique pas
+  if (statsMerScope === 'mer') statsFilter.ncType = 'tous';
+  render();
+}
+
 function renderStats(el) {
   let data = [...ncs];
   let actions = getAllUniqueActions();
@@ -1533,13 +1540,13 @@ function renderStats(el) {
         <div class="page-sub">${merOn ? 'Périmètre : NC détectées lors de la MER uniquement' : 'Tableau de bord qualité global (MER incluse)'}</div>
       </div>
       <div class="page-actions" style="flex-wrap:wrap;justify-content:flex-end;">
-        <button class="btn ${merOn?'btn-indigo':'btn-ghost'}" onclick="statsMerScope = (statsMerScope==='mer' ? 'tous' : 'mer'); render()" title="Afficher uniquement les NC détectées lors de la mise en route">
+        <button class="btn ${merOn?'btn-indigo':'btn-ghost'}" onclick="toggleStatsMer()" title="Afficher uniquement les NC détectées lors de la mise en route">
           <svg class="lucide" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
           NC détectées en MER
           <span style="font-family:var(--mono);font-size:10px;font-weight:700;background:${merOn?'rgba(255,255,255,.25)':'var(--border)'};color:${merOn?'#fff':'var(--text2)'};border-radius:99px;padding:1px 6px">${nbMerGlobal}</span>
         </button>
-        <select class="select-styled" onchange="statsFilter.ncType=this.value;render()">
-          <option value="tous">Tous les types</option>
+        <select class="select-styled" onchange="statsFilter.ncType=this.value;render()" ${merOn ? 'disabled title="Périmètre MER actif : les types NC / Réclamation client ne s\'appliquent pas" style="opacity:.45;cursor:not-allowed;background-color:var(--surface2)"' : ''}>
+          <option value="tous">${merOn ? 'Types désactivés (MER)' : 'Tous les types'}</option>
           ${availTypes.map(t=>`<option value="${t}" ${statsFilter.ncType===t?'selected':''}>${t}</option>`).join('')}
         </select>
         <select class="select-styled" onchange="statsFilter.period=this.value;render()">
@@ -2199,7 +2206,7 @@ function openCreateModal(mer) {
               </div>
               <div class="form-group"><label>N° Robot</label><input type="text" id="c-rnum" placeholder="350" inputmode="numeric" maxlength="3" pattern="^[0-9]{3}$" title="3 chiffres (ex : 350)" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="form-input"></div>
               <div class="form-group" id="c-rtop-wrap" style="display:none"><label>Top</label><input type="text" id="c-rtop" placeholder="T3…" class="form-input"></div>
-              <div class="form-group"><label>Version HW</label><input type="text" id="c-rhw" placeholder="HW2.4" class="form-input"></div>
+              <div class="form-group"><label>Version HW</label><input type="text" id="c-rhw" placeholder="Ex: 3.6.0" class="form-input"></div>
             </div>
           </div>
         </section>
@@ -2214,7 +2221,7 @@ function openCreateModal(mer) {
               <div class="form-group"><label>N° OPP</label><input type="text" id="c-opp" placeholder="Ex: OPP25-05673" class="form-input" style="border-color:#fed7aa;"></div>
               <div class="form-group"><label>N° Projet <span style="color:#ef4444">*</span></label><input type="text" id="c-proj" placeholder="Ex: PR2504934" class="form-input" style="border-color:#fed7aa;"></div>
               <div class="form-group"><label>N° Projet Réc.</label><input type="text" id="c-rec" class="form-input" style="border-color:#fed7aa;"></div>
-              <div class="form-group"><label>Recette associée <span style="color:#9ca3af;font-weight:400;font-size:10px;text-transform:none;">(optionnel)</span></label><input type="text" id="c-recette" placeholder="Ex: REC-2025-014" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>Recette associée <span style="color:#9ca3af;font-weight:400;font-size:10px;text-transform:none;">(optionnel)</span></label><input type="text" id="c-recette" placeholder="Ex: RE2612454" oninput="this.value=this.value.toUpperCase()" class="form-input" style="border-color:#fed7aa; font-family:var(--mono);"></div>
               <div class="form-group"><label>Coût (€) <span style="color:#9ca3af;font-weight:400;font-size:10px;text-transform:none;">(optionnel)</span></label><input type="text" id="c-cout" placeholder="0,00" pattern="^[0-9]+([,\.][0-9]+)?$" class="form-input text-right" style="border-color:#fed7aa; font-weight:500;"></div>
             </div>
           </div>
@@ -2472,7 +2479,7 @@ function openEditModal(ncId) {
               <div class="form-group"><label>N° Robot</label><input type="text" id="e-rnum" value="${nc.numRobot||''}" class="form-input"></div>
               <div class="form-group"><label>Type robot</label><input type="text" id="e-rtype" value="${nc.typeRobot||''}" oninput="this.value=this.value.toUpperCase()" class="form-input"></div>
               <div class="form-group"><label>Top</label><input type="text" id="e-rtop" value="${nc.topRobot||''}" class="form-input"></div>
-              <div class="form-group"><label>Version HW</label><input type="text" id="e-rhw" value="${nc.versionHW||''}" class="form-input"></div>
+              <div class="form-group"><label>Version HW</label><input type="text" id="e-rhw" value="${nc.versionHW||''}" placeholder="Ex: 3.6.0" class="form-input"></div>
             </div>
           </div>
         </section>
@@ -2487,7 +2494,7 @@ function openEditModal(ncId) {
               <div class="form-group"><label>N° OPP</label><input type="text" id="e-opp" value="${nc.numOPP||''}" class="form-input" style="border-color:#fed7aa;"></div>
               <div class="form-group"><label>N° Projet</label><input type="text" id="e-proj" value="${nc.numProjet||''}" class="form-input" style="border-color:#fed7aa;"></div>
               <div class="form-group"><label>N° Projet Réc.</label><input type="text" id="e-rec" value="${nc.projetRec||''}" class="form-input" style="border-color:#fed7aa;"></div>
-              <div class="form-group"><label>Recette associée <span style="color:#9ca3af;font-weight:400;font-size:10px;text-transform:none;">(optionnel)</span></label><input type="text" id="e-recette" value="${esc(nc.recette||'')}" class="form-input" style="border-color:#fed7aa;"></div>
+              <div class="form-group"><label>Recette associée <span style="color:#9ca3af;font-weight:400;font-size:10px;text-transform:none;">(optionnel)</span></label><input type="text" id="e-recette" value="${esc(nc.recette||'')}" placeholder="Ex: RE2612454" oninput="this.value=this.value.toUpperCase()" class="form-input" style="border-color:#fed7aa; font-family:var(--mono);"></div>
               <div class="form-group"><label>Coût (€)</label><input type="text" id="e-cout" value="${coutVal}" pattern="^[0-9]+([,\.][0-9]+)?$" class="form-input text-right" style="border-color:#fed7aa; font-weight:500;"></div>
             </div>
           </div>
@@ -2960,6 +2967,7 @@ function fmtDatePlain(s) {
   return `${dd}/${m}/${y}${t?' '+t.slice(0,5):''}`;
 }
 const RC_FIELD_LABELS = { numOPP: 'N° OPP', projetRec: 'Projet Rec.', recette: 'Recette associée' };
+const RC_FIELD_PLACEHOLDERS = { numOPP: 'Ex: OPP25-05673', projetRec: 'Ex: PR2504934', recette: 'Ex: RE2612454' };
 function rcRow(ncId, field, label, value) {
   return `<div class="erp-tech-row" id="rcrow-${field}">
     <span class="erp-tech-lbl">${label}</span>
@@ -2979,7 +2987,7 @@ function toggleRCEdit(ncId, field) {
   row.innerHTML = `
     <span class="erp-tech-lbl">${label}</span>
     <span style="display:flex; align-items:center; gap:6px;">
-      <input type="text" id="rcedit-${field}" value="${esc(nc[field]||'')}" class="form-input" style="height:26px; font-size:12px; padding:2px 6px; width:150px;" onkeydown="if(event.key==='Enter'){saveRCField('${ncId}','${field}')}if(event.key==='Escape'){openNCDetail('${ncId}')}">
+      <input type="text" id="rcedit-${field}" value="${esc(nc[field]||'')}" placeholder="${RC_FIELD_PLACEHOLDERS[field]||''}" oninput="this.value=this.value.toUpperCase()" class="form-input" style="height:26px; font-size:12px; padding:2px 6px; width:150px; font-family:var(--mono);" onkeydown="if(event.key==='Enter'){saveRCField('${ncId}','${field}')}if(event.key==='Escape'){openNCDetail('${ncId}')}">
       <button type="button" class="erp-btn erp-btn-ghost" style="padding:2px 6px; box-shadow:none;" onclick="saveRCField('${ncId}','${field}')" title="Enregistrer">
         <svg class="lucide" viewBox="0 0 24 24" style="width:14px;height:14px; color:var(--accent);"><polyline points="20 6 9 17 4 12"/></svg>
       </button>
