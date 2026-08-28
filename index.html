@@ -3204,25 +3204,31 @@
                 card.style.borderLeftColor = elementColor;
                 card.onclick = () => selectElement(el.id);
 
+                // Ligne 1 : numéro + statut à gauche, compteurs à droite.
+                // Le client prend sa propre ligne et se tronque si nécessaire,
+                // sinon un nom long fait exploser la hauteur de la tuile.
+                const subtitle = el.objectType === 'station'
+                    ? `${el.typeName || 'Station'} - PR${el.projectNum}`
+                    : `Sherpa ${el.type || ''}${el.hardVersion ? ' – ' + el.hardVersion : ''} - PR${el.projectNum}`;
+
                 card.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem;">
-                                <span style="font-size: 0.875rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
-                                    ${numberLabel} ${statusTagHtml(el)}
-                                </span>
-                                <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569;">${el.client}</span>
-                            </div>
-                            <div style="font-size: 0.8125rem; font-weight: 500; color: #1e293b; margin-top: 0.125rem;">
-                                Sherpa ${el.type || ''} ${el.hardVersion ? ' – ' + el.hardVersion : ''} - PR${el.projectNum}
-                            </div>
-                            ${leftOptionsInfo}
-                        </div>
-                        <span style="display: flex; gap: 0.3rem; margin-left: 0.75rem; flex-shrink: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+                        <span style="font-size: 0.875rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0;">
+                            <span style="white-space: nowrap;">${numberLabel}</span>
+                            ${statusTagHtml(el)}
+                        </span>
+                        <span style="display: flex; gap: 0.3rem; flex-shrink: 0;">
                             <span class="count-pill count-sn" title="Numéros de série scannés">${bomDone}/${bomItems.length}</span>
                             ${subs.length ? `<span class="count-pill count-sub" title="Sous-ensembles réalisés">${subDone}/${subs.length}</span>` : ''}
                         </span>
                     </div>
+                    <div title="${escapeHtml(el.client || '')}" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569; margin-top: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${escapeHtml(el.client || '')}
+                    </div>
+                    <div style="font-size: 0.8125rem; font-weight: 500; color: #1e293b; margin-top: 0.125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${escapeHtml(subtitle)}
+                    </div>
+                    ${leftOptionsInfo}
                     <div style="margin-top: 0.5rem; width: 100%; background-color: #e2e8f0; height: 4px; border-radius: 9999px; overflow: hidden;">
                         <div style="height: 100%; background-color: ${scannedCount === total ? '#10b981' : '#94a3b8'}; width: ${percentage}%"></div>
                     </div>
