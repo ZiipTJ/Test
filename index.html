@@ -495,11 +495,11 @@
                     <form onsubmit="handleCreateRobot(event)" style="display: flex; flex-direction: column; gap: 1.5rem;">
                         <div class="form-grid">
                             <div class="form-group">
-                                <label>* N° <span id="robotRangeHint" style="font-weight: 400; color: #64748b;"></span></label>
+                                <label>* N°</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input id="formNum" type="number" placeholder="" style="flex: 1;" oninput="updateRobotRangeHint()">
+                                    <input id="formNum" type="number" placeholder="" style="flex: 1;" oninput="updateRobotBatchNumbers(true)">
                                     <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">×</span>
-                                    <input id="formQty" type="number" min="1" max="50" value="1" title="Nombre de robots à créer" style="width: 4.5rem; text-align: center;" oninput="updateRobotRangeHint()">
+                                    <input id="formQty" type="number" min="1" max="50" value="1" title="Nombre de robots à créer" style="width: 4.5rem; text-align: center;" oninput="updateRobotBatchNumbers(false)">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -514,6 +514,13 @@
                                     <option value="">Sélectionnez un top...</option>
                                 </select>
                             </div>
+                        </div>
+
+                        <div id="robotBatchNumbers" class="hidden">
+                            <label>Numéros du lot
+                                <span style="font-weight: 400; color: #64748b;">— proposés à la suite, modifiables un par un</span>
+                            </label>
+                            <div id="robotBatchInputs" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.4rem;"></div>
                         </div>
 
                         <div class="form-grid">
@@ -1438,12 +1445,56 @@
             return Math.min(v, 50);
         }
 
-        function updateRobotRangeHint() {
-            const hint = document.getElementById('robotRangeHint');
-            if (!hint) return;
+        // Prochain numéro de robot libre (le plus grand utilisé + 1).
+        function nextRobotNumber() {
+            let max = 0;
+            elements.forEach(el => {
+                if (el.objectType !== 'robot') return;
+                const v = parseInt(el.num);
+                if (!isNaN(v) && v > max) max = v;
+            });
+            return max + 1;
+        }
+
+        // Liste éditable des numéros du lot. Les valeurs sont proposées à la
+        // suite, mais chacune reste modifiable : un numéro déjà pris au milieu
+        // d'une série ne doit pas obliger à créer les robots un par un.
+        //   resetFromStart = true  -> on repart de la valeur du champ N°
+        //   resetFromStart = false -> on conserve les saisies, on complète après
+        function updateRobotBatchNumbers(resetFromStart) {
+            const wrap = document.getElementById('robotBatchNumbers');
+            const box = document.getElementById('robotBatchInputs');
+            if (!wrap || !box) return;
+
             const start = parseInt(document.getElementById('formNum').value);
             const qty = readQty('formQty');
-            hint.textContent = (!isNaN(start) && qty > 1) ? `→ ${start} à ${start + qty - 1}` : '';
+
+            if (qty <= 1 || isNaN(start)) {
+                wrap.classList.add('hidden');
+                box.innerHTML = '';
+                return;
+            }
+
+            const anciennes = resetFromStart
+                ? []
+                : Array.from(box.querySelectorAll('input')).map(i => i.value.trim());
+
+            let html = '';
+            for (let i = 0; i < qty; i++) {
+                let v;
+                if (anciennes[i] !== undefined && anciennes[i] !== '') {
+                    v = anciennes[i];
+                } else if (anciennes.length > 0) {
+                    // Quantité augmentée : on poursuit après le dernier saisi.
+                    const dernier = parseInt(anciennes[anciennes.length - 1]);
+                    v = String((isNaN(dernier) ? start : dernier) + (i - anciennes.length + 1));
+                } else {
+                    v = String(start + i);
+                }
+                html += `<input type="number" class="batch-num" value="${v}" style="width: 5.5rem; text-align: center;">`;
+            }
+            box.innerHTML = html;
+            wrap.classList.remove('hidden');
         }
 
         function newLineId() {
@@ -1872,7 +1923,8 @@
             document.getElementById('formOperator').value = '';
             document.getElementById('formRemarks').value = '';
             document.getElementById('formQty').value = '1';
-            updateRobotRangeHint();
+            document.getElementById('formNum').value = nextRobotNumber();
+            updateRobotBatchNumbers(true);
             document.getElementById('optionsDynamicContainer').innerHTML = '<div style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Choisissez d\'abord un type de robot.</div>';
         }
 
@@ -3202,17 +3254,31 @@
 
             if (!num || !type || !client || !projectNum || !operator) { alert("Champs obligatoires manquants."); return; }
 
-            const startNum = parseInt(num);
-            if (isNaN(startNum)) { alert("Le numéro doit être un nombre."); return; }
             const qty = readQty('formQty');
 
-            // La plage entière est vérifiée AVANT toute création : on ne veut pas
-            // d'un lot à moitié créé qui s'arrête sur un numéro déjà pris.
-            const conflits = [];
-            for (let i = 0; i < qty; i++) {
-                const n = String(startNum + i);
-                if (elements.some(el => el.objectType === 'robot' && el.num === n)) conflits.push(n);
+            // Au-delà d'un exemplaire, ce sont les numéros de la liste éditable
+            // qui font foi, pas une simple plage.
+            let numeros;
+            if (qty > 1) {
+                numeros = Array.from(document.querySelectorAll('#robotBatchInputs input'))
+                    .map(i => i.value.trim());
+            } else {
+                numeros = [num];
             }
+
+            if (numeros.length !== qty || numeros.some(v => v === '' || isNaN(parseInt(v)))) {
+                alert("Tous les numéros du lot doivent être renseignés."); return;
+            }
+            numeros = numeros.map(v => String(parseInt(v)));
+
+            // Tout est vérifié AVANT la moindre création : ni doublon interne au
+            // lot, ni collision avec un robot existant.
+            const doublons = [...new Set(numeros.filter((v, i) => numeros.indexOf(v) !== i))];
+            if (doublons.length) {
+                alert(`Numéro(s) en double dans le lot : ${doublons.join(', ')}.\n\nAucun robot n'a été créé.`);
+                return;
+            }
+            const conflits = numeros.filter(v => elements.some(el => el.objectType === 'robot' && el.num === v));
             if (conflits.length) {
                 alert(`Numéro(s) de robot déjà utilisé(s) : ${conflits.join(', ')}.\n\nAucun robot n'a été créé.`);
                 return;
@@ -3254,7 +3320,7 @@
             let firstId = null;
 
             for (let i = 0; i < qty; i++) {
-                const n = String(startNum + i);
+                const n = numeros[i];
                 const displayName = topSelected ? `${type} ${topSelected.abbr} ${n}` : `${type} ${n}`;
                 const id = newElementId('R');
                 if (!firstId) firstId = id;
@@ -3274,7 +3340,7 @@
 
             selectElement(firstId);
             scheduleSave();
-            if (qty > 1) alert(`${qty} robots créés : ${type} ${startNum} à ${startNum + qty - 1}.`);
+            if (qty > 1) alert(`${qty} robots créés : ${type} ${numeros.join(', ')}.`);
         }
 
         function handleCreateStation(e) {
