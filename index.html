@@ -495,8 +495,12 @@
                     <form onsubmit="handleCreateRobot(event)" style="display: flex; flex-direction: column; gap: 1.5rem;">
                         <div class="form-grid">
                             <div class="form-group">
-                                <label>* N°</label>
-                                <input id="formNum" type="number" placeholder="">
+                                <label>* N° <span id="robotRangeHint" style="font-weight: 400; color: #64748b;"></span></label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input id="formNum" type="number" placeholder="" style="flex: 1;" oninput="updateRobotRangeHint()">
+                                    <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">×</span>
+                                    <input id="formQty" type="number" min="1" max="50" value="1" title="Nombre de robots à créer" style="width: 4.5rem; text-align: center;" oninput="updateRobotRangeHint()">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label>* Type du robot</label>
@@ -587,9 +591,13 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Prochain Numéro Attribué</label>
-                                <div style="padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 700; font-size: 0.875rem;" id="lblStationExample">
-                                    --
+                                <label>Numéro(s) Attribué(s)</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <div style="flex: 1; padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 700; font-size: 0.875rem;" id="lblStationExample">
+                                        --
+                                    </div>
+                                    <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">×</span>
+                                    <input id="formStationQty" type="number" min="1" max="50" value="1" title="Nombre de stations à créer" style="width: 4.5rem; text-align: center;" oninput="updateStationNextNumberLabel()">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -1418,6 +1426,26 @@
         //  séparément, et au sein d'une ligne le S/N et la charge batterie
         //  sont arbitrés indépendamment l'un de l'autre.
         // ====================================================================
+        // Identifiant de dossier unique, y compris au sein d'une même
+        // milliseconde (création par lot).
+        function newElementId(prefix) {
+            return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        }
+
+        function readQty(inputId) {
+            const v = parseInt(document.getElementById(inputId).value);
+            if (isNaN(v) || v < 1) return 1;
+            return Math.min(v, 50);
+        }
+
+        function updateRobotRangeHint() {
+            const hint = document.getElementById('robotRangeHint');
+            if (!hint) return;
+            const start = parseInt(document.getElementById('formNum').value);
+            const qty = readQty('formQty');
+            hint.textContent = (!isNaN(start) && qty > 1) ? `→ ${start} à ${start + qty - 1}` : '';
+        }
+
         function newLineId() {
             return 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
         }
@@ -1843,6 +1871,8 @@
             document.getElementById('lblMinHeight').textContent = '-- mm';
             document.getElementById('formOperator').value = '';
             document.getElementById('formRemarks').value = '';
+            document.getElementById('formQty').value = '1';
+            updateRobotRangeHint();
             document.getElementById('optionsDynamicContainer').innerHTML = '<div style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Choisissez d\'abord un type de robot.</div>';
         }
 
@@ -1852,6 +1882,7 @@
             document.getElementById('formStationProjectNum').value = '';
             document.getElementById('formStationOperator').value = '';
             document.getElementById('formStationRemarks').value = '';
+            document.getElementById('formStationQty').value = '1';
         }
 
         function resetEnvoiForm() {
@@ -1928,7 +1959,10 @@
             if (!exEl) return;
             if (!code) { exEl.textContent = '--'; return; }
             const nextNum = getNextStationNumber(code);
-            exEl.textContent = stationDisplayName(code, nextNum);
+            const qty = readQty('formStationQty');
+            exEl.textContent = qty > 1
+                ? `${stationDisplayName(code, nextNum)} → ${stationDisplayName(code, nextNum + qty - 1)}`
+                : stationDisplayName(code, nextNum);
         }
 
         function setCreationType(type) {
@@ -3168,13 +3202,23 @@
 
             if (!num || !type || !client || !projectNum || !operator) { alert("Champs obligatoires manquants."); return; }
 
-            if (elements.some(el => el.objectType === 'robot' && el.num === num)) {
-                alert(`Le numéro de robot ${num} existe déjà. Le numéro doit être unique.`); return;
+            const startNum = parseInt(num);
+            if (isNaN(startNum)) { alert("Le numéro doit être un nombre."); return; }
+            const qty = readQty('formQty');
+
+            // La plage entière est vérifiée AVANT toute création : on ne veut pas
+            // d'un lot à moitié créé qui s'arrête sur un numéro déjà pris.
+            const conflits = [];
+            for (let i = 0; i < qty; i++) {
+                const n = String(startNum + i);
+                if (elements.some(el => el.objectType === 'robot' && el.num === n)) conflits.push(n);
+            }
+            if (conflits.length) {
+                alert(`Numéro(s) de robot déjà utilisé(s) : ${conflits.join(', ')}.\n\nAucun robot n'a été créé.`);
+                return;
             }
 
-            let displayName = `${type} ${num}`;
             const topSelected = (type === 'BI' || type === 'BR') ? config.tops.find(t => t.name === topName) : null;
-            if (topSelected) displayName = `${type} ${topSelected.abbr} ${num}`;
 
             const checkedOptionIds = [];
             document.querySelectorAll('#optionsDynamicContainer input[type="checkbox"]:checked').forEach(cb => checkedOptionIds.push(cb.dataset.optid));
@@ -3186,35 +3230,51 @@
                 if (tok) activeTokens.push(tok);
             }
 
-            const bom = [];
-            if (config.robot_components && config.robot_components[type]) {
-                config.robot_components[type].forEach(comp => {
-                    if (comp.option && !evaluateOptionCondition(comp.option, activeTokens)) return;
-                    bom.push({ lid: newLineId(), ref: comp.ref, designation: comp.designation, category: "Base", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
+            // Nomenclature reconstruite pour CHAQUE robot du lot : les objets et
+            // les identifiants de ligne doivent être propres à chacun, sans quoi
+            // scanner une pièce sur l'un la scannerait sur tous.
+            function nouvelleNomenclature() {
+                const bom = [];
+                if (config.robot_components && config.robot_components[type]) {
+                    config.robot_components[type].forEach(comp => {
+                        if (comp.option && !evaluateOptionCondition(comp.option, activeTokens)) return;
+                        bom.push({ lid: newLineId(), ref: comp.ref, designation: comp.designation, category: "Base", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
+                    });
+                }
+                if (topSelected && topSelected.articles) {
+                    const parts = topSelected.articles.split(';');
+                    for (let i = 0; i < parts.length; i += 2) {
+                        if (parts[i] && parts[i+1]) bom.push({ lid: newLineId(), ref: parts[i].trim(), designation: parts[i+1].trim(), category: "Top", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
+                    }
+                }
+                return bom;
+            }
+
+            const optionsList = checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid);
+            let firstId = null;
+
+            for (let i = 0; i < qty; i++) {
+                const n = String(startNum + i);
+                const displayName = topSelected ? `${type} ${topSelected.abbr} ${n}` : `${type} ${n}`;
+                const id = newElementId('R');
+                if (!firstId) firstId = id;
+
+                elements.push({
+                    id, objectType: 'robot', type, num: n, displayName,
+                    client, projectNum, operator, hardVersion: hard, userHeight, remarks,
+                    top: topSelected, optionsList: optionsList.slice(),
+                    bom: nouvelleNomenclature(),
+                    subassemblies: buildSubassemblies(
+                        config.robot_subassemblies ? config.robot_subassemblies[type] : null, activeTokens),
+                    merFields: buildMerFields(
+                        config.robot_mer_fields ? config.robot_mer_fields[type] : null, activeTokens),
+                    createdAt: Date.now(), updatedAt: Date.now()
                 });
             }
 
-            if (topSelected && topSelected.articles) {
-                const subs = topSelected.articles.split(';');
-                for (let i = 0; i < subs.length; i += 2) {
-                    if (subs[i] && subs[i+1]) bom.push({ lid: newLineId(), ref: subs[i].trim(), designation: subs[i+1].trim(), category: "Top", scanned: false, serialNum: "", scanDate: "", scanOperator: "" });
-                }
-            }
-
-            const subassemblies = buildSubassemblies(
-                config.robot_subassemblies ? config.robot_subassemblies[type] : null,
-                activeTokens
-            );
-
-            const merFields = buildMerFields(
-                config.robot_mer_fields ? config.robot_mer_fields[type] : null,
-                activeTokens
-            );
-
-            const id = 'R-' + Date.now();
-            elements.push({ id, objectType: 'robot', type, num, displayName, client, projectNum, operator, hardVersion: hard, userHeight, remarks, top: topSelected, optionsList: checkedOptionIds.map(oid => config.robot_options[type].find(o => o.id === oid)?.label || oid), bom, subassemblies, merFields, createdAt: Date.now(), updatedAt: Date.now() });
-            selectElement(id);
+            selectElement(firstId);
             scheduleSave();
+            if (qty > 1) alert(`${qty} robots créés : ${type} ${startNum} à ${startNum + qty - 1}.`);
         }
 
         function handleCreateStation(e) {
@@ -3227,19 +3287,37 @@
 
             const autoNum = getNextStationNumber(code);
             const selectedType = config.station_types.find(st => st.code === code);
-            const displayName = stationDisplayName(code, autoNum);
 
-            const bom = config.station_base_components ? config.station_base_components.map(comp => ({ lid: newLineId(), ref: comp.ref, designation: comp.designation, category: "Station", scanned: false, serialNum: "", scanDate: "", scanOperator: "" })) : [];
+            const qty = readQty('formStationQty');
 
-            const subassemblies = buildSubassemblies(
-                config.station_subassemblies ? config.station_subassemblies[code] : null,
-                []
-            );
+            // Nomenclature propre à chaque station du lot (identifiants de ligne
+            // distincts), même raison que pour les robots.
+            const nouvelleNomenclature = () => config.station_base_components
+                ? config.station_base_components.map(comp => ({ lid: newLineId(), ref: comp.ref, designation: comp.designation, category: "Station", scanned: false, serialNum: "", scanDate: "", scanOperator: "" }))
+                : [];
 
-            const id = 'S-' + Date.now();
-            elements.push({ id, objectType: 'station', type: code, typeName: selectedType?.name || "Station", color: selectedType?.color || "#64748B", num: autoNum, displayName, client, projectNum, operator, remarks, bom, subassemblies, createdAt: Date.now(), updatedAt: Date.now() });
-            selectElement(id);
+            let firstId = null;
+            for (let i = 0; i < qty; i++) {
+                const num = autoNum + i;
+                const id = newElementId('S');
+                if (!firstId) firstId = id;
+
+                elements.push({
+                    id, objectType: 'station', type: code,
+                    typeName: selectedType?.name || "Station",
+                    color: selectedType?.color || "#64748B",
+                    num, displayName: stationDisplayName(code, num),
+                    client, projectNum, operator, remarks,
+                    bom: nouvelleNomenclature(),
+                    subassemblies: buildSubassemblies(
+                        config.station_subassemblies ? config.station_subassemblies[code] : null, []),
+                    createdAt: Date.now(), updatedAt: Date.now()
+                });
+            }
+
+            selectElement(firstId);
             scheduleSave();
+            if (qty > 1) alert(`${qty} stations créées : ${stationDisplayName(code, autoNum)} à ${stationDisplayName(code, autoNum + qty - 1)}.`);
         }
 
         function handleCreateEnvoi(e) {
