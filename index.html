@@ -344,8 +344,8 @@
             transition: box-shadow var(--transition), border-color var(--transition), background-color var(--transition);
         }
         .project-head::before {
-            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-            background: var(--blue);
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+            background: var(--proj-color, var(--blue));
         }
         .project-head.done::before { background: var(--emerald); }
         .project-head:hover { box-shadow: var(--shadow); border-color: var(--slate-300); }
@@ -377,6 +377,18 @@
             font-size: 0.6875rem; color: var(--slate-400); margin-top: 0.3rem;
         }
         .project-head.done .project-meta { color: var(--emerald-d); font-weight: 700; }
+
+        .deadline-tag {
+            font-size: 0.6875rem; font-weight: 700; padding: 0.1rem 0.45rem;
+            border-radius: 9999px; white-space: nowrap; cursor: pointer;
+            background: var(--slate-100); color: var(--slate-600);
+            transition: background-color var(--transition);
+        }
+        .deadline-tag:hover { background: var(--slate-200); }
+        .deadline-tag.none { color: var(--slate-400); font-weight: 600; font-style: italic; }
+        .deadline-tag.soon { background: #fef3c7; color: #b45309; }
+        .deadline-tag.late { background: #fef2f2; color: #b91c1c; }
+        .deadline-tag.ok   { background: #f0fdf4; color: var(--emerald-d); }
         .project-items { padding-left: 0.5rem; margin-top: 0.5rem; border-left: 2px solid var(--slate-200); }
         .project-tools {
             display: flex; gap: 0.4rem; padding: 0 0.65rem 0.5rem;
@@ -1081,6 +1093,33 @@
         </div>
     </div>
 
+    <div id="projectDeadlineModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3>Échéance du projet</h3>
+            </div>
+            <form onsubmit="handleSaveProjectDeadline(event)">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.1rem;">
+                    <div class="form-group">
+                        <label>Projet</label>
+                        <div id="projDeadlineName" style="padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 700; font-size: 0.875rem;">--</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Semaine butoir</label>
+                        <input id="projWeekInput" type="week" placeholder="">
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.25rem;">
+                            Semaine ISO, celle utilisée en production. Laissez vide pour retirer l'échéance.
+                        </p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeModal('projectDeadlineModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" class="btn-blue">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div id="remarksModal" class="modal hidden">
         <div class="modal-content" style="max-width: 480px;">
             <div class="modal-header">
@@ -1134,6 +1173,58 @@
         let editingIndex = null;
         let shownClosedProjects = new Set();   // projets affichant leurs dossiers clôturés
         let showClosedProjects = false;        // afficher les projets entièrement clôturés
+        let projectsData = {};                 // réglages par projet (échéance…)
+        let activeProjectKey = null;           // projet en cours d'édition
+
+        // Couleur d'identification, dérivée de la clé du projet : elle est donc
+        // stable dans le temps et identique sur tous les postes, sans rien stocker.
+        const PROJECT_COLORS = [
+            '#2563eb', '#7c3aed', '#db2777', '#ea580c', '#0891b2',
+            '#16a34a', '#ca8a04', '#dc2626', '#4f46e5', '#0d9488'
+        ];
+        function projectColor(key) {
+            let h = 0;
+            for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+            return PROJECT_COLORS[h % PROJECT_COLORS.length];
+        }
+
+        // --- Semaines ISO 8601 (celles utilisées en production) ---
+        function isoWeekOf(date) {
+            const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            const day = d.getUTCDay() || 7;
+            d.setUTCDate(d.getUTCDate() + 4 - day);
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            return { year: d.getUTCFullYear(), week: Math.ceil((((d - yearStart) / 86400000) + 1) / 7) };
+        }
+
+        // Lundi de la semaine ISO donnée (le 4 janvier est toujours en S1).
+        function isoWeekStart(year, week) {
+            const jan4 = new Date(Date.UTC(year, 0, 4));
+            const day = jan4.getUTCDay() || 7;
+            const monday = new Date(jan4);
+            monday.setUTCDate(jan4.getUTCDate() - day + 1 + (week - 1) * 7);
+            return monday;
+        }
+
+        // Nombre de semaines entre la semaine courante et l'échéance.
+        function weeksUntil(year, week) {
+            const now = isoWeekOf(new Date());
+            return Math.round((isoWeekStart(year, week) - isoWeekStart(now.year, now.week)) / (7 * 86400000));
+        }
+
+        function getProjectSettings(key) {
+            return projectsData[key] || null;
+        }
+
+        // Fusion des réglages de projet : le plus récent l'emporte, par projet.
+        function mergeProjects(a, b) {
+            const out = Object.assign({}, a || {});
+            Object.keys(b || {}).forEach(k => {
+                const x = out[k], y = b[k];
+                if (!x || (y.updatedAt || 0) >= (x.updatedAt || 0)) out[k] = y;
+            });
+            return out;
+        }
 
         function toggleClosedProjects() {
             showClosedProjects = !showClosedProjects;
@@ -1156,6 +1247,42 @@
 
         function projectKey(el) {
             return normalizeKeyPart(el.projectNum) + '|' + normalizeKeyPart(el.client);
+        }
+
+        function openProjectDeadline(key, label) {
+            activeProjectKey = key;
+            document.getElementById('projDeadlineName').textContent = label;
+            const st = getProjectSettings(key);
+            document.getElementById('projWeekInput').value =
+                (st && st.deadlineYear && st.deadlineWeek)
+                    ? `${st.deadlineYear}-W${String(st.deadlineWeek).padStart(2, '0')}`
+                    : '';
+            document.getElementById('projectDeadlineModal').classList.remove('hidden');
+        }
+
+        function handleSaveProjectDeadline(e) {
+            e.preventDefault();
+            if (!activeProjectKey) { closeModal('projectDeadlineModal'); return; }
+            const raw = document.getElementById('projWeekInput').value.trim();
+
+            if (!raw) {
+                delete projectsData[activeProjectKey];
+            } else {
+                const m = raw.match(/^(\d{4})-W(\d{1,2})$/);
+                if (!m) { alert("Semaine invalide. Format attendu : 2026-W12."); return; }
+                const week = parseInt(m[2]);
+                if (week < 1 || week > 53) { alert("Le numéro de semaine doit être compris entre 1 et 53."); return; }
+                projectsData[activeProjectKey] = {
+                    deadlineYear: parseInt(m[1]),
+                    deadlineWeek: week,
+                    updatedAt: Date.now()
+                };
+            }
+
+            activeProjectKey = null;
+            closeModal('projectDeadlineModal');
+            renderSidebarList();
+            scheduleSave();
         }
 
         function toggleProjectClosed(key) {
@@ -1772,6 +1899,7 @@
             } else {
                 saveBlocked = false;
                 elements = disk.elements;
+                projectsData = disk.projects || {};
                 dataVersion = disk.version || 0;
             }
             elements.forEach(el => { if (!el.updatedAt) el.updatedAt = Date.now(); });
@@ -1805,12 +1933,14 @@
 
                 // Fusion : le disque sert de base, nos éléments récents gagnent
                 elements = mergeElements(diskElements, elements);
+                projectsData = mergeProjects(disk.projects, projectsData);
                 dataVersion = Math.max(diskVersion, dataVersion) + 1;
 
                 const payload = JSON.stringify({
                     version: dataVersion,
                     updatedAt: new Date().toISOString(),
-                    elements
+                    elements,
+                    projects: projectsData
                 }, null, 2);
 
                 const writable = await dataHandle.createWritable();
@@ -1846,12 +1976,13 @@
             if (!dataHandle || saving || isBusy()) return;
             const disk = await readDataFile();
             if (!disk || !Array.isArray(disk.elements)) return;
-            const before = JSON.stringify(elements);
+            const before = JSON.stringify(elements) + JSON.stringify(projectsData);
             elements = mergeElements(disk.elements, elements);
+            projectsData = mergeProjects(disk.projects, projectsData);
             dataVersion = Math.max(dataVersion, disk.version || 0);
             // Rien de nouveau sur le disque : on ne redessine pas l'écran
             // (sinon une saisie en cours dans un champ serait effacée).
-            if (JSON.stringify(elements) === before) return;
+            if (JSON.stringify(elements) + JSON.stringify(projectsData) === before) return;
             renderSidebarList();
             if (activeElementId && getActiveElement()) renderScanTables();
         }
@@ -3694,8 +3825,27 @@
                 const wrap = document.createElement('div');
                 wrap.className = 'project-group';
 
+                // Badge d'échéance : neutre si lointaine, ambre si imminente,
+                // rouge si dépassée. Un projet clôturé n'est plus urgent.
+                const st = getProjectSettings(g.key);
+                let deadlineHtml;
+                if (st && st.deadlineWeek) {
+                    const diff = weeksUntil(st.deadlineYear, st.deadlineWeek);
+                    let cls = 'far', txt;
+                    if (allClosed)      { cls = 'ok';   txt = `S${st.deadlineWeek}`; }
+                    else if (diff < 0)  { cls = 'late'; txt = `S${st.deadlineWeek} · ${-diff} sem. de retard`; }
+                    else if (diff === 0){ cls = 'soon'; txt = `S${st.deadlineWeek} · cette semaine`; }
+                    else if (diff === 1){ cls = 'soon'; txt = `S${st.deadlineWeek} · semaine prochaine`; }
+                    else                { txt = `S${st.deadlineWeek} · dans ${diff} sem.`; }
+                    deadlineHtml = `<span class="deadline-tag ${cls}" title="Échéance : semaine ${st.deadlineWeek} de ${st.deadlineYear}">${txt}</span>`;
+                } else {
+                    deadlineHtml = `<span class="deadline-tag none">Échéance…</span>`;
+                }
+
+                const color = projectColor(g.key);
                 const head = document.createElement('div');
                 head.className = 'project-head' + (open ? ' open' : '') + (allClosed ? ' done' : '');
+                head.style.setProperty('--proj-color', color);
                 head.onclick = () => toggleProject(g.key);
                 head.innerHTML = `
                     <div class="project-row">
@@ -3705,12 +3855,19 @@
                               title="Dossiers clôturés sur le total du projet">${closedCount}/${totalDossiers}</span>
                     </div>
                     <div class="project-client" title="${escapeHtml(g.client)}">${escapeHtml(g.client) || '—'}</div>
-                    <div class="project-bar"><div style="width: ${pct}%; background: ${allClosed ? 'var(--emerald)' : 'var(--blue)'};"></div></div>
+                    <div class="project-bar"><div style="width: ${pct}%; background: ${allClosed ? 'var(--emerald)' : color};"></div></div>
                     <div class="project-meta">
-                        <span>${totalDossiers} dossier${totalDossiers > 1 ? 's' : ''}</span>
-                        <span>${allClosed ? 'Projet clôturé' : closedCount + ' clôturé' + (closedCount > 1 ? 's' : '')}</span>
+                        <span>${totalDossiers} dossier${totalDossiers > 1 ? 's' : ''} · ${allClosed ? 'projet clôturé' : closedCount + ' clôturé' + (closedCount > 1 ? 's' : '')}</span>
+                        ${deadlineHtml}
                     </div>
                 `;
+
+                // Le badge d'échéance ouvre son réglage sans replier le projet.
+                const dl = head.querySelector('.deadline-tag');
+                if (dl) dl.onclick = (ev) => {
+                    ev.stopPropagation();
+                    openProjectDeadline(g.key, (g.projectNum ? 'PR' + g.projectNum : 'Sans projet') + ' — ' + g.client);
+                };
                 wrap.appendChild(head);
 
                 if (open) {
