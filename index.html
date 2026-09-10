@@ -4180,13 +4180,14 @@
             const isClosedProject = (g) => g.items.length > 0 && g.items.every(el => el.closed);
             const closedProjects = [...groups.values()].filter(isClosedProject);
 
-            // Les projets clôturés passent en fin de liste, du plus récemment
-            // clôturé au plus ancien (date de clôture du dernier dossier).
+            // Quand on demande à les voir, les projets clôturés remontent en
+            // tête de liste, du plus récemment clôturé au plus ancien (date de
+            // clôture du dernier dossier). Sinon ils sont de toute façon masqués.
             const closedAtOfProject = (g) =>
                 Math.max(...g.items.map(el => el.closedAt || el.updatedAt || 0));
             const ordered = [...groups.values()].sort((a, b) => {
                 const ac = isClosedProject(a), bc = isClosedProject(b);
-                if (ac !== bc) return ac ? 1 : -1;
+                if (ac !== bc) return ac ? -1 : 1;
                 if (ac && bc) return closedAtOfProject(b) - closedAtOfProject(a);
                 return 0;
             });
