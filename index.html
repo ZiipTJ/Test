@@ -437,6 +437,23 @@
         .closed-toggle:hover { background: var(--slate-200); }
         .closed-toggle.on { background: var(--slate-700); color: #fff; }
 
+        .kpi-tabs {
+            display: flex; flex-wrap: wrap; gap: 0.4rem;
+            margin-bottom: 1.25rem; padding-bottom: 0.6rem;
+            border-bottom: 1px solid var(--slate-200);
+        }
+        .kpi-tab {
+            padding: 0.4rem 0.85rem;
+            font-size: 0.75rem; font-weight: 700;
+            border-radius: 999px;
+            background-color: var(--slate-100);
+            color: var(--slate-600);
+            border: 1px solid var(--slate-200);
+        }
+        .kpi-tab:hover { background-color: var(--slate-200); }
+        .kpi-tab.active {
+            background-color: var(--slate-900); color: #fff; border-color: var(--slate-900);
+        }
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
         .kpi-card {
             background: #fff; border: 1px solid var(--slate-200); border-radius: var(--radius-lg);
@@ -3159,6 +3176,25 @@
         }
 
         // ---- Indicateurs -----------------------------------------------------
+        // Les indicateurs (dossier et généraux) sont découpés en 4 sous-onglets.
+        const KPI_TABS = [
+            { key: 'passage',       label: 'Temps de passage' },
+            { key: 'nomenclatures', label: 'Temps des nomenclatures' },
+            { key: 'mer',           label: 'Temps MER' },
+            { key: 'endurance',     label: 'Temps endurance' }
+        ];
+        let kpiTab = 'passage';         // vue d'un dossier
+        let globalKpiTab = 'passage';   // vue générale
+
+        function kpiTabsHtml(active, handler) {
+            return `<div class="kpi-tabs">` + KPI_TABS.map(t =>
+                `<button type="button" class="kpi-tab${t.key === active ? ' active' : ''}" onclick="${handler}('${t.key}')">${t.label}</button>`
+            ).join('') + `</div>`;
+        }
+
+        function setKpiTab(key) { kpiTab = key; renderIndicators(); }
+        function setGlobalKpiTab(key) { globalKpiTab = key; renderGlobalIndicators(); }
+
         function escapeHtml(s) {
             return String(s).replace(/[&<>"']/g, c =>
                 ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3267,106 +3303,174 @@
             const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
             const doneSubs = subs.filter(s => s.done).length;
 
-            let html = `
-                <div class="kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-label">Temps de passage</div>
-                        <div class="kpi-value">${calMs > 0 ? formatCalendarDays(calMs) : 'En cours'}</div>
-                        <div class="kpi-sub">${leadMs > 0 ? formatBusinessDuration(leadMs) + ' ouvrées (journées de 7 h)' : 'Ouverture → 100 %'}</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-label">Temps de montage cumulé</div>
-                        <div class="kpi-value">${totalMin > 0 ? formatMinutes(totalMin) : '--'}</div>
-                        <div class="kpi-sub">Somme des temps saisis</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-label">Sous-ensembles réalisés</div>
-                        <div class="kpi-value">${doneSubs} / ${subs.length}</div>
-                        <div class="kpi-sub">${escapeHtml(el.displayName)}</div>
-                    </div>
-                </div>
+            let html = kpiTabsHtml(kpiTab, 'setKpiTab');
 
-                <div class="table-wrap" style="margin-bottom: 1.5rem;">
-                    <table>
-                        <tbody>
-                            <tr>
-                                <td style="font-weight: 700; width: 14rem;">Ouverture du dossier</td>
-                                <td style="font-family: monospace; color: #475569;">${start ? formatDateTime(new Date(start)) : '--'}</td>
-                            </tr>
-                            <tr>
-                                <td style="font-weight: 700;">100 % atteint</td>
-                                <td style="font-family: monospace; color: #475569;">${el.completedAt ? formatDateTime(new Date(el.completedAt)) : '<span style="font-style: italic; color: #94a3b8;">Pas encore</span>'}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div style="margin-bottom: 0.5rem;">
-                    <h3 class="section-title">Mise en route</h3>
-                </div>
-            `;
-
-            const mer = el.merValidation;
-            if (mer) {
+            if (kpiTab === 'passage') {
                 html += `
-                    <div class="table-wrap" style="margin-bottom: 1.5rem;">
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-label">Temps de passage</div>
+                            <div class="kpi-value">${calMs > 0 ? formatCalendarDays(calMs) : 'En cours'}</div>
+                            <div class="kpi-sub">Ouverture → 100 %</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Temps ouvré</div>
+                            <div class="kpi-value">${leadMs > 0 ? formatBusinessDuration(leadMs) : '--'}</div>
+                            <div class="kpi-sub">Journées de 7 h, hors week-ends et fériés</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Avancement</div>
+                            <div class="kpi-value">${doneSubs} / ${subs.length}</div>
+                            <div class="kpi-sub">Sous-ensembles réalisés</div>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap">
                         <table>
                             <tbody>
                                 <tr>
-                                    <td style="font-weight: 700; width: 14rem;">Temps de mise en route</td>
-                                    <td style="font-weight: 700; color: #0f172a;">${formatMinutes(mer.durationMin)}</td>
+                                    <td style="font-weight: 700; width: 14rem;">Ouverture du dossier</td>
+                                    <td style="font-family: ui-monospace, monospace; color: #475569;">${start ? formatDateTime(new Date(start)) : '--'}</td>
                                 </tr>
                                 <tr>
-                                    <td style="font-weight: 700;">Validée par</td>
-                                    <td style="font-weight: 700; color: #059669;">${escapeHtml(mer.operator)}</td>
-                                </tr>
-                                <tr>
-                                    <td style="font-weight: 700;">Le</td>
-                                    <td style="font-family: monospace; color: #475569;">${escapeHtml(mer.date)}</td>
+                                    <td style="font-weight: 700;">100 % atteint</td>
+                                    <td style="font-family: ui-monospace, monospace; color: #475569;">${el.completedAt ? formatDateTime(new Date(el.completedAt)) : '<span style="font-style: italic; color: #94a3b8;">Pas encore</span>'}</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 `;
-            } else {
-                html += `<div class="empty-hint" style="margin-bottom: 1.5rem;">Mise en route pas encore validée.</div>`;
             }
 
-            html += `
-                <div style="margin-bottom: 0.5rem;">
-                    <h3 class="section-title">Temps par sous-ensemble</h3>
-                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Du plus long (à gauche) au plus court (à droite), pour ce dossier.</p>
-                </div>
-            `;
-
-            if (stats.length === 0) {
-                html += `<div class="empty-hint">Aucun temps enregistré sur ce dossier pour le moment.</div>`;
-            } else {
-                html += `<div class="chart-wrap">${buildBarChart(stats, 'local')}</div>`;
+            if (kpiTab === 'nomenclatures') {
                 html += `
-                    <div class="table-wrap" style="margin-top: 1.5rem;">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 3rem; text-align: center;">#</th>
-                                    <th class="normal-wrap">Sous-ensemble</th>
-                                    <th style="width: 10rem;">Partie</th>
-                                    <th style="width: 9rem;">Temps</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${stats.map((s, i) => `
-                                    <tr>
-                                        <td style="text-align: center; font-weight: 700; color: #94a3b8;">${i + 1}</td>
-                                        <td class="normal-wrap" style="font-weight: 600;">${escapeHtml(s.name)}</td>
-                                        <td style="font-size: 0.75rem; color: #64748b;">${escapeHtml(s.group || '--')}</td>
-                                        <td style="font-weight: 700;">${formatMinutes(s.total)}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-label">Temps de montage cumulé</div>
+                            <div class="kpi-value">${totalMin > 0 ? formatMinutes(totalMin) : '--'}</div>
+                            <div class="kpi-sub">Somme de tous les pointages</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Sous-ensembles réalisés</div>
+                            <div class="kpi-value">${doneSubs} / ${subs.length}</div>
+                            <div class="kpi-sub">${escapeHtml(el.displayName)}</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Pointages</div>
+                            <div class="kpi-value">${subs.reduce((a, se) => a + subEntries(se).length, 0)}</div>
+                            <div class="kpi-sub">Saisies de temps sur ce dossier</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 0.5rem;">
+                        <h3 class="section-title">Temps par sous-ensemble</h3>
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Du plus long (à gauche) au plus court (à droite), pour ce dossier.</p>
                     </div>
                 `;
+                if (stats.length === 0) {
+                    html += `<div class="empty-hint">Aucun temps enregistré sur ce dossier pour le moment.</div>`;
+                } else {
+                    html += `<div class="chart-wrap">${buildBarChart(stats, 'local')}</div>`;
+                    html += `
+                        <div class="table-wrap" style="margin-top: 1.5rem;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 3rem; text-align: center;">#</th>
+                                        <th class="normal-wrap">Sous-ensemble</th>
+                                        <th style="width: 10rem;">Partie</th>
+                                        <th style="width: 9rem;">Temps</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${stats.map((s, i) => `
+                                        <tr>
+                                            <td style="text-align: center; font-weight: 700; color: #94a3b8;">${i + 1}</td>
+                                            <td class="normal-wrap" style="font-weight: 600;">${escapeHtml(s.name)}</td>
+                                            <td style="font-size: 0.75rem; color: #64748b;">${escapeHtml(s.group || '--')}</td>
+                                            <td style="font-weight: 700;">${formatMinutes(s.total)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+            }
+
+            if (kpiTab === 'mer') {
+                const mer = el.merValidation;
+                html += `
+                    <div style="margin-bottom: 0.5rem;">
+                        <h3 class="section-title">Mise en route</h3>
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Temps saisi à la validation MER.</p>
+                    </div>
+                `;
+                if (!mer) {
+                    html += `<div class="empty-hint">Mise en route pas encore validée.</div>`;
+                } else {
+                    html += `
+                        <div class="kpi-grid">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Temps de mise en route</div>
+                                <div class="kpi-value">${formatMinutes(mer.durationMin || 0)}</div>
+                                <div class="kpi-sub">Validée par ${escapeHtml(mer.operator || '--')}</div>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <tbody>
+                                    <tr>
+                                        <td style="font-weight: 700; width: 14rem;">Validée par</td>
+                                        <td style="font-weight: 700; color: #059669;">${escapeHtml(mer.operator || '')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 700;">Le</td>
+                                        <td style="font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(mer.date || '')}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+            }
+
+            if (kpiTab === 'endurance') {
+                const end = el.enduranceValidation;
+                html += `
+                    <div style="margin-bottom: 0.5rem;">
+                        <h3 class="section-title">Endurance</h3>
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Durée saisie dans l'onglet Endurance du dossier.</p>
+                    </div>
+                `;
+                if (!end) {
+                    html += `<div class="empty-hint">Endurance pas encore enregistrée.</div>`;
+                } else {
+                    html += `
+                        <div class="kpi-grid">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Durée d'endurance</div>
+                                <div class="kpi-value">${formatMinutes(end.durationMin || 0)}</div>
+                                <div class="kpi-sub">Enregistrée par ${escapeHtml(end.operator || '--')}</div>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <tbody>
+                                    <tr>
+                                        <td style="font-weight: 700; width: 14rem;">Enregistrée par</td>
+                                        <td style="font-weight: 700; color: #059669;">${escapeHtml(end.operator || '')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 700;">Le</td>
+                                        <td style="font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(end.date || '')}</td>
+                                    </tr>
+                                    ${end.note ? `<tr><td style="font-weight: 700;">Remarques</td><td style="color: #475569;">${escapeHtml(end.note)}</td></tr>` : ''}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
             }
 
             box.innerHTML = html;
@@ -3391,158 +3495,230 @@
             const avgLead = done.length ? done.reduce((a, l) => a + l.ms, 0) / done.length : 0;
             const avgCal = done.length ? done.reduce((a, l) => a + l.calMs, 0) / done.length : 0;
 
-            let html = `
-                <div class="kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-label">Dossiers suivis</div>
-                        <div class="kpi-value">${leads.length}</div>
-                        <div class="kpi-sub">${done.length} terminé(s) à 100 %</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-label">Temps de passage moyen</div>
-                        <div class="kpi-value">${done.length ? formatCalendarDays(avgCal) : '--'}</div>
-                        <div class="kpi-sub">${done.length ? formatBusinessDuration(avgLead) + ' ouvrées (hors week-ends et fériés)' : 'Aucun dossier terminé'}</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="kpi-label">Sous-ensembles mesurés</div>
-                        <div class="kpi-value">${stats.length}</div>
-                        <div class="kpi-sub">${stats.reduce((a, s) => a + s.count, 0)} relevé(s) au total</div>
-                    </div>
-                </div>
+            let html = kpiTabsHtml(globalKpiTab, 'setGlobalKpiTab');
 
-                <div style="margin-bottom: 0.5rem;">
-                    <h3 class="section-title">Classement des sous-ensembles par temps moyen</h3>
-                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Du plus long (à gauche) au plus court (à droite), tous dossiers confondus.</p>
-                </div>
-            `;
-
-            if (stats.length === 0) {
-                html += `<div class="empty-hint">Aucun temps de sous-ensemble enregistré pour le moment.</div>`;
-            } else {
-                html += `<div class="chart-wrap">${buildBarChart(stats, 'global')}</div>`;
-                html += `
-                    <div class="table-wrap" style="margin-top: 1.5rem;">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 3rem; text-align: center;">#</th>
-                                    <th class="normal-wrap">Sous-ensemble</th>
-                                    <th style="width: 10rem;">Partie</th>
-                                    <th style="width: 9rem;">Temps moyen</th>
-                                    <th style="width: 9rem;">Temps cumulé</th>
-                                    <th style="width: 7rem; text-align: center;">Relevés</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${stats.map((s, i) => `
-                                    <tr>
-                                        <td style="text-align: center; font-weight: 700; color: #94a3b8;">${i + 1}</td>
-                                        <td class="normal-wrap" style="font-weight: 600;">${escapeHtml(s.name)}</td>
-                                        <td style="font-size: 0.75rem; color: #64748b;">${escapeHtml(s.group || '--')}</td>
-                                        <td style="font-weight: 700;">${formatMinutes(Math.round(s.avg))}</td>
-                                        <td style="color: #475569;">${formatMinutes(s.total)}</td>
-                                        <td style="text-align: center;">${s.count}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            }
-
-            // --- Mise en route ---
-            const mers = elements.filter(el => el.merValidation && el.merValidation.durationMin > 0);
-            const merTotal = mers.reduce((a, el) => a + el.merValidation.durationMin, 0);
-            const merAvg = mers.length ? merTotal / mers.length : 0;
-
-            html += `
-                <div style="margin-top: 2rem; margin-bottom: 0.5rem;">
-                    <h3 class="section-title">Mise en route</h3>
-                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Temps saisis à la validation MER.</p>
-                </div>
-            `;
-
-            if (mers.length === 0) {
-                html += `<div class="empty-hint">Aucune mise en route validée pour le moment.</div>`;
-            } else {
+            if (globalKpiTab === 'passage') {
                 html += `
                     <div class="kpi-grid">
                         <div class="kpi-card">
-                            <div class="kpi-label">Temps de MER moyen</div>
-                            <div class="kpi-value">${formatMinutes(Math.round(merAvg))}</div>
-                            <div class="kpi-sub">Sur ${mers.length} mise(s) en route</div>
+                            <div class="kpi-label">Dossiers suivis</div>
+                            <div class="kpi-value">${leads.length}</div>
+                            <div class="kpi-sub">${done.length} terminé(s) à 100 %</div>
                         </div>
                         <div class="kpi-card">
-                            <div class="kpi-label">Temps de MER cumulé</div>
-                            <div class="kpi-value">${formatMinutes(merTotal)}</div>
-                            <div class="kpi-sub">Toutes mises en route confondues</div>
+                            <div class="kpi-label">Temps de passage moyen</div>
+                            <div class="kpi-value">${done.length ? formatCalendarDays(avgCal) : '--'}</div>
+                            <div class="kpi-sub">Ouverture → 100 %</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Temps ouvré moyen</div>
+                            <div class="kpi-value">${done.length ? formatBusinessDuration(avgLead) : '--'}</div>
+                            <div class="kpi-sub">Hors week-ends et fériés d'Alsace-Moselle</div>
                         </div>
                     </div>
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th class="normal-wrap">Dossier</th>
-                                    <th style="width: 9rem;">Client</th>
-                                    <th style="width: 9rem;">Temps MER</th>
-                                    <th style="width: 11rem;">Validée le</th>
-                                    <th style="width: 7rem; text-align: center;">Trigramme</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${mers.map(el => `
-                                    <tr>
-                                        <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(el.displayName)}</td>
-                                        <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(el.client || '')}</td>
-                                        <td style="font-weight: 700;">${formatMinutes(el.merValidation.durationMin)}</td>
-                                        <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(el.merValidation.date || '')}</td>
-                                        <td style="text-align: center; font-weight: 700;">${escapeHtml(el.merValidation.operator || '')}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+
+                    <div style="margin-bottom: 0.5rem;">
+                        <h3 class="section-title">Temps de passage par dossier</h3>
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Entre l'ouverture du dossier et le passage à 100 %, week-ends et jours fériés d'Alsace-Moselle déduits.</p>
                     </div>
                 `;
+                if (leads.length === 0) {
+                    html += `<div class="empty-hint">Aucun dossier enregistré.</div>`;
+                } else {
+                    html += `
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th class="normal-wrap">Dossier</th>
+                                        <th style="width: 9rem;">Client</th>
+                                        <th style="width: 11rem;">Ouverture</th>
+                                        <th style="width: 11rem;">100 % atteint</th>
+                                        <th style="width: 7rem;">Délai</th>
+                                        <th style="width: 10rem;">Temps ouvré (7 h/j)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${leads.map(l => `
+                                        <tr>
+                                            <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(l.el.displayName)}</td>
+                                            <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(l.el.client || '')}</td>
+                                            <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${l.start ? formatDateTime(new Date(l.start)) : '--'}</td>
+                                            <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${l.end ? formatDateTime(new Date(l.end)) : '--'}</td>
+                                            <td style="font-weight: 700;">${formatCalendarDays(l.calMs)}</td>
+                                            <td style="font-weight: 700;">${l.ms > 0 ? formatBusinessDuration(l.ms) : '<span style="color:#94a3b8; font-weight:500; font-style:italic;">En cours</span>'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
             }
 
-            html += `
-                <div style="margin-top: 2rem; margin-bottom: 0.5rem;">
-                    <h3 class="section-title">Temps de passage par dossier</h3>
-                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Entre l'ouverture du dossier et le passage à 100 %, week-ends et jours fériés d'Alsace-Moselle déduits.</p>
-                </div>
-            `;
-
-            if (leads.length === 0) {
-                html += `<div class="empty-hint">Aucun dossier enregistré.</div>`;
-            } else {
+            if (globalKpiTab === 'nomenclatures') {
                 html += `
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th class="normal-wrap">Dossier</th>
-                                    <th style="width: 9rem;">Client</th>
-                                    <th style="width: 11rem;">Ouverture</th>
-                                    <th style="width: 11rem;">100 % atteint</th>
-                                    <th style="width: 7rem;">Délai</th>
-                                    <th style="width: 10rem;">Temps ouvré (7 h/j)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${leads.map(l => `
-                                    <tr>
-                                        <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(l.el.displayName)}</td>
-                                        <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(l.el.client || '')}</td>
-                                        <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.start ? formatDateTime(new Date(l.start)) : '--'}</td>
-                                        <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${l.end ? formatDateTime(new Date(l.end)) : '--'}</td>
-                                        <td style="font-weight: 700;">${formatCalendarDays(l.calMs)}</td>
-                                        <td style="font-weight: 700;">${l.ms > 0 ? formatBusinessDuration(l.ms) : '<span style="color:#94a3b8; font-weight:500; font-style:italic;">En cours</span>'}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-label">Sous-ensembles mesurés</div>
+                            <div class="kpi-value">${stats.length}</div>
+                            <div class="kpi-sub">${stats.reduce((a, s) => a + s.count, 0)} relevé(s) au total</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-label">Temps de montage cumulé</div>
+                            <div class="kpi-value">${stats.length ? formatMinutes(stats.reduce((a, s) => a + s.total, 0)) : '--'}</div>
+                            <div class="kpi-sub">Tous dossiers confondus</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 0.5rem;">
+                        <h3 class="section-title">Classement des sous-ensembles par temps moyen</h3>
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Du plus long (à gauche) au plus court (à droite), tous dossiers confondus.</p>
                     </div>
                 `;
+                if (stats.length === 0) {
+                    html += `<div class="empty-hint">Aucun temps de sous-ensemble enregistré pour le moment.</div>`;
+                } else {
+                    html += `<div class="chart-wrap">${buildBarChart(stats, 'global')}</div>`;
+                    html += `
+                        <div class="table-wrap" style="margin-top: 1.5rem;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 3rem; text-align: center;">#</th>
+                                        <th class="normal-wrap">Sous-ensemble</th>
+                                        <th style="width: 10rem;">Partie</th>
+                                        <th style="width: 9rem;">Temps moyen</th>
+                                        <th style="width: 9rem;">Temps cumulé</th>
+                                        <th style="width: 7rem; text-align: center;">Relevés</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${stats.map((s, i) => `
+                                        <tr>
+                                            <td style="text-align: center; font-weight: 700; color: #94a3b8;">${i + 1}</td>
+                                            <td class="normal-wrap" style="font-weight: 600;">${escapeHtml(s.name)}</td>
+                                            <td style="font-size: 0.75rem; color: #64748b;">${escapeHtml(s.group || '--')}</td>
+                                            <td style="font-weight: 700;">${formatMinutes(Math.round(s.avg))}</td>
+                                            <td style="color: #475569;">${formatMinutes(s.total)}</td>
+                                            <td style="text-align: center;">${s.count}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+            }
+
+            if (globalKpiTab === 'mer') {
+                const mers = elements.filter(el => el.merValidation && el.merValidation.durationMin > 0);
+                const merTotal = mers.reduce((a, el) => a + el.merValidation.durationMin, 0);
+                const merAvg = mers.length ? merTotal / mers.length : 0;
+
+                html += `
+                    <div style="margin-bottom: 0.5rem;">
+                        <h3 class="section-title">Mise en route</h3>
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Temps saisis à la validation MER.</p>
+                    </div>
+                `;
+                if (mers.length === 0) {
+                    html += `<div class="empty-hint">Aucune mise en route validée pour le moment.</div>`;
+                } else {
+                    html += `
+                        <div class="kpi-grid">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Temps de MER moyen</div>
+                                <div class="kpi-value">${formatMinutes(Math.round(merAvg))}</div>
+                                <div class="kpi-sub">Sur ${mers.length} mise(s) en route</div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-label">Temps de MER cumulé</div>
+                                <div class="kpi-value">${formatMinutes(merTotal)}</div>
+                                <div class="kpi-sub">Toutes mises en route confondues</div>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th class="normal-wrap">Dossier</th>
+                                        <th style="width: 9rem;">Client</th>
+                                        <th style="width: 9rem;">Temps MER</th>
+                                        <th style="width: 11rem;">Validée le</th>
+                                        <th style="width: 7rem; text-align: center;">Trigramme</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${mers.map(el => `
+                                        <tr>
+                                            <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(el.displayName)}</td>
+                                            <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(el.client || '')}</td>
+                                            <td style="font-weight: 700;">${formatMinutes(el.merValidation.durationMin)}</td>
+                                            <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(el.merValidation.date || '')}</td>
+                                            <td style="text-align: center; font-weight: 700;">${escapeHtml(el.merValidation.operator || '')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+            }
+
+            if (globalKpiTab === 'endurance') {
+                const ends = elements.filter(el => el.enduranceValidation && el.enduranceValidation.durationMin > 0);
+                const endTotal = ends.reduce((a, el) => a + el.enduranceValidation.durationMin, 0);
+                const endAvg = ends.length ? endTotal / ends.length : 0;
+
+                html += `
+                    <div style="margin-bottom: 0.5rem;">
+                        <h3 class="section-title">Endurance</h3>
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Durées saisies dans l'onglet Endurance de chaque dossier.</p>
+                    </div>
+                `;
+                if (ends.length === 0) {
+                    html += `<div class="empty-hint">Aucune endurance enregistrée pour le moment.</div>`;
+                } else {
+                    html += `
+                        <div class="kpi-grid">
+                            <div class="kpi-card">
+                                <div class="kpi-label">Durée d'endurance moyenne</div>
+                                <div class="kpi-value">${formatMinutes(Math.round(endAvg))}</div>
+                                <div class="kpi-sub">Sur ${ends.length} dossier(s)</div>
+                            </div>
+                            <div class="kpi-card">
+                                <div class="kpi-label">Durée d'endurance cumulée</div>
+                                <div class="kpi-value">${formatMinutes(endTotal)}</div>
+                                <div class="kpi-sub">Tous dossiers confondus</div>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th class="normal-wrap">Dossier</th>
+                                        <th style="width: 9rem;">Client</th>
+                                        <th style="width: 9rem;">Endurance</th>
+                                        <th style="width: 11rem;">Enregistrée le</th>
+                                        <th style="width: 7rem; text-align: center;">Trigramme</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${ends.map(el => `
+                                        <tr>
+                                            <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(el.displayName)}</td>
+                                            <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(el.client || '')}</td>
+                                            <td style="font-weight: 700;">${formatMinutes(el.enduranceValidation.durationMin)}</td>
+                                            <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(el.enduranceValidation.date || '')}</td>
+                                            <td style="text-align: center; font-weight: 700;">${escapeHtml(el.enduranceValidation.operator || '')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
             }
 
             box.innerHTML = html;
@@ -4340,6 +4516,8 @@
             const avgCal = done.length ? done.reduce((a, l) => a + l.calMs, 0) / done.length : 0;
             const mers = elements.filter(el => el.merValidation && el.merValidation.durationMin > 0);
             const merAvg = mers.length ? mers.reduce((a, el) => a + el.merValidation.durationMin, 0) / mers.length : 0;
+            const ends = elements.filter(el => el.enduranceValidation && el.enduranceValidation.durationMin > 0);
+            const endAvg = ends.length ? ends.reduce((a, el) => a + el.enduranceValidation.durationMin, 0) / ends.length : 0;
 
             const h1 = (n) => Math.round(toBusinessHours(n) * 100) / 100;
             let csv = "﻿";
@@ -4352,6 +4530,8 @@
             csv += `${cleanCSVField("Temps de passage moyen (h ouvrees)")};${cleanCSVField(done.length ? h1(avgLead) : '')}\r\n`;
             csv += `${cleanCSVField("Temps de MER moyen (min)")};${cleanCSVField(mers.length ? Math.round(merAvg) : '')}\r\n`;
             csv += `${cleanCSVField("Mises en route validees")};${cleanCSVField(mers.length)}\r\n`;
+            csv += `${cleanCSVField("Duree d'endurance moyenne (min)")};${cleanCSVField(ends.length ? Math.round(endAvg) : '')}\r\n`;
+            csv += `${cleanCSVField("Endurances enregistrees")};${cleanCSVField(ends.length)}\r\n`;
             csv += `${cleanCSVField("Sous-ensembles mesures")};${cleanCSVField(stats.length)}\r\n`;
             csv += `${cleanCSVField("Releves de temps")};${cleanCSVField(stats.reduce((a, s) => a + s.count, 0))}\r\n`;
             csv += `${cleanCSVField("Base horaire")};${cleanCSVField("35 h/semaine - journee de " + HOURS_PER_WORKING_DAY + " h")}\r\n`;
@@ -4366,7 +4546,7 @@
             csv += "\r\n";
 
             csv += "TEMPS DE PASSAGE PAR DOSSIER\r\n";
-            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Delai (j);Temps ouvre (h);Temps MER (min);Statut\r\n";
+            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Delai (j);Temps ouvre (h);Temps MER (min);Endurance (min);Statut\r\n";
             leads.forEach(l => {
                 csv += `${cleanCSVField(l.el.displayName)};${cleanCSVField(l.el.client)};`
                      + `${cleanCSVField(l.el.projectNum ? 'PR' + l.el.projectNum : '')};`
@@ -4375,6 +4555,7 @@
                      + `${cleanCSVField(l.calMs > 0 ? (Math.round(l.calMs / 86400000 * 10) / 10) : '')};`
                      + `${cleanCSVField(l.ms > 0 ? h1(l.ms) : '')};`
                      + `${cleanCSVField(l.el.merValidation ? (l.el.merValidation.durationMin || '') : '')};`
+                     + `${cleanCSVField(l.el.enduranceValidation ? (l.el.enduranceValidation.durationMin || '') : '')};`
                      + `${cleanCSVField(STATUS_DEFS[computeStatus(l.el)].label)}\r\n`;
             });
 
