@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QualiFlow — Gestion Qualité</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✅</text></svg>">
+</head>
+<body>
+<div id="app" class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">Q</div>
+      <div class="brand-text">
+        <strong>QualiFlow</strong>
+        <span>Management Qualité</span>
+      </div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar-foot">
+      <div class="storage-badge" id="storage-badge">…</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button class="icon-btn burger" id="burger" aria-label="Menu">☰</button>
+      <div class="topbar-title">
+        <h1 id="page-title">Tableau de bord</h1>
+        <p id="page-sub"></p>
+      </div>
+      <div class="topbar-actions" id="page-actions"></div>
+    </header>
+    <section class="content" id="content">
+      <div class="loading">Chargement…</div>
+    </section>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" hidden></div>
+<div class="drawer" id="drawer" hidden>
+  <header class="drawer-head">
+    <h2 id="drawer-title">—</h2>
+    <button class="icon-btn" id="drawer-close" aria-label="Fermer">✕</button>
+  </header>
+  <div class="drawer-body" id="drawer-body"></div>
+  <footer class="drawer-foot" id="drawer-foot"></footer>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script type="module" src="js/app.js"></script>
+<noscript><p style="padding:2rem;font-family:sans-serif">Cette application nécessite JavaScript.</p></noscript>
+</body>
+</html>
