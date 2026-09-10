@@ -372,6 +372,15 @@
         }
         .count-sn  { background-color: var(--blue); color: #fff; }
         .count-sub { background-color: var(--slate-900); color: #fff; }
+        .count-dossiers { background-color: var(--slate-500); color: #fff; }
+        .count-dossiers.all-closed { background-color: var(--emerald); }
+        .closed-toggle {
+            width: 100%; justify-content: center; margin-bottom: 0.4rem;
+            font-size: 0.6875rem; font-weight: 700; padding: 0.3rem;
+            border-radius: var(--radius); background: var(--slate-100); color: var(--slate-600);
+        }
+        .closed-toggle:hover { background: var(--slate-200); }
+        .closed-toggle.on { background: var(--slate-700); color: #fff; }
 
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
         .kpi-card {
@@ -489,10 +498,6 @@
             <div class="project-tools">
                 <button onclick="expandAllProjects(true)">Tout déplier</button>
                 <button onclick="expandAllProjects(false)">Tout replier</button>
-            </div>
-
-            <div id="finishedToggleWrap" style="padding: 0 0.65rem 0.5rem; display: none;">
-                <button id="btnToggleFinished" onclick="toggleShowFinished()" class="tab-btn tab-inactive" style="width: 100%;">Afficher les dossiers terminés</button>
             </div>
 
             <div id="sidebarList" class="sidebar-list">
@@ -1094,7 +1099,7 @@
         let pendingManualData = null;
         let activeBatteryRowIndex = null;
         let editingIndex = null;
-        let showFinished = false;
+        let shownClosedProjects = new Set();   // projets affichant leurs dossiers clôturés
         let sortMode = 'default';
         let expandedProjects = new Set();   // projets dépliés dans la liste
 
@@ -1102,6 +1107,12 @@
         // porter le même numéro dans des historiques anciens).
         function projectKey(el) {
             return (el.projectNum || '') + '|' + (el.client || '');
+        }
+
+        function toggleProjectClosed(key) {
+            if (shownClosedProjects.has(key)) shownClosedProjects.delete(key);
+            else shownClosedProjects.add(key);
+            renderSidebarList();
         }
 
         function toggleProject(key) {
@@ -2207,6 +2218,7 @@
             const el = getActiveElement();
             if (!el) return;
             expandedProjects.add(projectKey(el));   // garder le projet visible
+            if (el.closed) shownClosedProjects.add(projectKey(el));
 
             hideAllPanels();
             document.getElementById('scanPanel').classList.remove('hidden');
@@ -3304,11 +3316,6 @@
             scheduleSave();
         }
 
-        function toggleShowFinished() {
-            showFinished = !showFinished;
-            renderSidebarList();
-        }
-
         // ---- Création des éléments ------------------------------------------
         function handleCreateRobot(e) {
             e.preventDefault();
@@ -3495,23 +3502,10 @@
             const search = document.getElementById('searchElement').value.toLowerCase();
             container.innerHTML = '';
 
-            // Bouton bascule "dossiers terminés"
-            const finishedCount = elements.filter(el => el.objectType !== 'envoi' && el.closed).length;
-            const toggleWrap = document.getElementById('finishedToggleWrap');
-            const toggleBtn = document.getElementById('btnToggleFinished');
-            if (finishedCount > 0) {
-                toggleWrap.style.display = 'block';
-                toggleBtn.textContent = showFinished
-                    ? `Masquer les dossiers terminés (${finishedCount})`
-                    : `Afficher les dossiers terminés (${finishedCount})`;
-                toggleBtn.className = 'tab-btn ' + (showFinished ? 'tab-active' : 'tab-inactive');
-            } else {
-                toggleWrap.style.display = 'none';
-            }
-
+            // Les dossiers clôturés restent dans le regroupement : ils comptent
+            // dans le total du projet. Leur affichage se règle projet par projet.
             const filtered = elements.filter(el =>
                 el.objectType !== 'envoi'
-                && (!el.closed || showFinished)
                 && (el.displayName.toLowerCase().includes(search) || el.client.toLowerCase().includes(search))
             );
 
@@ -3619,19 +3613,12 @@
             });
 
             groups.forEach(g => {
-                let bomDone = 0, bomTotal = 0, subDone = 0, subTotal = 0, closedCount = 0;
-                g.items.forEach(el => {
-                    const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
-                    const bomItems = (el.bom || []).filter(i => i.category !== 'SAV');
-                    bomTotal += bomItems.length;
-                    bomDone  += bomItems.filter(isItemComplete).length;
-                    subTotal += subs.length;
-                    subDone  += subs.filter(s => s.done).length;
-                    if (el.closed) closedCount++;
-                });
-                const total = bomTotal + subTotal;
-                const done = bomDone + subDone;
-                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                // La tuile de projet raisonne en dossiers, pas en pièces :
+                // combien de robots / stations sont clôturés sur le total.
+                const totalDossiers = g.items.length;
+                const closedCount = g.items.filter(el => el.closed).length;
+                const pct = totalDossiers > 0 ? Math.round((closedCount / totalDossiers) * 100) : 0;
+                const allClosed = totalDossiers > 0 && closedCount === totalDossiers;
 
                 // Une recherche en cours déplie tout, sinon on suit l'état choisi.
                 const open = search !== '' || expandedProjects.has(g.key);
@@ -3649,18 +3636,18 @@
                             <span style="white-space: nowrap;">${g.projectNum ? 'PR' + escapeHtml(g.projectNum) : 'Sans projet'}</span>
                         </span>
                         <span style="display: flex; gap: 0.3rem; flex-shrink: 0;">
-                            <span class="count-pill count-sn" title="Numéros de série scannés">${bomDone}/${bomTotal}</span>
-                            ${subTotal ? `<span class="count-pill count-sub" title="Sous-ensembles réalisés">${subDone}/${subTotal}</span>` : ''}
+                            <span class="count-pill count-dossiers${allClosed ? ' all-closed' : ''}"
+                                  title="Dossiers clôturés sur le total du projet">${closedCount}/${totalDossiers}</span>
                         </span>
                     </div>
                     <div title="${escapeHtml(g.client)}" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569; margin-top: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                         ${escapeHtml(g.client)}
                     </div>
                     <div style="font-size: 0.6875rem; color: #94a3b8; margin-top: 0.1rem;">
-                        ${g.items.length} dossier${g.items.length > 1 ? 's' : ''}${closedCount ? ` · ${closedCount} terminé${closedCount > 1 ? 's' : ''}` : ''}
+                        ${totalDossiers} dossier${totalDossiers > 1 ? 's' : ''} · ${closedCount} clôturé${closedCount > 1 ? 's' : ''}
                     </div>
                     <div style="margin-top: 0.45rem; width: 100%; background-color: #e2e8f0; height: 4px; border-radius: 9999px; overflow: hidden;">
-                        <div style="height: 100%; background-color: ${total > 0 && done === total ? '#10b981' : '#94a3b8'}; width: ${pct}%"></div>
+                        <div style="height: 100%; background-color: ${allClosed ? '#10b981' : '#94a3b8'}; width: ${pct}%"></div>
                     </div>
                 `;
                 wrap.appendChild(head);
@@ -3668,7 +3655,28 @@
                 if (open) {
                     const items = document.createElement('div');
                     items.className = 'project-items';
-                    g.items.forEach(el => items.appendChild(buildCard(el)));
+
+                    const showClosed = shownClosedProjects.has(g.key);
+                    const visibles = g.items.filter(el => showClosed || !el.closed);
+
+                    if (closedCount > 0) {
+                        const t = document.createElement('button');
+                        t.className = 'closed-toggle' + (showClosed ? ' on' : '');
+                        t.textContent = showClosed
+                            ? `Masquer les ${closedCount} clôturé${closedCount > 1 ? 's' : ''}`
+                            : `Afficher les ${closedCount} clôturé${closedCount > 1 ? 's' : ''}`;
+                        t.onclick = () => toggleProjectClosed(g.key);
+                        items.appendChild(t);
+                    }
+
+                    if (visibles.length === 0) {
+                        const p = document.createElement('p');
+                        p.style.cssText = 'text-align: center; font-size: 0.7rem; color: #94a3b8; font-style: italic; padding: 0.6rem;';
+                        p.textContent = 'Tous les dossiers de ce projet sont clôturés.';
+                        items.appendChild(p);
+                    } else {
+                        visibles.forEach(el => items.appendChild(buildCard(el)));
+                    }
                     wrap.appendChild(items);
                 }
                 container.appendChild(wrap);
