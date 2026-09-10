@@ -334,20 +334,50 @@
 
         /* ---- Indicateurs ---- */
         /* ---- Regroupement par projet dans la liste ---- */
-        .project-group { margin-bottom: 0.5rem; }
+        .project-group { margin-bottom: 0.6rem; }
         .project-head {
-            padding: 0.6rem 0.7rem; border-radius: var(--radius);
-            background: var(--slate-50); border: 1px solid var(--slate-200);
-            cursor: pointer; transition: background-color var(--transition), border-color var(--transition);
+            position: relative; overflow: hidden;
+            padding: 0.7rem 0.8rem 0.7rem 1rem;
+            border-radius: var(--radius-lg);
+            background: #ffffff; border: 1px solid var(--slate-200);
+            box-shadow: var(--shadow-sm); cursor: pointer;
+            transition: box-shadow var(--transition), border-color var(--transition), background-color var(--transition);
         }
-        .project-head:hover { background: var(--slate-100); }
-        .project-head.open { background: var(--slate-100); border-color: var(--slate-300); }
+        .project-head::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+            background: var(--blue);
+        }
+        .project-head.done::before { background: var(--emerald); }
+        .project-head:hover { box-shadow: var(--shadow); border-color: var(--slate-300); }
+        .project-head.open { background: var(--slate-50); border-color: var(--slate-300); }
+
+        .project-row { display: flex; align-items: center; gap: 0.45rem; }
         .project-caret {
-            display: inline-block; width: 0.75rem; flex-shrink: 0;
-            color: var(--slate-500); transition: transform var(--transition);
+            display: inline-block; width: 0.7rem; flex-shrink: 0; font-size: 0.6rem;
+            color: var(--slate-400); transition: transform var(--transition);
         }
         .project-head.open .project-caret { transform: rotate(90deg); }
-        .project-items { padding-left: 0.5rem; margin-top: 0.4rem; border-left: 2px solid var(--slate-200); }
+        .project-title {
+            font-size: 0.9rem; font-weight: 800; color: var(--slate-900);
+            letter-spacing: -0.01em; white-space: nowrap;
+        }
+        .project-row .count-pill { margin-left: auto; flex-shrink: 0; }
+        .project-client {
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.04em; color: var(--slate-500); margin-top: 0.25rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .project-bar {
+            height: 5px; border-radius: 9999px; background: var(--slate-200);
+            overflow: hidden; margin-top: 0.55rem;
+        }
+        .project-bar > div { height: 100%; border-radius: 9999px; transition: width 0.4s ease; }
+        .project-meta {
+            display: flex; justify-content: space-between; gap: 0.5rem;
+            font-size: 0.6875rem; color: var(--slate-400); margin-top: 0.3rem;
+        }
+        .project-head.done .project-meta { color: var(--emerald-d); font-weight: 700; }
+        .project-items { padding-left: 0.5rem; margin-top: 0.5rem; border-left: 2px solid var(--slate-200); }
         .project-tools {
             display: flex; gap: 0.4rem; padding: 0 0.65rem 0.5rem;
         }
@@ -498,6 +528,9 @@
             <div class="project-tools">
                 <button onclick="expandAllProjects(true)">Tout déplier</button>
                 <button onclick="expandAllProjects(false)">Tout replier</button>
+            </div>
+            <div id="closedProjectsWrap" style="padding: 0 0.65rem 0.5rem; display: none;">
+                <button id="btnClosedProjects" onclick="toggleClosedProjects()" class="tab-btn tab-inactive" style="width: 100%;"></button>
             </div>
 
             <div id="sidebarList" class="sidebar-list">
@@ -1100,13 +1133,29 @@
         let activeBatteryRowIndex = null;
         let editingIndex = null;
         let shownClosedProjects = new Set();   // projets affichant leurs dossiers clôturés
+        let showClosedProjects = false;        // afficher les projets entièrement clôturés
+
+        function toggleClosedProjects() {
+            showClosedProjects = !showClosedProjects;
+            renderSidebarList();
+        }
         let sortMode = 'default';
         let expandedProjects = new Set();   // projets dépliés dans la liste
 
         // Un projet = numéro de projet + client (deux clients distincts peuvent
         // porter le même numéro dans des historiques anciens).
+        // Le client est saisi librement mais affiché en majuscules par le CSS :
+        // « ZF Hannovre » et « ZF HANNOVRE » paraissent identiques à l'écran.
+        // La clé est donc normalisée (casse, accents, espaces multiples), sinon
+        // un même projet se scinde en plusieurs groupes.
+        function normalizeKeyPart(v) {
+            return String(v || '')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .toUpperCase().replace(/\s+/g, ' ').trim();
+        }
+
         function projectKey(el) {
-            return (el.projectNum || '') + '|' + (el.client || '');
+            return normalizeKeyPart(el.projectNum) + '|' + normalizeKeyPart(el.client);
         }
 
         function toggleProjectClosed(key) {
@@ -3612,6 +3661,22 @@
                 groups.get(key).items.push(el);
             });
 
+            // Un projet est clôturé quand tous ses dossiers le sont. Ces projets
+            // sont masqués par défaut : ils encombrent la vue de production.
+            const closedProjects = [...groups.values()]
+                .filter(g => g.items.length > 0 && g.items.every(el => el.closed));
+            const wrapBtn = document.getElementById('closedProjectsWrap');
+            const btn = document.getElementById('btnClosedProjects');
+            if (closedProjects.length > 0 && search === '') {
+                wrapBtn.style.display = 'block';
+                btn.textContent = showClosedProjects
+                    ? `Masquer les ${closedProjects.length} projet${closedProjects.length > 1 ? 's' : ''} clôturé${closedProjects.length > 1 ? 's' : ''}`
+                    : `Voir les ${closedProjects.length} projet${closedProjects.length > 1 ? 's' : ''} clôturé${closedProjects.length > 1 ? 's' : ''}`;
+                btn.className = 'tab-btn ' + (showClosedProjects ? 'tab-active' : 'tab-inactive');
+            } else {
+                wrapBtn.style.display = 'none';
+            }
+
             groups.forEach(g => {
                 // La tuile de projet raisonne en dossiers, pas en pièces :
                 // combien de robots / stations sont clôturés sur le total.
@@ -3620,6 +3685,9 @@
                 const pct = totalDossiers > 0 ? Math.round((closedCount / totalDossiers) * 100) : 0;
                 const allClosed = totalDossiers > 0 && closedCount === totalDossiers;
 
+                // Projet clôturé : masqué sauf demande explicite ou recherche.
+                if (allClosed && !showClosedProjects && search === '') return;
+
                 // Une recherche en cours déplie tout, sinon on suit l'état choisi.
                 const open = search !== '' || expandedProjects.has(g.key);
 
@@ -3627,27 +3695,20 @@
                 wrap.className = 'project-group';
 
                 const head = document.createElement('div');
-                head.className = 'project-head' + (open ? ' open' : '');
+                head.className = 'project-head' + (open ? ' open' : '') + (allClosed ? ' done' : '');
                 head.onclick = () => toggleProject(g.key);
                 head.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-                        <span style="font-size: 0.8125rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0;">
-                            <span class="project-caret">▶</span>
-                            <span style="white-space: nowrap;">${g.projectNum ? 'PR' + escapeHtml(g.projectNum) : 'Sans projet'}</span>
-                        </span>
-                        <span style="display: flex; gap: 0.3rem; flex-shrink: 0;">
-                            <span class="count-pill count-dossiers${allClosed ? ' all-closed' : ''}"
-                                  title="Dossiers clôturés sur le total du projet">${closedCount}/${totalDossiers}</span>
-                        </span>
+                    <div class="project-row">
+                        <span class="project-caret">▶</span>
+                        <span class="project-title">${g.projectNum ? 'PR' + escapeHtml(g.projectNum) : 'Sans projet'}</span>
+                        <span class="count-pill count-dossiers${allClosed ? ' all-closed' : ''}"
+                              title="Dossiers clôturés sur le total du projet">${closedCount}/${totalDossiers}</span>
                     </div>
-                    <div title="${escapeHtml(g.client)}" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #475569; margin-top: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        ${escapeHtml(g.client)}
-                    </div>
-                    <div style="font-size: 0.6875rem; color: #94a3b8; margin-top: 0.1rem;">
-                        ${totalDossiers} dossier${totalDossiers > 1 ? 's' : ''} · ${closedCount} clôturé${closedCount > 1 ? 's' : ''}
-                    </div>
-                    <div style="margin-top: 0.45rem; width: 100%; background-color: #e2e8f0; height: 4px; border-radius: 9999px; overflow: hidden;">
-                        <div style="height: 100%; background-color: ${allClosed ? '#10b981' : '#94a3b8'}; width: ${pct}%"></div>
+                    <div class="project-client" title="${escapeHtml(g.client)}">${escapeHtml(g.client) || '—'}</div>
+                    <div class="project-bar"><div style="width: ${pct}%; background: ${allClosed ? 'var(--emerald)' : 'var(--blue)'};"></div></div>
+                    <div class="project-meta">
+                        <span>${totalDossiers} dossier${totalDossiers > 1 ? 's' : ''}</span>
+                        <span>${allClosed ? 'Projet clôturé' : closedCount + ' clôturé' + (closedCount > 1 ? 's' : '')}</span>
                     </div>
                 `;
                 wrap.appendChild(head);
