@@ -96,6 +96,20 @@
         .btn-blue:hover { background-color: var(--blue-d); box-shadow: 0 4px 10px -2px rgba(37,99,235,0.5); }
         .btn-gray { background-color: var(--slate-200); color: var(--slate-700); }
         .btn-gray:hover { background-color: var(--slate-300); }
+        .btn-mini {
+            padding: 0.15rem 0.45rem;
+            font-size: 0.7rem;
+            font-weight: 700;
+            border-radius: 0.35rem;
+            background-color: var(--slate-200);
+            color: var(--slate-700);
+            border: 1px solid var(--slate-300);
+        }
+        .btn-mini:hover { background-color: var(--slate-300); }
+        .btn-mini-blue { background-color: var(--blue); color: #fff; border-color: var(--blue); }
+        .btn-mini-blue:hover { background-color: var(--blue-d); }
+        .btn-mini-red { background-color: #fee2e2; color: var(--red-d); border-color: #fecaca; }
+        .btn-mini-red:hover { background-color: #fecaca; }
         .btn-red { background-color: var(--red); color: #fff; }
         .btn-red:hover { background-color: var(--red-d); }
 
@@ -874,6 +888,9 @@
                     <button id="paneTabMer" onclick="setPane('mer')" class="pane-tab">
                         MER
                     </button>
+                    <button id="paneTabEnd" onclick="setPane('end')" class="pane-tab">
+                        Endurance
+                    </button>
                     <button id="paneTabKpi" onclick="setPane('kpi')" class="pane-tab">
                         Indicateurs
                     </button>
@@ -893,9 +910,10 @@
                                         <th style="width: 3.5rem; text-align: center;">Fait</th>
                                         <th class="normal-wrap">Sous-ensemble</th>
                                         <th style="width: 7rem;">Temps</th>
-                                        <th style="width: 11rem;">Date</th>
-                                        <th style="text-align: center; width: 7rem;">Trigramme</th>
+                                        <th style="width: 11rem;">Dernier pointage</th>
+                                        <th style="text-align: center; width: 8rem;">Trigrammes</th>
                                         <th class="normal-wrap">Remarques</th>
+                                        <th style="width: 8.5rem; text-align: center;">Pointages</th>
                                     </tr>
                                 </thead>
                                 <tbody id="subAssyTableBody"></tbody>
@@ -951,6 +969,10 @@
 
                   <div id="paneMer" class="hidden">
                     <div id="merContent"></div>
+                  </div>
+
+                  <div id="paneEnd" class="hidden">
+                    <div id="endContent"></div>
                   </div>
 
                   <div id="paneKpi" class="hidden">
@@ -1052,7 +1074,7 @@
     <div id="subAssyModal" class="modal hidden">
         <div class="modal-content" style="max-width: 460px;">
             <div class="modal-header">
-                <h3>Valider un sous-ensemble</h3>
+                <h3 id="subAssyModalTitle">Valider un sous-ensemble</h3>
             </div>
             <form onsubmit="handleSaveSubassembly(event)">
                 <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.1rem;">
@@ -1065,7 +1087,7 @@
                         <div id="subAssyModalDate" style="padding: 0.5rem 0.75rem; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-weight: 600; font-size: 0.875rem; color: #475569;">--</div>
                     </div>
                     <div class="form-group">
-                        <label>* Temps passé</label>
+                        <label id="subAssyTimeLabel">* Temps passé</label>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
                             <input id="subAssyHours" type="number" min="0" max="999" placeholder="" style="text-align: center;">
                             <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
@@ -1210,6 +1232,8 @@
         let scanTypingTimer = null;
         let lastKeyTime = 0;
         let activeSubIndex = null;
+        let subAssyMode = 'validate';       // 'validate' (case cochée) ou 'add' (+ pointage)
+        const expandedSubs = new Set();     // sous-ensembles dont le détail des pointages est déplié
         let activePane = 'sub';
 
         const BATTERY_REF = "SHE-0020400";
@@ -1372,16 +1396,17 @@
         const STATUS_DEFS = {
             CREE:    { label: 'CRÉÉ',    color: '#059669', desc: 'Dossier ouvert, aucune saisie' },
             PROD:    { label: 'PROD',    color: '#2563eb', desc: 'Assemblage en cours' },
-            MER:     { label: 'MER',     color: '#8b5cf6', desc: 'Assemblage terminé, MER à valider' },
-            EXPE:    { label: 'EXPE',    color: '#d97706', desc: 'MER validée, prêt à expédier' },
-            TERMINE: { label: 'TERMINÉ', color: '#dc2626', desc: 'Dossier clôturé et figé' }
+            MER:       { label: 'MER',       color: '#8b5cf6', desc: 'Assemblage terminé, MER à valider' },
+            ENDURANCE: { label: 'ENDURANCE', color: '#0891b2', desc: 'MER validée, endurance en cours' },
+            EXPE:      { label: 'EXPE',      color: '#d97706', desc: 'Endurance validée, prêt à expédier' },
+            TERMINE:   { label: 'TERMINÉ',   color: '#dc2626', desc: 'Dossier clôturé et figé' }
         };
 
         // Statuts modifiables à la main (TERMINÉ reste piloté par « Clôturer »).
-        const MANUAL_STATUSES = ['CREE', 'PROD', 'MER', 'EXPE'];
+        const MANUAL_STATUSES = ['CREE', 'PROD', 'MER', 'ENDURANCE', 'EXPE'];
 
         // Ordre du flux de production, utilisé pour le tri de la liste.
-        const STATUS_RANK = { CREE: 0, PROD: 1, MER: 2, EXPE: 3, TERMINE: 4 };
+        const STATUS_RANK = { CREE: 0, PROD: 1, MER: 2, ENDURANCE: 3, EXPE: 4, TERMINE: 5 };
 
         function setSortMode(mode) {
             sortMode = mode;
@@ -1408,8 +1433,9 @@
                 if (!el.completedAt) el.completedAt = Date.now();
             } else {
                 if (el.completedAt) el.completedAt = null;
-                // Le dossier repasse sous 100 % : la validation MER ne tient plus.
+                // Le dossier repasse sous 100 % : MER et endurance ne tiennent plus.
                 if (el.merValidation) el.merValidation = null;
+                if (el.enduranceValidation) el.enduranceValidation = null;
             }
         }
 
@@ -1437,6 +1463,64 @@
             return out;
         }
 
+        // ---- Pointages d'un sous-ensemble ------------------------------------
+        // Plusieurs personnes peuvent pointer du temps sur un même sous-ensemble,
+        // en plusieurs fois. Les pointages vivent dans se.entries ; les anciens
+        // champs (durationMin, doneOperator, doneTime, note) restent renseignés
+        // pour rester lisibles par les exports CSV et par un ancien data.json.
+        function subEntries(se) {
+            if (!se) return [];
+            if (Array.isArray(se.entries)) return se.entries;
+            if (se.done && (se.durationMin || se.doneOperator || se.doneTime)) {
+                // Ancien format : un unique pointage implicite.
+                return [{
+                    eid: (se.id || 'SE') + '-legacy',
+                    at: se.at || 0,
+                    date: se.doneTime || '',
+                    durationMin: se.durationMin || 0,
+                    operator: se.doneOperator || '',
+                    note: se.note || ''
+                }];
+            }
+            return [];
+        }
+
+        // Convertit le sous-ensemble au format « pointages » avant modification.
+        function ensureEntries(se) {
+            if (!Array.isArray(se.entries)) se.entries = subEntries(se).slice();
+            return se.entries;
+        }
+
+        function subTotalMinutes(se) {
+            return subEntries(se).reduce((a, e) => a + (e.durationMin || 0), 0);
+        }
+
+        function subOperators(se) {
+            const seen = [];
+            subEntries(se).forEach(e => {
+                const op = (e.operator || '').trim();
+                if (op && seen.indexOf(op) === -1) seen.push(op);
+            });
+            return seen;
+        }
+
+        // Recalcule les champs hérités à partir des pointages.
+        function syncSubLegacy(se) {
+            const list = subEntries(se).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+            // Sans aucun pointage, on ne touche pas aux champs hérités : un
+            // ancien enregistrement sans temps saisi garde son trigramme.
+            if (list.length === 0) return;
+            se.durationMin = list.reduce((a, e) => a + (e.durationMin || 0), 0);
+            const last = list[list.length - 1];
+            se.doneTime = last ? (last.date || '') : '';
+            se.doneOperator = subOperators(se).join(' / ');
+            se.note = list.map(e => (e.note || '').trim()).filter(Boolean).join(' | ');
+        }
+
+        function newEntryId() {
+            return 'PT' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        }
+
         // Construit la liste des sous-ensembles à réaliser, filtrée par les
         // options cochées (même logique de condition que la nomenclature).
         function buildSubassemblies(source, checkedOptionIds) {
@@ -1452,7 +1536,8 @@
                     doneTime: "",
                     doneOperator: "",
                     durationMin: 0,
-                    note: ""
+                    note: "",
+                    entries: []
                 });
             });
             return out;
@@ -1718,8 +1803,19 @@
                 if (!s || !s.id) return;
                 const x = map.get(s.id);
                 if (!x) { map.set(s.id, s); return; }
-                if (!!x.done !== !!s.done) map.set(s.id, x.done ? x : s);
-                else map.set(s.id, (s.at || 0) >= (x.at || 0) ? s : x);
+                const base = (!!x.done !== !!s.done)
+                    ? (x.done ? x : s)
+                    : ((s.at || 0) >= (x.at || 0) ? s : x);
+                // Les pointages des deux versions sont réunis : personne ne perd
+                // le temps qu'il a saisi pendant qu'un autre écrivait.
+                const byId = new Map();
+                subEntries(x).forEach(e => { if (e && e.eid) byId.set(e.eid, e); });
+                subEntries(s).forEach(e => { if (e && e.eid) byId.set(e.eid, e); });
+                const out = Object.assign({}, base);
+                out.entries = Array.from(byId.values()).sort((a, b) => (a.at || 0) - (b.at || 0));
+                syncSubLegacy(out);
+                out.at = Math.max(x.at || 0, s.at || 0);
+                map.set(s.id, out);
             });
             return Array.from(map.values());
         }
@@ -2489,6 +2585,8 @@
             }
 
             renderSubassemblies();
+            if (activePane === 'mer') renderMerPane();
+            if (activePane === 'end') renderEndurancePane();
         }
 
         // Compteurs du dossier : bleu = numéros de série, noir = sous-ensembles.
@@ -2560,7 +2658,8 @@
         function autoStatus(el) {
             if (!el) return 'CREE';
             if (el.closed) return 'TERMINE';
-            if (el.merValidation) return 'EXPE';
+            if (el.enduranceValidation) return 'EXPE';
+            if (el.merValidation) return 'ENDURANCE';
             if (isElementComplete(el)) return 'MER';
             const anyScanned = (el.bom || []).some(i => i.scanned);
             const anySub = (el.subassemblies || []).some(s => s.done);
@@ -2581,14 +2680,15 @@
         // ---- Onglets du dossier ---------------------------------------------
         function setPane(pane) {
             activePane = pane;
-            const map = { sub: 'paneSub', bom: 'paneBom', mer: 'paneMer', kpi: 'paneKpi' };
-            const tabs = { sub: 'paneTabSub', bom: 'paneTabBom', mer: 'paneTabMer', kpi: 'paneTabKpi' };
+            const map = { sub: 'paneSub', bom: 'paneBom', mer: 'paneMer', end: 'paneEnd', kpi: 'paneKpi' };
+            const tabs = { sub: 'paneTabSub', bom: 'paneTabBom', mer: 'paneTabMer', end: 'paneTabEnd', kpi: 'paneTabKpi' };
             Object.keys(map).forEach(k => {
                 document.getElementById(map[k]).classList.toggle('hidden', k !== pane);
                 document.getElementById(tabs[k]).className = 'pane-tab' + (k === pane ? ' active' : '');
             });
             if (pane === 'kpi') renderIndicators();
             if (pane === 'mer') renderMerPane();
+            if (pane === 'end') renderEndurancePane();
         }
 
         // ---- Sous-ensembles --------------------------------------------------
@@ -2624,29 +2724,114 @@
             groups.forEach((rows, groupName) => {
                 if (groupName) {
                     const gr = document.createElement('tr');
-                    gr.innerHTML = `<td colspan="6" style="background-color: #f1f5f9; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569;">${groupName}</td>`;
+                    gr.innerHTML = `<td colspan="7" style="background-color: #f1f5f9; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569;">${groupName}</td>`;
                     tbody.appendChild(gr);
                 }
                 rows.forEach(({ se, idx }) => {
                     if (se.done) doneCount++;
+                    const entries = subEntries(se).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+                    const total = subTotalMinutes(se);
+                    const ops = subOperators(se);
+                    const last = entries[entries.length - 1];
+                    const open = expandedSubs.has(se.id);
+
                     const tr = document.createElement('tr');
                     if (se.done) tr.className = 'scanned-row';
                     tr.innerHTML = `
                         <td style="text-align: center;">
                             <input type="checkbox" ${se.done ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="toggleSubassembly(${idx})" style="width: 1.1rem; height: 1.1rem; cursor: ${locked ? 'not-allowed' : 'pointer'};">
                         </td>
-                        <td class="normal-wrap" style="font-weight: 500;">${se.name}</td>
-                        <td style="font-weight: 700; font-size: 0.8125rem; color: #0f172a;">${se.done ? formatMinutes(se.durationMin) : '--'}</td>
-                        <td style="font-family: monospace; font-size: 0.75rem; color: #64748b;">${se.doneTime || '--'}</td>
-                        <td style="text-align: center; font-weight: 700; font-size: 0.8125rem;">${se.doneOperator || '--'}</td>
-                        <td class="normal-wrap" style="font-size: 0.75rem; color: #475569;">${se.note || ''}</td>
+                        <td class="normal-wrap" style="font-weight: 500;">${escapeHtml(se.name)}</td>
+                        <td style="font-weight: 700; font-size: 0.8125rem; color: #0f172a;">${total > 0 ? formatMinutes(total) : '--'}</td>
+                        <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(last ? (last.date || '--') : '--')}</td>
+                        <td style="text-align: center; font-weight: 700; font-size: 0.8125rem;">${ops.length ? escapeHtml(ops.join(' / ')) : '--'}</td>
+                        <td class="normal-wrap" style="font-size: 0.75rem; color: #475569;">${escapeHtml(se.note || '')}</td>
+                        <td style="text-align: center; white-space: nowrap;">
+                            <button type="button" class="btn-mini" title="Détail des pointages" onclick="toggleSubDetail('${escapeHtml(se.id)}')">${entries.length} ${open ? '&#9662;' : '&#9656;'}</button>
+                            ${locked ? '' : `<button type="button" class="btn-mini btn-mini-blue" title="Ajouter un pointage" onclick="addSubEntry(${idx})">+</button>`}
+                        </td>
                     `;
                     tbody.appendChild(tr);
+
+                    if (open) {
+                        const dr = document.createElement('tr');
+                        dr.innerHTML = `<td colspan="7" style="background-color: #f8fafc; padding: 0.6rem 0.9rem;">${subEntriesHtml(entries, idx, locked)}</td>`;
+                        tbody.appendChild(dr);
+                    }
                 });
             });
 
             document.getElementById('subAssyCount').textContent =
                 `${doneCount} / ${el.subassemblies.length} réalisés`;
+        }
+
+        // Détail des pointages d'un sous-ensemble (ligne dépliable).
+        function subEntriesHtml(entries, idx, locked) {
+            if (entries.length === 0) {
+                return `<div style="font-size: 0.75rem; color: #64748b;">Aucun pointage enregistré.</div>`;
+            }
+            const rows = entries.map(e => `
+                <tr>
+                    <td style="font-family: ui-monospace, monospace; font-size: 0.7rem; color: #64748b; padding: 0.3rem 0.5rem;">${escapeHtml(e.date || '')}</td>
+                    <td style="font-weight: 700; font-size: 0.75rem; padding: 0.3rem 0.5rem; width: 5rem;">${escapeHtml(e.operator || '--')}</td>
+                    <td style="font-weight: 700; font-size: 0.75rem; color: #0f172a; padding: 0.3rem 0.5rem; width: 6rem;">${formatMinutes(e.durationMin || 0)}</td>
+                    <td class="normal-wrap" style="font-size: 0.72rem; color: #475569; padding: 0.3rem 0.5rem;">${escapeHtml(e.note || '')}</td>
+                    <td style="text-align: right; padding: 0.3rem 0.5rem; width: 3rem;">
+                        ${locked ? '' : `<button type="button" class="btn-mini btn-mini-red" title="Supprimer ce pointage" onclick="deleteSubEntry(${idx}, '${escapeHtml(e.eid || '')}')">&times;</button>`}
+                    </td>
+                </tr>
+            `).join('');
+            return `<table style="width: 100%; border-collapse: collapse;"><tbody>${rows}</tbody></table>`;
+        }
+
+        function toggleSubDetail(id) {
+            if (expandedSubs.has(id)) expandedSubs.delete(id); else expandedSubs.add(id);
+            renderSubassemblies();
+        }
+
+        // Pointage supplémentaire, sans clore le sous-ensemble.
+        function addSubEntry(index) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            openSubAssyModal(index, 'add');
+        }
+
+        function deleteSubEntry(index, eid) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const se = el.subassemblies[index];
+            if (!se) return;
+            const list = ensureEntries(se);
+            const i = list.findIndex(e => e.eid === eid);
+            if (i === -1) return;
+            if (!confirm('Supprimer ce pointage ?')) return;
+            list.splice(i, 1);
+            syncSubLegacy(se);
+            se.at = Date.now();
+            el.updatedAt = Date.now();
+            updateCompletion(el);
+            renderSubassemblies();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        function openSubAssyModal(index, mode) {
+            const el = getActiveElement();
+            const se = el.subassemblies[index];
+            const already = subEntries(se).length;
+            subAssyMode = mode;
+            activeSubIndex = index;
+            document.getElementById('subAssyModalTitle').textContent =
+                (mode === 'add') ? 'Ajouter un pointage' : 'Valider un sous-ensemble';
+            document.getElementById('subAssyModalName').textContent = se.name;
+            document.getElementById('subAssyModalDate').textContent = formatDateTime();
+            document.getElementById('subAssyTimeLabel').textContent =
+                (mode === 'validate' && already > 0) ? 'Temps passé (facultatif, déjà pointé)' : '* Temps passé';
+            document.getElementById('subAssyHours').value = '';
+            document.getElementById('subAssyMinutes').value = '';
+            document.getElementById('subAssyOperator').value = '';
+            document.getElementById('subAssyNote').value = '';
+            document.getElementById('subAssyModal').classList.remove('hidden');
         }
 
         function toggleSubassembly(index) {
@@ -2655,8 +2840,10 @@
             const se = el.subassemblies[index];
 
             if (se.done) {
-                se.done = false; se.doneTime = ''; se.doneOperator = '';
-                se.durationMin = 0; se.note = ''; se.at = Date.now();
+                // On rouvre le sous-ensemble sans effacer les pointages :
+                // le temps déjà passé par chacun reste acquis.
+                se.done = false;
+                se.at = Date.now();
                 el.updatedAt = Date.now();
                 updateCompletion(el);
                 renderSubassemblies();
@@ -2665,16 +2852,9 @@
                 return;
             }
 
-            // Le trigramme et le temps sont redemandés à chaque validation.
-            activeSubIndex = index;
-            document.getElementById('subAssyModalName').textContent = se.name;
-            document.getElementById('subAssyModalDate').textContent = formatDateTime();
-            document.getElementById('subAssyHours').value = '';
-            document.getElementById('subAssyMinutes').value = '';
-            document.getElementById('subAssyOperator').value = '';
-            document.getElementById('subAssyNote').value = '';
+            // Le trigramme est redemandé à chaque validation.
             renderSubassemblies();
-            document.getElementById('subAssyModal').classList.remove('hidden');
+            openSubAssyModal(index, 'validate');
         }
 
         function handleSaveSubassembly(e) {
@@ -2685,17 +2865,29 @@
             const operator = document.getElementById('subAssyOperator').value.trim().toUpperCase();
             if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
 
-            const h = parseInt(document.getElementById('subAssyHours').value) || 0;
-            const m = parseInt(document.getElementById('subAssyMinutes').value) || 0;
+            const h = parseInt(document.getElementById('subAssyHours').value, 10) || 0;
+            const m = parseInt(document.getElementById('subAssyMinutes').value, 10) || 0;
             const duration = h * 60 + m;
-            if (duration <= 0) { alert("Veuillez renseigner le temps passé."); return; }
 
             const se = el.subassemblies[activeSubIndex];
-            se.done = true;
-            se.doneTime = formatDateTime();
-            se.doneOperator = operator;
-            se.durationMin = duration;
-            se.note = document.getElementById('subAssyNote').value.trim();
+            const already = subEntries(se).length;
+            if (duration <= 0 && !(subAssyMode === 'validate' && already > 0)) {
+                alert("Veuillez renseigner le temps passé.");
+                return;
+            }
+
+            if (duration > 0) {
+                ensureEntries(se).push({
+                    eid: newEntryId(),
+                    at: Date.now(),
+                    date: formatDateTime(),
+                    durationMin: duration,
+                    operator,
+                    note: document.getElementById('subAssyNote').value.trim()
+                });
+            }
+            if (subAssyMode === 'validate') se.done = true;
+            syncSubLegacy(se);
             se.at = Date.now();
 
             el.updatedAt = Date.now();
@@ -2840,11 +3032,128 @@
         function cancelMerValidation() {
             const el = getActiveElement();
             if (!el || el.closed || !el.merValidation) return;
-            if (!confirm("Annuler la validation MER ? Le dossier repassera au statut MER.")) return;
+            if (!confirm("Annuler la validation MER ? Le dossier repassera au statut MER"
+                + (el.enduranceValidation ? " et l'endurance enregistrée sera effacée." : "."))) return;
             el.merValidation = null;
+            el.enduranceValidation = null;   // pas d'endurance sans MER validée
             el.updatedAt = Date.now();
             renderScanTables();
             renderMerPane();
+            renderEndurancePane();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        // ---- Onglet Endurance ------------------------------------------------
+        // Durée passée en endurance, saisie une fois la MER validée.
+        // La validation fait passer le dossier de ENDURANCE à EXPE.
+        function renderEndurancePane() {
+            const box = document.getElementById('endContent');
+            if (!box) return;
+            const el = getActiveElement();
+            if (!el) { box.innerHTML = ''; return; }
+            const locked = !!el.closed;
+
+            let html = `<h3 class="section-title" style="margin-bottom: 0.75rem;">Endurance</h3>`;
+
+            if (el.enduranceValidation) {
+                const v = el.enduranceValidation;
+                html += `
+                    <div class="table-wrap">
+                        <table>
+                            <tbody>
+                                <tr>
+                                    <td style="font-weight: 700; width: 14rem;">Durée d'endurance</td>
+                                    <td style="font-weight: 700; color: #0f172a;">${formatMinutes(v.durationMin)}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">Enregistrée par</td>
+                                    <td style="font-weight: 700; color: #059669;">${escapeHtml(v.operator || '')}</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: 700;">Le</td>
+                                    <td style="font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(v.date || '')}</td>
+                                </tr>
+                                ${v.note ? `<tr><td style="font-weight: 700;">Remarques</td><td style="color: #475569;">${escapeHtml(v.note)}</td></tr>` : ''}
+                            </tbody>
+                        </table>
+                    </div>
+                    ${locked ? '' : `<button onclick="cancelEnduranceValidation()" class="btn-gray" style="margin-top: 1rem;">Annuler l'endurance</button>`}
+                `;
+            } else if (!el.merValidation) {
+                html += `<div class="empty-hint">L'endurance sera saisissable une fois la <strong>MER validée</strong>.</div>`;
+            } else {
+                html += `
+                    <div class="table-wrap" style="padding: 1.25rem;">
+                        <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 1rem;">
+                            Indiquez combien de temps le robot est resté en endurance. La validation fait passer le dossier en <strong>EXPE</strong>.
+                        </p>
+                        <form onsubmit="handleValidateEndurance(event)">
+                            <div style="display: flex; gap: 1.5rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label>Durée d'endurance</label>
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <input id="endHours" type="number" min="0" max="9999" style="text-align: center; max-width: 5.5rem;" ${locked ? 'disabled' : ''}>
+                                        <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
+                                        <input id="endMinutes" type="number" min="0" max="59" style="text-align: center; max-width: 5.5rem;" ${locked ? 'disabled' : ''}>
+                                        <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">min</span>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0; max-width: 9rem;">
+                                    <label>Trigramme</label>
+                                    <input id="endOperator" type="text" required maxlength="3"
+                                           style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;"
+                                           oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')" ${locked ? 'disabled' : ''}>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Remarques (facultatif)</label>
+                                <textarea id="endNote" rows="2" ${locked ? 'disabled' : ''}></textarea>
+                            </div>
+                            <button type="submit" class="btn-primary" ${locked ? 'disabled' : ''}>Valider l'endurance</button>
+                        </form>
+                    </div>
+                `;
+            }
+
+            box.innerHTML = html;
+        }
+
+        function handleValidateEndurance(e) {
+            e.preventDefault();
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            if (!el.merValidation) { alert("La MER doit être validée avant l'endurance."); return; }
+
+            const operator = document.getElementById('endOperator').value.trim().toUpperCase();
+            if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
+
+            const h = parseInt(document.getElementById('endHours').value, 10) || 0;
+            const m = parseInt(document.getElementById('endMinutes').value, 10) || 0;
+            const durationMin = h * 60 + m;
+            if (durationMin <= 0) { alert("Veuillez renseigner la durée d'endurance."); return; }
+
+            el.enduranceValidation = {
+                durationMin, operator,
+                note: document.getElementById('endNote').value.trim(),
+                date: formatDateTime(),
+                at: Date.now()
+            };
+            el.updatedAt = Date.now();
+            renderScanTables();
+            renderEndurancePane();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        function cancelEnduranceValidation() {
+            const el = getActiveElement();
+            if (!el || el.closed || !el.enduranceValidation) return;
+            if (!confirm("Annuler l'endurance ? Le dossier repassera au statut ENDURANCE.")) return;
+            el.enduranceValidation = null;
+            el.updatedAt = Date.now();
+            renderScanTables();
+            renderEndurancePane();
             renderSidebarList();
             scheduleSave();
         }
@@ -2861,11 +3170,12 @@
             const map = new Map();
             (scope || elements).forEach(el => {
                 (el.subassemblies || []).forEach(se => {
-                    if (!se.done || !se.durationMin) return;
+                    const mins = subTotalMinutes(se);
+                    if (!se.done || !mins) return;
                     const key = se.name;
                     if (!map.has(key)) map.set(key, { name: key, group: se.group || '', total: 0, count: 0 });
                     const s = map.get(key);
-                    s.total += se.durationMin;
+                    s.total += mins;
                     s.count += 1;
                 });
             });
@@ -3990,7 +4300,7 @@
             });
             (el.subassemblies || []).forEach(se => {
                 const cat = se.group ? `Sous-ensemble - ${se.group}` : 'Sous-ensemble';
-                csvContent += `${cleanCSVField('')};${cleanCSVField(se.name)};${cleanCSVField(se.done ? 'FAIT' : 'A FAIRE')};${cleanCSVField(se.doneTime)};${cleanCSVField(se.doneOperator)};${cleanCSVField(cat)}\r\n`;
+                csvContent += `${cleanCSVField('')};${cleanCSVField(se.name)};${cleanCSVField(se.done ? 'FAIT' : 'A FAIRE')};${cleanCSVField(se.doneTime)};${cleanCSVField(subOperators(se).join(' / '))};${cleanCSVField(cat)}\r\n`;
             });
             triggerCSVDownload(csvContent, `export_${el.displayName.replace(/\s+/g, '_')}.csv`);
         }
@@ -4014,7 +4324,7 @@
                 });
                 (el.subassemblies || []).forEach(se => {
                     const cat = se.group ? `Sous-ensemble - ${se.group}` : 'Sous-ensemble';
-                    csvContent += `${cleanCSVField(elType)};${cleanCSVField(num)};${cleanCSVField(modelType)};${cleanCSVField(top)};${cleanCSVField(projNum)};${cleanCSVField(client)};${cleanCSVField(options)};${cleanCSVField('')};${cleanCSVField(se.name)};${cleanCSVField(se.done ? 'FAIT' : 'A FAIRE')};${cleanCSVField(se.doneTime)};${cleanCSVField(se.doneOperator)};${cleanCSVField(cat)}\r\n`;
+                    csvContent += `${cleanCSVField(elType)};${cleanCSVField(num)};${cleanCSVField(modelType)};${cleanCSVField(top)};${cleanCSVField(projNum)};${cleanCSVField(client)};${cleanCSVField(options)};${cleanCSVField('')};${cleanCSVField(se.name)};${cleanCSVField(se.done ? 'FAIT' : 'A FAIRE')};${cleanCSVField(se.doneTime)};${cleanCSVField(subOperators(se).join(' / '))};${cleanCSVField(cat)}\r\n`;
                 });
             });
             triggerCSVDownload(csvContent, `export_global_production_smr_${Date.now()}.csv`);
