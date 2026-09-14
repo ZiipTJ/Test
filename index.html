@@ -2336,6 +2336,22 @@
             }
         }
 
+        // Seuls les Sherpa B (BI / BR) portent un top et une hauteur mini.
+        const B_TYPES = ['BI', 'BR'];
+        function isSherpaB(el) {
+            return el && el.objectType === 'robot' && B_TYPES.indexOf(el.type) !== -1;
+        }
+
+        // Hauteur minimale imposée par le top monté, d'après la config en vigueur.
+        function topMinHeight(el) {
+            if (!el || !el.top) return null;
+            if (el.top.ht_min) return parseFloat(el.top.ht_min);
+            const t = (config && Array.isArray(config.tops))
+                ? config.tops.find(x => x.name === el.top.name || x.abbr === el.top.abbr)
+                : null;
+            return (t && t.ht_min) ? parseFloat(t.ht_min) : null;
+        }
+
         function onRobotTypeChange() {
             const type = document.getElementById('formType').value;
             const topSelect = document.getElementById('formTop');
@@ -2346,7 +2362,7 @@
             topSelect.value = ""; minHeightLbl.textContent = "-- mm"; minHeightLbl.dataset.min = ""; userHeightInput.value = "";
             document.getElementById('heightWarning').classList.add('hidden');
 
-            if (type === 'BI' || type === 'BR') {
+            if (B_TYPES.indexOf(type) !== -1) {
                 topSelect.removeAttribute('disabled');
                 document.getElementById('minHeightArea').classList.remove('hidden');
                 document.getElementById('heightNotAvailable').classList.add('hidden');
@@ -2401,6 +2417,51 @@
             else warningBox.classList.add('hidden');
         }
 
+        // Top et hauteur dans l'en-tête du dossier. Sur un Sherpa B, les deux
+        // cases sont toujours affichées — même non renseignées — parce qu'elles
+        // font partie de l'identité du robot ; ailleurs, seulement si elles
+        // existent. La hauteur rappelle le minimum imposé par le top.
+        function topHeightRecapHtml(el) {
+            const bType = isSherpaB(el);
+            const missing = (txt) =>
+                `<span style="color: #94a3b8; font-style: italic; font-weight: 500;">${txt}</span>`;
+            let html = '';
+
+            if (bType || (el.top && (el.top.name || el.top.abbr))) {
+                const topLabel = el.top
+                    ? (el.top.abbr
+                        ? `${escapeHtml(el.top.name || el.top.abbr)} (${escapeHtml(el.top.abbr)})`
+                        : escapeHtml(el.top.name || ''))
+                    : missing('Non renseigné');
+                html += `
+                    <div class="recap-item">
+                        <div class="recap-label">Top</div>
+                        <div class="recap-value">${topLabel}</div>
+                    </div>
+                `;
+            }
+
+            if (bType || el.userHeight) {
+                const minH = topMinHeight(el);
+                const h = parseFloat(el.userHeight);
+                const tooLow = !!minH && !isNaN(h) && h < minH;
+                const value = el.userHeight
+                    ? `<span style="${tooLow ? 'color: #b91c1c;' : ''}">${escapeHtml(String(el.userHeight))} mm</span>`
+                    : missing('Non renseignée');
+                const sub = minH
+                    ? `<div style="font-size: 0.65rem; font-weight: 600; color: ${tooLow ? '#b91c1c' : '#94a3b8'}; margin-top: 0.15rem;">${tooLow ? 'Sous le minimum de ' : 'Minimum : '}${minH} mm</div>`
+                    : '';
+                html += `
+                    <div class="recap-item">
+                        <div class="recap-label">Hauteur</div>
+                        <div class="recap-value">${value}</div>
+                        ${sub}
+                    </div>
+                `;
+            }
+            return html;
+        }
+
         // ---- Sélection d'un élément & affichage du panneau de scan -----------
         function selectElement(id) {
             activeElementId = id;
@@ -2443,22 +2504,7 @@
                     </div>
                 `;
             }
-            if (el.top && el.top.name) {
-                grid.innerHTML += `
-                    <div class="recap-item">
-                        <div class="recap-label">Top</div>
-                        <div class="recap-value">${escapeHtml(el.top.name)}</div>
-                    </div>
-                `;
-            }
-            if (el.userHeight) {
-                grid.innerHTML += `
-                    <div class="recap-item">
-                        <div class="recap-label">Hauteur</div>
-                        <div class="recap-value">${el.userHeight} mm</div>
-                    </div>
-                `;
-            }
+            grid.innerHTML += topHeightRecapHtml(el);
             if (Array.isArray(el.optionsList) && el.optionsList.length) {
                 grid.innerHTML += `
                     <div class="recap-item" style="grid-column: span 2;">
@@ -3924,7 +3970,7 @@
                 return;
             }
 
-            const topSelected = (type === 'BI' || type === 'BR') ? config.tops.find(t => t.name === topName) : null;
+            const topSelected = (B_TYPES.indexOf(type) !== -1) ? config.tops.find(t => t.name === topName) : null;
 
             const checkedOptionIds = [];
             document.querySelectorAll('#optionsDynamicContainer input[type="checkbox"]:checked').forEach(cb => checkedOptionIds.push(cb.dataset.optid));
