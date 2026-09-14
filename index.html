@@ -208,7 +208,7 @@
         .scan-header {
             background: linear-gradient(180deg, #ffffff, var(--slate-50));
             border-bottom: 1px solid var(--slate-200); padding: 1.5rem;
-            display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1.5rem;
+            display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1.25rem;
         }
         .active-badge {
             font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 9999px;
@@ -280,8 +280,19 @@
             width: 0; transition: width 0.4s ease; border-radius: 9999px;
         }
 
-        .recap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-top: 1rem; width: 100%; }
-        .recap-item { background-color: #fff; border: 1px solid var(--slate-200); padding: 0.6rem 0.875rem; border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+        /* Les cases se rangent en flux et se serrent à gauche : une grille à
+           colonnes fixes laissait des trous dès qu'une case était plus large
+           (Sherpa B : client + projet + créateur + hard + top + hauteur). */
+        .recap-grid { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.6rem; margin-top: 1rem; width: 100%; }
+        .recap-item {
+            background-color: #fff; border: 1px solid var(--slate-200);
+            padding: 0.55rem 0.8rem; border-radius: var(--radius); box-shadow: var(--shadow-sm);
+            flex: 0 1 auto; min-width: 8.5rem; max-width: 100%;
+        }
+        /* Options et remarques : plus larges, mais dimensionnées par leur
+           contenu — une case étirée sur toute la ligne pour deux mots fait
+           un trou visuel de plus. */
+        .recap-item.recap-wide { min-width: 12rem; max-width: 46rem; }
         .recap-label { font-size: 0.6875rem; text-transform: uppercase; color: var(--slate-500); font-weight: 700; letter-spacing: 0.025em; }
         .recap-value { font-size: 0.875rem; color: var(--slate-800); font-weight: 600; margin-top: 0.125rem; word-break: break-word; }
         .recap-item.recap-remark { border-color: #fca5a5; background-color: #fef2f2; }
@@ -619,7 +630,7 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Top</label>
+                                <label id="lblTop">Top</label>
                                 <select id="formTop" onchange="onTopChange()" disabled>
                                     <option value="">Sélectionnez un top...</option>
                                 </select>
@@ -661,7 +672,7 @@
                             </div>
 
                             <div class="form-group">
-                                <label>Hauteur | minimum : <span id="lblMinHeight" style="font-weight: 700; color: #1e293b;">-- mm</span></label>
+                                <label><span id="lblHeightReq"></span>Hauteur | minimum : <span id="lblMinHeight" style="font-weight: 700; color: #1e293b;">-- mm</span></label>
                                 <div id="minHeightArea">
                                     <input id="formUserHeight" type="number" oninput="validateHeight()" placeholder="">
                                     <div id="heightWarning" class="danger-msg hidden">⚠️ Trop bas !</div>
@@ -2362,7 +2373,12 @@
             topSelect.value = ""; minHeightLbl.textContent = "-- mm"; minHeightLbl.dataset.min = ""; userHeightInput.value = "";
             document.getElementById('heightWarning').classList.add('hidden');
 
-            if (B_TYPES.indexOf(type) !== -1) {
+            // Sur un Sherpa B, le top et la hauteur sont obligatoires : ils font
+            // partie de l'identité du robot et conditionnent sa nomenclature.
+            const isB = B_TYPES.indexOf(type) !== -1;
+            document.getElementById('lblTop').textContent = isB ? '* Top' : 'Top';
+            document.getElementById('lblHeightReq').textContent = isB ? '* ' : '';
+            if (isB) {
                 topSelect.removeAttribute('disabled');
                 document.getElementById('minHeightArea').classList.remove('hidden');
                 document.getElementById('heightNotAvailable').classList.add('hidden');
@@ -2507,7 +2523,7 @@
             grid.innerHTML += topHeightRecapHtml(el);
             if (Array.isArray(el.optionsList) && el.optionsList.length) {
                 grid.innerHTML += `
-                    <div class="recap-item" style="grid-column: span 2;">
+                    <div class="recap-item recap-wide">
                         <div class="recap-label">Options</div>
                         <div class="recap-value">${el.optionsList.map(escapeHtml).join(' · ')}</div>
                     </div>
@@ -2515,7 +2531,7 @@
             }
             if (el.remarks) {
                 grid.innerHTML += `
-                    <div class="recap-item recap-remark" style="grid-column: span 2;">
+                    <div class="recap-item recap-wide recap-remark">
                         <div class="recap-label">Remarques</div>
                         <div class="recap-value">${el.remarks}</div>
                     </div>
@@ -3926,6 +3942,24 @@
         }
 
         // ---- Création des éléments ------------------------------------------
+        // Top et hauteur sont obligatoires sur un Sherpa B : ils déterminent la
+        // nomenclature montée et le nom du dossier. Une hauteur sous le minimum
+        // du top reste possible, mais jamais par inadvertance.
+        function checkRobotIdentity(type, topName, userHeight, minStr) {
+            if (B_TYPES.indexOf(type) === -1) return {};
+            if (!topName) return { error: "Le top est obligatoire sur un Sherpa B.", focus: 'formTop' };
+            const h = parseFloat(userHeight);
+            if (!String(userHeight || '').trim() || isNaN(h) || h <= 0) {
+                return { error: "La hauteur est obligatoire sur un Sherpa B.", focus: 'formUserHeight' };
+            }
+            const min = parseFloat(minStr);
+            if (minStr && !isNaN(min) && h < min) {
+                return { confirm: `La hauteur saisie (${h} mm) est inférieure au minimum du top `
+                                + `(${min} mm).\n\nCréer quand même ?` };
+            }
+            return {};
+        }
+
         function handleCreateRobot(e) {
             e.preventDefault();
             const num = document.getElementById('formNum').value.trim();
@@ -3939,6 +3973,16 @@
             const remarks = document.getElementById('formRemarks').value.trim();
 
             if (!num || !type || !client || !projectNum || !operator) { alert("Champs obligatoires manquants."); return; }
+
+            // Sherpa B : rien n'est créé sans top ni hauteur.
+            const verdict = checkRobotIdentity(type, topName, userHeight,
+                document.getElementById('lblMinHeight').dataset.min);
+            if (verdict.error) {
+                alert(verdict.error);
+                if (verdict.focus) document.getElementById(verdict.focus).focus();
+                return;
+            }
+            if (verdict.confirm && !confirm(verdict.confirm)) return;
 
             const qty = readQty('formQty');
 
