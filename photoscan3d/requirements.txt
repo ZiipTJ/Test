@@ -1,0 +1,7 @@
+# ArUco fait partie du module objdetect d'OpenCV depuis la version 4.7 :
+# opencv-python suffit, opencv-contrib-python convient aussi.
+numpy>=1.24
+opencv-python>=4.8
+pillow>=10.0
+pillow-heif>=0.15
+PySide6>=6.5
