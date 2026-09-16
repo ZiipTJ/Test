@@ -1,219 +1,54 @@
-/** Catalogues par défaut : fils, gaines, connecteurs.
- *  Valeurs représentatives des câbles souples type FLRY-B / H07V-K ; elles sont
- *  toutes éditables dans l'application, le catalogue n'est qu'un point de départ. */
-import type { ConnectorDef, Sleeve, SleeveKind, WireSpec } from './types';
+/** Catalogue des fils : à partir de la seule section, on connaît le diamètre
+ *  extérieur, la masse et la résistance. Valeurs représentatives des câbles
+ *  souples type FLRY-B / H07V-K, toutes modifiables dans l'application. */
 
-export interface WireCatalogEntry extends Omit<WireSpec, 'id'> {
-  id: string;
+export interface WireGrade {
+  sectionMm2: number;
+  /** Diamètre extérieur, isolant compris (mm). */
+  outerDiameter: number;
+  awg: string;
+  /** Masse linéique (g/m). */
+  massPerMeter: number;
+  /** Résistance linéique (mΩ/m) à 20 °C. */
+  resistancePerMeter: number;
+  /** Courant admissible (A). */
+  currentRating: number;
 }
 
-/** section (mm²), Ø extérieur (mm), AWG, masse (g/m), R (mΩ/m), I adm. (A) */
-const RAW_WIRES: Array<[number, number, string, number, number, number]> = [
-  [0.35, 1.4, '22', 4.7, 54.4, 8.75],
-  [0.5, 1.6, '20', 6.3, 37.1, 11],
-  [0.75, 1.9, '18', 9.0, 24.7, 13.5],
-  [1.0, 2.1, '17', 11.7, 18.5, 16.5],
-  [1.5, 2.4, '15', 17.0, 12.7, 21],
-  [2.5, 3.1, '13', 27.0, 7.6, 30],
-  [4.0, 3.7, '11', 42.0, 4.71, 40],
-  [6.0, 4.5, '9', 62.0, 3.14, 51],
-  [10.0, 6.0, '7', 103.0, 1.82, 70],
-  [16.0, 7.4, '5', 162.0, 1.16, 94],
-  [25.0, 9.3, '3', 250.0, 0.74, 121],
+export const WIRE_GRADES: WireGrade[] = [
+  { sectionMm2: 0.35, outerDiameter: 1.4, awg: '22', massPerMeter: 4.7, resistancePerMeter: 54.4, currentRating: 8.75 },
+  { sectionMm2: 0.5, outerDiameter: 1.6, awg: '20', massPerMeter: 6.3, resistancePerMeter: 37.1, currentRating: 11 },
+  { sectionMm2: 0.75, outerDiameter: 1.9, awg: '18', massPerMeter: 9, resistancePerMeter: 24.7, currentRating: 13.5 },
+  { sectionMm2: 1, outerDiameter: 2.1, awg: '17', massPerMeter: 11.7, resistancePerMeter: 18.5, currentRating: 16.5 },
+  { sectionMm2: 1.5, outerDiameter: 2.4, awg: '15', massPerMeter: 17, resistancePerMeter: 12.7, currentRating: 21 },
+  { sectionMm2: 2.5, outerDiameter: 3.1, awg: '13', massPerMeter: 27, resistancePerMeter: 7.6, currentRating: 30 },
+  { sectionMm2: 4, outerDiameter: 3.7, awg: '11', massPerMeter: 42, resistancePerMeter: 4.71, currentRating: 40 },
+  { sectionMm2: 6, outerDiameter: 4.5, awg: '9', massPerMeter: 62, resistancePerMeter: 3.14, currentRating: 51 },
+  { sectionMm2: 10, outerDiameter: 6, awg: '7', massPerMeter: 103, resistancePerMeter: 1.82, currentRating: 70 },
+  { sectionMm2: 16, outerDiameter: 7.4, awg: '5', massPerMeter: 162, resistancePerMeter: 1.16, currentRating: 94 },
+  { sectionMm2: 25, outerDiameter: 9.3, awg: '3', massPerMeter: 250, resistancePerMeter: 0.74, currentRating: 121 },
 ];
 
-export const WIRE_CATALOG: WireCatalogEntry[] = RAW_WIRES.map(
-  ([sectionMm2, outerDiameter, awg, massPerMeter, resistancePerMeter, currentRating]) => ({
-    id: `flry-${String(sectionMm2).replace('.', 'p')}`,
-    ref: `FLRY-B ${sectionMm2.toFixed(2)} mm²`,
-    sectionMm2,
-    outerDiameter,
-    awg,
-    massPerMeter,
-    resistancePerMeter,
-    currentRating,
-    minBendFactor: 5,
-    material: 'Cuivre étamé / PVC',
-  }),
-);
-
-export function findSpecBySection(section: number): WireCatalogEntry {
-  let best = WIRE_CATALOG[0]!;
-  let bestDelta = Infinity;
-  for (const entry of WIRE_CATALOG) {
-    const delta = Math.abs(entry.sectionMm2 - section);
-    if (delta < bestDelta) {
-      bestDelta = delta;
-      best = entry;
-    }
+export function gradeForSection(section: number): WireGrade {
+  let best = WIRE_GRADES[0]!;
+  let delta = Infinity;
+  for (const grade of WIRE_GRADES) {
+    const d = Math.abs(grade.sectionMm2 - section);
+    if (d < delta) { delta = d; best = grade; }
   }
   return best;
 }
 
-/** Couleurs normalisées de repérage, avec leur libellé métier. */
-export const WIRE_COLORS: Array<{ code: string; label: string; hex: string }> = [
-  { code: 'NO', label: 'Noir', hex: '#1c1c1c' },
-  { code: 'MA', label: 'Marron', hex: '#7a4a21' },
-  { code: 'RG', label: 'Rouge', hex: '#d0342c' },
-  { code: 'OR', label: 'Orange', hex: '#e08028' },
-  { code: 'JA', label: 'Jaune', hex: '#e8c22a' },
-  { code: 'VE', label: 'Vert', hex: '#2f9e51' },
-  { code: 'BL', label: 'Bleu', hex: '#2f6fd0' },
-  { code: 'VI', label: 'Violet', hex: '#8455b5' },
-  { code: 'GR', label: 'Gris', hex: '#9aa0aa' },
-  { code: 'BC', label: 'Blanc', hex: '#eceff3' },
-  { code: 'RS', label: 'Rose', hex: '#e08aa8' },
-  { code: 'VJ', label: 'Vert/Jaune', hex: '#8fbf3f' },
+/** Couleurs de repérage, proposées à la création d'un fil. */
+export const WIRE_COLORS: Array<{ label: string; hex: string }> = [
+  { label: 'Rouge', hex: '#d0342c' },
+  { label: 'Noir', hex: '#1c1c1c' },
+  { label: 'Bleu', hex: '#2f6fd0' },
+  { label: 'Vert', hex: '#2f9e51' },
+  { label: 'Jaune', hex: '#e0b62a' },
+  { label: 'Marron', hex: '#7a4a21' },
+  { label: 'Orange', hex: '#e08028' },
+  { label: 'Violet', hex: '#8455b5' },
+  { label: 'Gris', hex: '#8a919d' },
+  { label: 'Blanc', hex: '#d9dde3' },
 ];
-
-/* -------------------------------------------------------------------- gaines */
-
-export interface SleeveCatalogEntry {
-  ref: string;
-  kind: SleeveKind;
-  innerDiameter: number;
-  wallThickness: number;
-  pitch: number;
-  bandWidth: number;
-  overlap: number;
-  color: string;
-}
-
-const SPIRAL_SIZES = [4, 6, 8, 12, 16, 20, 25, 32];
-const CORRUGATED_SIZES = [7, 10, 13, 17, 22, 29];
-const BRAID_SIZES = [6, 10, 15, 20, 25];
-const HEATSHRINK_SIZES = [3, 6, 9, 12, 19];
-
-export const SLEEVE_CATALOG: SleeveCatalogEntry[] = [
-  ...SPIRAL_SIZES.map((d) => ({
-    ref: `Spiralée Ø${d}`,
-    kind: 'spiralee' as const,
-    innerDiameter: d,
-    wallThickness: Math.max(0.5, d * 0.05),
-    // Pas courant d'une spiralée : de l'ordre de 2,5 fois son diamètre.
-    pitch: d * 2.5,
-    bandWidth: Math.max(2, d * 0.45),
-    overlap: 0,
-    color: '#b9bec7',
-  })),
-  ...CORRUGATED_SIZES.map((d) => ({
-    ref: `Annelée fendue Ø${d}`,
-    kind: 'annelee' as const,
-    innerDiameter: d,
-    wallThickness: Math.max(0.8, d * 0.08),
-    pitch: Math.max(3, d * 0.35),
-    bandWidth: 0,
-    overlap: 0,
-    color: '#2b2f36',
-  })),
-  ...BRAID_SIZES.map((d) => ({
-    ref: `Tressée PET Ø${d}`,
-    kind: 'tressee' as const,
-    innerDiameter: d,
-    wallThickness: 0.5,
-    pitch: d * 1.6,
-    bandWidth: 0,
-    overlap: 0,
-    color: '#3a3f47',
-  })),
-  ...HEATSHRINK_SIZES.map((d) => ({
-    ref: `Thermo 2:1 Ø${d}`,
-    kind: 'thermo' as const,
-    innerDiameter: d,
-    wallThickness: 0.6,
-    pitch: 0,
-    bandWidth: 0,
-    overlap: 0,
-    color: '#15181d',
-  })),
-  {
-    ref: 'Ruban câblage 19 mm',
-    kind: 'ruban',
-    innerDiameter: 0,
-    wallThickness: 0.2,
-    pitch: 9,
-    bandWidth: 19,
-    overlap: 0.5,
-    color: '#23262c',
-  },
-];
-
-export const SLEEVE_KIND_LABEL: Record<SleeveKind, string> = {
-  spiralee: 'Gaine spiralée',
-  annelee: 'Gaine annelée fendue',
-  tressee: 'Gaine tressée',
-  thermo: 'Gaine thermorétractable',
-  ruban: 'Ruban de câblage',
-};
-
-/** Choisit la plus petite gaine du catalogue acceptant un toron de Ø donné,
- *  en respectant le taux de remplissage maximal. */
-export function selectSleeve(
-  kind: SleeveKind,
-  bundleDiameter: number,
-  maxFillRatio: number,
-): SleeveCatalogEntry | null {
-  const candidates = SLEEVE_CATALOG.filter((s) => s.kind === kind && s.innerDiameter > 0)
-    .slice()
-    .sort((a, b) => a.innerDiameter - b.innerDiameter);
-  const needed = bundleDiameter / Math.sqrt(Math.max(0.05, maxFillRatio));
-  return candidates.find((s) => s.innerDiameter >= needed) ?? candidates[candidates.length - 1] ?? null;
-}
-
-export function sleeveFromCatalog(entry: SleeveCatalogEntry, id: string, name: string): Sleeve {
-  return {
-    id,
-    name,
-    kind: entry.kind,
-    ref: entry.ref,
-    color: entry.color,
-    innerDiameter: entry.innerDiameter,
-    wallThickness: entry.wallThickness,
-    pitch: entry.pitch,
-    bandWidth: entry.bandWidth,
-    overlap: entry.overlap,
-    segmentIds: [],
-  };
-}
-
-/* --------------------------------------------------------------- connecteurs */
-
-export interface ConnectorCatalogEntry {
-  ref: string;
-  name: string;
-  ways: number;
-  gender: ConnectorDef['gender'];
-  entryDiameter: number;
-}
-
-export const CONNECTOR_CATALOG: ConnectorCatalogEntry[] = [
-  { ref: 'MQS-02', name: 'Connecteur 2 voies', ways: 2, gender: 'femelle', entryDiameter: 6 },
-  { ref: 'MQS-04', name: 'Connecteur 4 voies', ways: 4, gender: 'femelle', entryDiameter: 8 },
-  { ref: 'MQS-06', name: 'Connecteur 6 voies', ways: 6, gender: 'femelle', entryDiameter: 10 },
-  { ref: 'MQS-08', name: 'Connecteur 8 voies', ways: 8, gender: 'femelle', entryDiameter: 12 },
-  { ref: 'MQS-12', name: 'Connecteur 12 voies', ways: 12, gender: 'femelle', entryDiameter: 14 },
-  { ref: 'MQS-16', name: 'Connecteur 16 voies', ways: 16, gender: 'femelle', entryDiameter: 16 },
-  { ref: 'PWR-M8', name: 'Cosse à œil M8', ways: 1, gender: 'male', entryDiameter: 10 },
-  { ref: 'BORNIER-12', name: 'Bornier 12 points', ways: 12, gender: 'mixte', entryDiameter: 18 },
-];
-
-export function connectorFromCatalog(entry: ConnectorCatalogEntry, id: string, name?: string): ConnectorDef {
-  return {
-    id,
-    ref: entry.ref,
-    name: name ?? entry.name,
-    gender: entry.gender,
-    color: '#4a5260',
-    entryDiameter: entry.entryDiameter,
-    cavities: Array.from({ length: entry.ways }, (_, i) => ({ code: String(i + 1) })),
-  };
-}
-
-/** Références de contacts proposées selon la section du fil. */
-export function suggestTerminal(section: number): string {
-  if (section <= 0.5) return 'MQS 0,35-0,5';
-  if (section <= 1.0) return 'MQS 0,75-1,0';
-  if (section <= 2.5) return 'MCP 1,5-2,5';
-  if (section <= 6) return 'Cosse pré-isolée 4-6';
-  return 'Cosse à œil sertie';
-}

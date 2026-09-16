@@ -1,23 +1,21 @@
-/** Affichage du modèle CAO importé : corps tessellés et arêtes du B-rep. */
+/** Le modèle CAO importé : corps tessellés et arêtes du B-rep. */
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import type { ThreeEvent } from '@react-three/fiber';
 import { Bvh } from '@react-three/drei';
+import type { ThreeEvent } from '@react-three/fiber';
 import { buildGeometry, buildLineGeometry } from './bvh';
 import type { ImportedMesh } from '../io/types';
-import { isSelected, useSession } from '../state/session';
+import { useSession } from '../state/session';
 
-interface ModelScenePropsBase {
+interface BodyProps {
+  mesh: ImportedMesh;
   onPointerMove: (event: ThreeEvent<PointerEvent>, mesh: ImportedMesh) => void;
   onPointerDown: (event: ThreeEvent<PointerEvent>, mesh: ImportedMesh) => void;
   onPointerLeave: () => void;
 }
 
-function Body({ mesh, onPointerMove, onPointerDown, onPointerLeave }: ModelScenePropsBase & { mesh: ImportedMesh }) {
-  const view = useSession((state) => state.view);
-  const selection = useSession((state) => state.selection);
-  const selected = isSelected(selection, 'mesh', mesh.id);
-
+function Body({ mesh, onPointerMove, onPointerDown, onPointerLeave }: BodyProps) {
+  const showEdges = useSession((state) => state.showEdges);
   const geometry = useMemo(() => buildGeometry(mesh), [mesh]);
   const edgeGeometry = useMemo(() => buildLineGeometry(mesh.edgePositions), [mesh]);
 
@@ -27,56 +25,43 @@ function Body({ mesh, onPointerMove, onPointerDown, onPointerLeave }: ModelScene
   }, [geometry, edgeGeometry]);
 
   const color = useMemo(
-    () => (mesh.color ? new THREE.Color(mesh.color[0], mesh.color[1], mesh.color[2]) : new THREE.Color('#8d94a3')),
+    () => (mesh.color ? new THREE.Color(mesh.color[0], mesh.color[1], mesh.color[2]) : new THREE.Color('#c9cfd8')),
     [mesh],
   );
 
   return (
     <group>
-      {view.showModel && (
-        <mesh
-          geometry={geometry}
-          castShadow={false}
-          receiveShadow={false}
-          onPointerMove={(event) => onPointerMove(event, mesh)}
-          onPointerDown={(event) => onPointerDown(event, mesh)}
-          onPointerOut={onPointerLeave}
-        >
-          <meshStandardMaterial
-            color={selected ? '#3f7fb0' : color}
-            transparent={view.modelOpacity < 1}
-            opacity={view.modelOpacity}
-            roughness={0.62}
-            metalness={0.08}
-            side={THREE.DoubleSide}
-            polygonOffset
-            polygonOffsetFactor={1}
-            polygonOffsetUnits={1}
-          />
-        </mesh>
-      )}
-      {view.showEdges && (
+      <mesh
+        geometry={geometry}
+        onPointerMove={(event) => onPointerMove(event, mesh)}
+        onPointerDown={(event) => onPointerDown(event, mesh)}
+        onPointerOut={onPointerLeave}
+      >
+        <meshStandardMaterial
+          color={color}
+          roughness={0.7}
+          metalness={0.05}
+          side={THREE.DoubleSide}
+          polygonOffset
+          polygonOffsetFactor={1}
+          polygonOffsetUnits={1}
+        />
+      </mesh>
+      {showEdges && (
         <lineSegments geometry={edgeGeometry} renderOrder={2}>
-          <lineBasicMaterial color={view.showModel ? '#20242b' : '#6b7382'} transparent opacity={0.9} depthTest />
+          <lineBasicMaterial color="#5a6270" transparent opacity={0.85} />
         </lineSegments>
       )}
     </group>
   );
 }
 
-export function ModelScene(props: ModelScenePropsBase) {
+export function ModelScene(props: Omit<BodyProps, 'mesh'>) {
   const model = useSession((state) => state.model);
-  const visibility = useSession((state) => state.meshVisibility);
   if (!model) return null;
-  // `<Bvh>` ne construit ses arbres qu'au montage : on le remonte quand la liste
-  // des corps visibles change, sinon un corps réaffiché perdrait l'accélération.
-  const visibleKey = model.meshes.filter((mesh) => visibility[mesh.id] !== false).map((mesh) => mesh.id).join('|');
-
   return (
-    <Bvh key={`${model.name}:${visibleKey}`} firstHitOnly>
-      {model.meshes.map((mesh) =>
-        visibility[mesh.id] === false ? null : <Body key={mesh.id} mesh={mesh} {...props} />,
-      )}
+    <Bvh key={model.name} firstHitOnly>
+      {model.meshes.map((mesh) => <Body key={mesh.id} mesh={mesh} {...props} />)}
     </Bvh>
   );
 }

@@ -9,12 +9,13 @@
 import * as THREE from 'three';
 import { detectCircles, type CircleFeature } from '../core/geometry/features';
 import type { ImportedMesh } from '../io/types';
-import type { SnapModes } from '../state/session';
-import type { SnapOrigin } from '../core/harness/types';
+
+/** Familles d'accrochage, dans l'ordre de priorité. */
+export type SnapKind = 'centre-cercle' | 'sommet' | 'milieu-arete' | 'arete' | 'face';
 
 export interface SnapCandidate {
   position: THREE.Vector3;
-  kind: SnapOrigin['kind'];
+  kind: SnapKind;
   label: string;
   meshId: string;
   radius?: number;
@@ -149,7 +150,6 @@ export interface SnapContext {
   size: { width: number; height: number };
   pointer: THREE.Vector2;
   pixelRadius: number;
-  modes: SnapModes;
   diagonal: number;
 }
 
@@ -166,7 +166,7 @@ export function findSnap(
 
   const candidates: SnapCandidate[] = [];
 
-  if (context.modes.cercle) {
+  {
     for (const circle of index.circles) {
       const center = new THREE.Vector3(...circle.center);
       const distance = pixelDistance(center, context.pointer, context.camera, context.size);
@@ -184,7 +184,7 @@ export function findSnap(
     }
   }
 
-  if (context.modes.sommet) {
+  {
     for (const vertexIndex of index.nearVertices(hit.point, searchRadius)) {
       const vertex = index.vertexAt(vertexIndex);
       const distance = pixelDistance(vertex, context.pointer, context.camera, context.size);
@@ -194,18 +194,18 @@ export function findSnap(
     }
   }
 
-  if (context.modes.milieu || context.modes.arete) {
+  {
     const line = new THREE.Line3();
     const closest = new THREE.Vector3();
     for (const edgeIndex of index.nearEdges(hit.point, searchRadius)) {
-      if (context.modes.milieu) {
+      {
         const midpoint = index.edgeMidpointAt(edgeIndex);
         const distance = pixelDistance(midpoint, context.pointer, context.camera, context.size);
         if (distance <= context.pixelRadius) {
           candidates.push({ position: midpoint, kind: 'milieu-arete', label: 'Milieu d’arête', meshId: hit.meshId, pixelDistance: distance + 2 });
         }
       }
-      if (context.modes.arete) {
+      {
         const a = index.edgeSegments[edgeIndex * 2]!;
         const b = index.edgeSegments[edgeIndex * 2 + 1]!;
         line.set(index.vertexAt(a), index.vertexAt(b));
@@ -225,28 +225,17 @@ export function findSnap(
     }
   }
 
-  if (candidates.length === 0 || !context.modes.face) {
-    if (candidates.length === 0) {
-      return {
-        position: hit.point.clone(),
-        kind: 'face',
-        label: 'Sur face',
-        meshId: hit.meshId,
-        ...(hit.face ? { axis: hit.face.normal.clone() } : {}),
-        pixelDistance: 0,
-      };
-    }
+  if (candidates.length === 0) {
+    return {
+      position: hit.point.clone(),
+      kind: 'face',
+      label: 'Sur face',
+      meshId: hit.meshId,
+      ...(hit.face ? { axis: hit.face.normal.clone() } : {}),
+      pixelDistance: 0,
+    };
   }
 
   candidates.sort((a, b) => a.pixelDistance - b.pixelDistance);
   return candidates[0]!;
-}
-
-export function toSnapOrigin(candidate: SnapCandidate, partId: string): SnapOrigin {
-  return {
-    kind: candidate.kind,
-    partId,
-    ...(candidate.radius != null ? { radius: candidate.radius } : {}),
-    ...(candidate.axis ? { axis: [candidate.axis.x, candidate.axis.y, candidate.axis.z] } : {}),
-  };
 }

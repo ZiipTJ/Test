@@ -1,85 +1,42 @@
-/** Magasin du projet : c'est la seule source de vérité du faisceau.
- *  Historique annuler/rétablir géré par zundo, mutations écrites en style
- *  impératif grâce à immer. Le modèle CAO importé n'y figure pas : il pèse
- *  lourd et n'a pas à entrer dans l'historique. */
+/** Magasin du projet : les fils, les torons, et rien d'autre.
+ *  Historique annuler/rétablir par zundo, mutations par immer. */
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
 import type { Vec3 } from '../core/math/vec';
-import {
-  connectorFromCatalog,
-  findSpecBySection,
-  selectSleeve,
-  sleeveFromCatalog,
-  suggestTerminal,
-  WIRE_COLORS,
-  type ConnectorCatalogEntry,
-} from '../core/harness/library';
-import {
-  DEFAULT_SETTINGS,
-  emptyProject,
-  newId,
-  type ConnectorDef,
-  type HarnessProject,
-  type HarnessSettings,
-  type Id,
-  type RouteNode,
-  type RouteSegment,
-  type Sleeve,
-  type SleeveKind,
-  type Tenant,
-  type TenantSide,
-  type Wire,
-} from '../core/harness/types';
-
-interface ProjectState {
-  project: HarnessProject;
-}
+import { gradeForSection, WIRE_COLORS } from '../core/harness/library';
+import { emptyProject, newId, type Id, type Project, type SleeveKind, type Toron, type Wire } from '../core/harness/types';
 
 interface ProjectActions {
-  replaceProject(project: HarnessProject): void;
+  replaceProject(project: Project): void;
   resetProject(name?: string): void;
   renameProject(name: string): void;
 
-  addNode(node: Partial<RouteNode> & { position: Vec3 }): Id;
-  updateNode(id: Id, patch: Partial<RouteNode>): void;
-  removeNode(id: Id): void;
-
-  addSegment(a: Id, b: Id, patch?: Partial<RouteSegment>): Id | null;
-  updateSegment(id: Id, patch: Partial<RouteSegment>): void;
-  removeSegment(id: Id): void;
-  addVia(segmentId: Id, point: Vec3, index?: number): void;
-  removeVia(segmentId: Id, index: number): void;
-
-  addWire(wire?: Partial<Wire>): Id;
+  addWire(): Id;
   updateWire(id: Id, patch: Partial<Wire>): void;
-  updateTenant(id: Id, side: TenantSide, patch: Partial<Tenant>): void;
-  setWireSection(id: Id, section: number): void;
+  setSection(id: Id, section: number): void;
   removeWire(id: Id): void;
 
-  addConnector(entry: ConnectorCatalogEntry, name?: string): Id;
-  updateConnector(id: Id, patch: Partial<ConnectorDef>): void;
-  mountConnector(nodeId: Id, connectorId: Id | undefined): void;
+  /** Ajoute un point au chemin du fil, ou à celui de son toron. */
+  addPoint(target: { kind: 'fil' | 'toron'; id: Id }, point: Vec3): void;
+  removeLastPoint(target: { kind: 'fil' | 'toron'; id: Id }): void;
+  clearPath(target: { kind: 'fil' | 'toron'; id: Id }): void;
 
-  addSleeve(kind: SleeveKind, bundleDiameter: number, segmentIds: Id[]): Id;
-  updateSleeve(id: Id, patch: Partial<Sleeve>): void;
-  assignSleeve(segmentId: Id, sleeveId: Id | null): void;
-  removeSleeve(id: Id): void;
-
-  updateSettings(patch: Partial<HarnessSettings>): void;
+  groupToron(wireIds: Id[]): Id | null;
+  ungroupToron(id: Id): void;
+  updateToron(id: Id, patch: Partial<Toron>): void;
+  setSleeve(id: Id, sleeve: SleeveKind): void;
 }
 
-export type ProjectStore = ProjectState & ProjectActions;
+export type ProjectStore = { project: Project } & ProjectActions;
 
-const defaultTenant = (): Tenant => ({ nodeId: null, cavity: '', stripLength: 6, tailLength: 30 });
-
-function nextName(existing: Iterable<{ name: string }>, prefix: string): string {
+function nextWireName(wires: readonly Wire[]): string {
   let max = 0;
-  for (const item of existing) {
-    const match = new RegExp(`^${prefix}\\s*(\\d+)$`).exec(item.name);
+  for (const wire of wires) {
+    const match = /^F(\d+)$/.exec(wire.name.trim());
     if (match) max = Math.max(max, Number(match[1]));
   }
-  return `${prefix} ${max + 1}`;
+  return `F${max + 1}`;
 }
 
 export const useProject = create<ProjectStore>()(
@@ -87,291 +44,144 @@ export const useProject = create<ProjectStore>()(
     immer((set, get) => ({
       project: emptyProject(),
 
-      replaceProject(project) {
-        set((state) => {
-          state.project = project;
-        });
-      },
+      replaceProject: (project) => set((state) => { state.project = project; }),
+      resetProject: (name) => set((state) => { state.project = emptyProject(name); }),
+      renameProject: (name) => set((state) => { state.project.name = name; }),
 
-      resetProject(name) {
+      addWire() {
+        const id = newId('f');
         set((state) => {
-          state.project = emptyProject(name);
-        });
-      },
-
-      renameProject(name) {
-        set((state) => {
-          state.project.name = name;
-        });
-      },
-
-      /* ------------------------------------------------------------ nœuds */
-
-      addNode(node) {
-        const id = node.id ?? newId('nd');
-        set((state) => {
-          const kind = node.kind ?? 'passage';
-          const label = kind === 'connecteur' ? 'Connecteur' : kind === 'collier' ? 'Collier' : kind === 'derivation' ? 'Dérivation' : kind === 'epissure' ? 'Épissure' : 'Point';
-          state.project.nodes[id] = {
+          const grade = gradeForSection(0.75);
+          state.project.wires.push({
             id,
-            name: node.name ?? nextName(Object.values(state.project.nodes), label),
-            kind,
-            position: node.position,
-            exitLength: node.exitLength ?? (kind === 'connecteur' ? 25 : 0),
-            locked: false,
-            ...(node.exitDirection ? { exitDirection: node.exitDirection } : {}),
-            ...(node.connectorId ? { connectorId: node.connectorId } : {}),
-            ...(node.clamp ? { clamp: node.clamp } : {}),
-            ...(node.snap ? { snap: node.snap } : {}),
-          };
+            name: nextWireName(state.project.wires),
+            sectionMm2: grade.sectionMm2,
+            color: WIRE_COLORS[state.project.wires.length % WIRE_COLORS.length]!.hex,
+            outerDiameter: grade.outerDiameter,
+            massPerMeter: grade.massPerMeter,
+            resistancePerMeter: grade.resistancePerMeter,
+            points: [],
+            from: '',
+            to: '',
+            bendRadius: 30,
+            slack: 0.03,
+            tails: 0,
+          });
         });
         return id;
       },
 
-      updateNode(id, patch) {
+      updateWire: (id, patch) =>
         set((state) => {
-          const node = state.project.nodes[id];
-          if (node) Object.assign(node, patch);
-        });
-      },
-
-      removeNode(id) {
-        set((state) => {
-          delete state.project.nodes[id];
-          for (const segment of Object.values(state.project.segments)) {
-            if (segment.a === id || segment.b === id) delete state.project.segments[segment.id];
-          }
-          for (const wire of Object.values(state.project.wires)) {
-            if (wire.tenantG.nodeId === id) wire.tenantG.nodeId = null;
-            if (wire.tenantD.nodeId === id) wire.tenantD.nodeId = null;
-            wire.path = wire.path.filter((nodeId) => nodeId !== id);
-          }
-          for (const sleeve of Object.values(state.project.sleeves)) {
-            sleeve.segmentIds = sleeve.segmentIds.filter((segmentId) => state.project.segments[segmentId]);
-          }
-        });
-      },
-
-      /* --------------------------------------------------------- segments */
-
-      addSegment(a, b, patch) {
-        if (a === b) return null;
-        const existing = Object.values(get().project.segments).find(
-          (segment) => (segment.a === a && segment.b === b) || (segment.a === b && segment.b === a),
-        );
-        if (existing) return existing.id;
-        const id = newId('sg');
-        set((state) => {
-          state.project.segments[id] = {
-            id,
-            name: nextName(Object.values(state.project.segments), 'Segment'),
-            a,
-            b,
-            vias: [],
-            bendRadius: state.project.settings.defaultBendRadius,
-            slack: state.project.settings.defaultSlack,
-            locked: false,
-            ...patch,
-          };
-        });
-        return id;
-      },
-
-      updateSegment(id, patch) {
-        set((state) => {
-          const segment = state.project.segments[id];
-          if (segment) Object.assign(segment, patch);
-        });
-      },
-
-      removeSegment(id) {
-        set((state) => {
-          delete state.project.segments[id];
-          for (const sleeve of Object.values(state.project.sleeves)) {
-            sleeve.segmentIds = sleeve.segmentIds.filter((segmentId) => segmentId !== id);
-          }
-        });
-      },
-
-      addVia(segmentId, point, index) {
-        set((state) => {
-          const segment = state.project.segments[segmentId];
-          if (!segment) return;
-          if (index === undefined) segment.vias.push(point);
-          else segment.vias.splice(index, 0, point);
-        });
-      },
-
-      removeVia(segmentId, index) {
-        set((state) => {
-          state.project.segments[segmentId]?.vias.splice(index, 1);
-        });
-      },
-
-      /* ------------------------------------------------------------- fils */
-
-      addWire(wire) {
-        const id = wire?.id ?? newId('wr');
-        set((state) => {
-          const section = wire?.sectionMm2 ?? 0.75;
-          const spec = findSpecBySection(section);
-          state.project.specs[spec.id] = { ...spec };
-          const index = Object.keys(state.project.wires).length;
-          state.project.wires[id] = {
-            id,
-            name: wire?.name ?? `F${String(index + 1).padStart(3, '0')}`,
-            specId: spec.id,
-            sectionMm2: spec.sectionMm2,
-            outerDiameter: spec.outerDiameter,
-            color: wire?.color ?? WIRE_COLORS[index % WIRE_COLORS.length]!.hex,
-            tenantG: { ...defaultTenant(), ...wire?.tenantG },
-            tenantD: { ...defaultTenant(), ...wire?.tenantD },
-            path: wire?.path ?? [],
-            pathMode: wire?.pathMode ?? 'auto',
-            ...(wire?.network ? { network: wire.network } : {}),
-            ...(wire?.currentA != null ? { currentA: wire.currentA } : {}),
-          };
-        });
-        return id;
-      },
-
-      updateWire(id, patch) {
-        set((state) => {
-          const wire = state.project.wires[id];
+          const wire = state.project.wires.find((item) => item.id === id);
           if (wire) Object.assign(wire, patch);
-        });
-      },
+        }),
 
-      updateTenant(id, side, patch) {
+      /** Changer la section réaligne diamètre, masse et résistance sur le catalogue. */
+      setSection: (id, section) =>
         set((state) => {
-          const wire = state.project.wires[id];
+          const wire = state.project.wires.find((item) => item.id === id);
           if (!wire) return;
-          Object.assign(side === 'G' ? wire.tenantG : wire.tenantD, patch);
-        });
-      },
+          const grade = gradeForSection(section);
+          wire.sectionMm2 = grade.sectionMm2;
+          wire.outerDiameter = grade.outerDiameter;
+          wire.massPerMeter = grade.massPerMeter;
+          wire.resistancePerMeter = grade.resistancePerMeter;
+        }),
 
-      setWireSection(id, section) {
+      removeWire: (id) =>
         set((state) => {
-          const wire = state.project.wires[id];
-          if (!wire) return;
-          const spec = findSpecBySection(section);
-          state.project.specs[spec.id] = { ...spec };
-          wire.specId = spec.id;
-          wire.sectionMm2 = spec.sectionMm2;
-          wire.outerDiameter = spec.outerDiameter;
-          const terminal = suggestTerminal(spec.sectionMm2);
-          if (!wire.tenantG.terminalRef) wire.tenantG.terminalRef = terminal;
-          if (!wire.tenantD.terminalRef) wire.tenantD.terminalRef = terminal;
-        });
-      },
+          state.project.wires = state.project.wires.filter((wire) => wire.id !== id);
+          for (const toron of state.project.torons) {
+            toron.wireIds = toron.wireIds.filter((wireId) => wireId !== id);
+          }
+          // Un toron vidé de ses fils n'a plus lieu d'être.
+          state.project.torons = state.project.torons.filter((toron) => toron.wireIds.length > 0);
+        }),
 
-      removeWire(id) {
+      addPoint: (target, point) =>
         set((state) => {
-          delete state.project.wires[id];
-        });
-      },
+          const holder = target.kind === 'fil'
+            ? state.project.wires.find((wire) => wire.id === target.id)
+            : state.project.torons.find((toron) => toron.id === target.id);
+          holder?.points.push(point);
+        }),
 
-      /* ------------------------------------------------------ connecteurs */
-
-      addConnector(entry, name) {
-        const id = newId('cn');
+      removeLastPoint: (target) =>
         set((state) => {
-          state.project.connectors[id] = connectorFromCatalog(entry, id, name);
+          const holder = target.kind === 'fil'
+            ? state.project.wires.find((wire) => wire.id === target.id)
+            : state.project.torons.find((toron) => toron.id === target.id);
+          holder?.points.pop();
+        }),
+
+      clearPath: (target) =>
+        set((state) => {
+          const holder = target.kind === 'fil'
+            ? state.project.wires.find((wire) => wire.id === target.id)
+            : state.project.torons.find((toron) => toron.id === target.id);
+          if (holder) holder.points = [];
+        }),
+
+      /** Réunit des fils : ils suivent désormais un chemin commun, repris du
+       *  premier d'entre eux qui en avait déjà un. */
+      groupToron(wireIds) {
+        if (wireIds.length < 2) return null;
+        const id = newId('t');
+        set((state) => {
+          const members = state.project.wires.filter((wire) => wireIds.includes(wire.id));
+          if (members.length < 2) return;
+          const reference = members.find((wire) => wire.points.length >= 2);
+          const index = state.project.torons.length + 1;
+          state.project.torons.push({
+            id,
+            name: `Toron ${index}`,
+            wireIds: members.map((wire) => wire.id),
+            points: reference ? reference.points.map((point) => [...point] as Vec3) : [],
+            sleeve: 'spiralee',
+            bendRadius: Math.max(...members.map((wire) => wire.bendRadius)),
+            color: '#9aa2ae',
+          });
+          for (const wire of members) {
+            // Le fil sort de son toron précédent, s'il en avait un.
+            const previous = state.project.torons.find((toron) => toron.id === wire.toronId);
+            if (previous) previous.wireIds = previous.wireIds.filter((wireId) => wireId !== wire.id);
+            wire.toronId = id;
+          }
+          state.project.torons = state.project.torons.filter(
+            (toron) => toron.id === id || toron.wireIds.length > 0,
+          );
         });
         return id;
       },
 
-      updateConnector(id, patch) {
+      ungroupToron: (id) =>
         set((state) => {
-          const connector = state.project.connectors[id];
-          if (connector) Object.assign(connector, patch);
-        });
-      },
-
-      mountConnector(nodeId, connectorId) {
-        set((state) => {
-          const node = state.project.nodes[nodeId];
-          if (!node) return;
-          if (connectorId) {
-            node.connectorId = connectorId;
-            node.kind = 'connecteur';
-          } else {
-            delete node.connectorId;
+          const toron = state.project.torons.find((item) => item.id === id);
+          if (!toron) return;
+          for (const wire of state.project.wires) {
+            if (wire.toronId !== id) continue;
+            delete wire.toronId;
+            // Chaque fil repart avec le chemin du toron s'il n'en avait pas.
+            if (wire.points.length < 2) wire.points = toron.points.map((point) => [...point] as Vec3);
           }
-        });
-      },
+          state.project.torons = state.project.torons.filter((item) => item.id !== id);
+        }),
 
-      /* ----------------------------------------------------------- gaines */
-
-      addSleeve(kind, bundleDiameter, segmentIds) {
-        const id = newId('sl');
+      updateToron: (id, patch) =>
         set((state) => {
-          const entry = selectSleeve(kind, bundleDiameter, state.project.settings.maxFillRatio);
-          const sleeve = entry
-            ? sleeveFromCatalog(entry, id, nextName(Object.values(state.project.sleeves), 'Gaine'))
-            : {
-                id,
-                name: nextName(Object.values(state.project.sleeves), 'Gaine'),
-                kind,
-                color: '#b9bec7',
-                innerDiameter: Math.max(4, bundleDiameter * 1.2),
-                wallThickness: 0.8,
-                pitch: 20,
-                bandWidth: 5,
-                overlap: 0,
-                segmentIds: [],
-              };
-          sleeve.segmentIds = segmentIds;
-          state.project.sleeves[id] = sleeve;
-          for (const segmentId of segmentIds) {
-            const segment = state.project.segments[segmentId];
-            if (segment) segment.sleeveId = id;
-          }
-        });
-        return id;
-      },
+          const toron = state.project.torons.find((item) => item.id === id);
+          if (toron) Object.assign(toron, patch);
+        }),
 
-      updateSleeve(id, patch) {
+      setSleeve: (id, sleeve) =>
         set((state) => {
-          const sleeve = state.project.sleeves[id];
-          if (sleeve) Object.assign(sleeve, patch);
-        });
-      },
-
-      assignSleeve(segmentId, sleeveId) {
-        set((state) => {
-          const segment = state.project.segments[segmentId];
-          if (!segment) return;
-          for (const sleeve of Object.values(state.project.sleeves)) {
-            sleeve.segmentIds = sleeve.segmentIds.filter((id) => id !== segmentId);
-          }
-          if (sleeveId) {
-            segment.sleeveId = sleeveId;
-            state.project.sleeves[sleeveId]?.segmentIds.push(segmentId);
-          } else {
-            delete segment.sleeveId;
-          }
-        });
-      },
-
-      removeSleeve(id) {
-        set((state) => {
-          delete state.project.sleeves[id];
-          for (const segment of Object.values(state.project.segments)) {
-            if (segment.sleeveId === id) delete segment.sleeveId;
-          }
-        });
-      },
-
-      updateSettings(patch) {
-        set((state) => {
-          Object.assign(state.project.settings, patch);
-        });
-      },
+          const toron = state.project.torons.find((item) => item.id === id);
+          if (toron) toron.sleeve = sleeve;
+        }),
     })),
     {
       limit: 120,
-      // Seul le projet entre dans l'historique.
       partialize: (state) => ({ project: state.project }) as ProjectStore,
       equality: (a, b) => a.project === b.project,
     },
@@ -380,4 +190,16 @@ export const useProject = create<ProjectStore>()(
 
 export const projectHistory = useProject.temporal;
 
-export const DEFAULT_PROJECT_SETTINGS = DEFAULT_SETTINGS;
+/** Résultats dérivés, mémorisés sur l'identité du projet : immer en produit un
+ *  nouveau à chaque modification, comparer les références suffit. */
+import { compute, type Computation } from '../core/harness/compute';
+
+let cache: { project: Project; result: Computation } | null = null;
+
+export function useComputation(): Computation {
+  const project = useProject((state) => state.project);
+  if (cache?.project === project) return cache.result;
+  const result = compute(project);
+  cache = { project, result };
+  return result;
+}
