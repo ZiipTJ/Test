@@ -8,6 +8,9 @@ pourrait tourner tel quel dans un worker ou sur un serveur. Tout le reste —
 import, rendu, interface — s'appuie dessus.
 
 ```
+cheminement-src/        sources (ce dossier)
+cheminement/            site construit, publié tel quel par GitHub Pages
+
 src/
 ├─ core/                 métier pur, testable en Node
 │  ├─ math/vec.ts        algèbre 3D sur tuples
@@ -61,6 +64,12 @@ reconstruit les boucles d'arêtes fermées en suivant, à chaque sommet, la
 continuation la plus douce — ce qui traverse les coutures de cylindre — et retient
 celles qui sont circulaires et planes. La tolérance est exprimée **en pixels**,
 donc constante à l'écran quel que soit le zoom.
+
+**Le chemin du WASM est déduit de l'URL du module, pas de celle de la page.**
+Publié sous `/Test/cheminement/`, le site doit retrouver `wasm/` quel que soit
+le chemin — et une page servie sans barre oblique finale désignerait le dossier
+parent. En production, `importer.ts` part donc de `import.meta.url` du chunk
+(`assets/…`) et remonte d'un cran.
 
 **Le worker d'import charge le WASM par `importScripts`.** Le module Emscripten
 d'OpenCascade est un UMD ; le faire transiter par le bundler est fragile. Il est

@@ -24,6 +24,18 @@ export interface ImportProgress {
   ratio: number;
 }
 
+/** URL du moteur OpenCascade, valable quel que soit le chemin de publication.
+ *
+ *  En production, on la déduit de l'URL du module lui-même — Vite place les
+ *  chunks dans `assets/`, le dossier `wasm/` est donc un cran au-dessus. Se fier
+ *  à l'URL de la page serait fragile : servie sans barre oblique finale, elle
+ *  désignerait le dossier parent. En développement, `public/` est servi à la racine. */
+function wasmBaseUrl(): string {
+  return import.meta.env.DEV
+    ? new URL('wasm/', document.baseURI).href
+    : new URL('../wasm/', import.meta.url).href;
+}
+
 export async function importModel(
   file: File,
   options: Partial<ImportOptions> = {},
@@ -53,7 +65,7 @@ export async function importModel(
         fileName: file.name,
         buffer,
         options: { ...DEFAULT_IMPORT_OPTIONS, ...options },
-        wasmBase: new URL('wasm/', new URL(import.meta.env.BASE_URL, self.location.href)).href,
+        wasmBase: wasmBaseUrl(),
       };
       worker.postMessage(request, [buffer]);
     });

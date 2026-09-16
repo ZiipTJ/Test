@@ -12,9 +12,15 @@ cavité, son contact serti, son joint, sa longueur de dénudage et son marquage.
 C'est, dans l'esprit, l'équivalent navigateur d'un module *Routing Electrical* :
 mêmes objets, mêmes livrables, sans installation.
 
+## En ligne
+
+Le site construit est publié par GitHub Pages :
+**<https://ziiptj.github.io/Test/cheminement/>**
+
 ## Démarrer
 
 ```bash
+cd cheminement-src
 npm install          # copie aussi le moteur OpenCascade dans public/wasm
 npm run dev          # http://localhost:5173
 ```
@@ -23,11 +29,22 @@ Puis **Démonstration** dans la barre d'outils : une platine percée est import�
 et un faisceau complet de dix fils est posé dessus.
 
 ```bash
-npm run build        # vérification de types + bundle de production
+npm run build        # vérification de types + site de production dans ../cheminement
 npm test             # 67 tests unitaires et d'intégration
 npm run fixtures     # régénère la platine de démonstration (STEP puis 3MF)
 npm run smoke        # contrôle de bout en bout dans un vrai navigateur
 ```
+
+## Publication
+
+Les **sources** vivent dans `cheminement-src/`, le **site construit** dans
+`cheminement/` — c'est ce dossier que GitHub Pages sert, il est donc versionné.
+`npm run build` régénère l'un depuis l'autre ; il n'y a rien d'autre à faire que
+de committer le résultat.
+
+Le moteur OpenCascade (7,5 Mo de WebAssembly) et la platine de démonstration
+partent avec le site : l'application ne dépend d'aucun service extérieur et
+fonctionne hors ligne une fois chargée.
 
 ## Déroulé d'une étude
 

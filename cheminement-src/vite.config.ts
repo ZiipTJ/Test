@@ -22,6 +22,10 @@ export default defineConfig({
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
+    // Le site construit est publié tel quel par GitHub Pages sous /cheminement/ :
+    // les sources vivent dans cheminement-src/, le site dans cheminement/.
+    outDir: '../cheminement',
+    emptyOutDir: true,
   },
   test: {
     environment: 'node',
