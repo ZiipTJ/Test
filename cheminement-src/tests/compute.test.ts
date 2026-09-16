@@ -3,7 +3,15 @@ import { compute } from '../src/core/harness/compute';
 import { closestPointOnAxis, insertIndexFor, manipulationAxes, tangentAt } from '../src/core/curve/edit';
 import { gradeForSection } from '../src/core/harness/library';
 import { emptyProject, type Project, type Wire } from '../src/core/harness/types';
-import type { Vec3 } from '../src/core/math/vec';
+import { normalize, type Vec3 } from '../src/core/math/vec';
+import {
+  describePlane,
+  distanceToPlane,
+  intersectRayPlane,
+  planeThrough,
+  projectOnPlane,
+  type Plane,
+} from '../src/core/curve/plane';
 import { useProject } from '../src/state/project';
 
 function wire(name: string, section: number, points: Vec3[], patch: Partial<Wire> = {}): Wire {
@@ -304,5 +312,46 @@ describe('déplacement contraint à un axe', () => {
 
   it('ne bouge pas quand l’axe est vu de bout', () => {
     expect(closestPointOnAxis([5, 5, 5], [0, 0, 1], [5, 5, 200], [0, 0, -1])).toEqual([5, 5, 5]);
+  });
+});
+
+describe('plan de travail', () => {
+  const horizontal: Plane = { origin: [0, 0, 10], normal: [0, 0, 1] };
+
+  it('coupe un rayon qui vient du dessus', () => {
+    const point = intersectRayPlane([50, 20, 200], [0, 0, -1], horizontal)!;
+    expect(point).toEqual([50, 20, 10]);
+  });
+
+  it('coupe un rayon oblique au bon endroit', () => {
+    // Depuis (0,0,110), direction (1,0,-1) : 100 mm de descente, donc 100 mm en X.
+    const point = intersectRayPlane([0, 0, 110], [1, 0, -1], horizontal)!;
+    expect(point[0]).toBeCloseTo(100, 6);
+    expect(point[2]).toBeCloseTo(10, 6);
+  });
+
+  it('ne renvoie rien pour un rayon parallèle ou tourné à l’opposé', () => {
+    expect(intersectRayPlane([0, 0, 50], [1, 0, 0], horizontal)).toBeNull();
+    expect(intersectRayPlane([0, 0, 50], [0, 0, 1], horizontal)).toBeNull();
+  });
+
+  it('mesure et annule l’écart au plan', () => {
+    expect(distanceToPlane([5, 5, 25], horizontal)).toBeCloseTo(15, 6);
+    expect(distanceToPlane([5, 5, 2], horizontal)).toBeCloseTo(-8, 6);
+    expect(projectOnPlane([5, 5, 25], horizontal)).toEqual([5, 5, 10]);
+  });
+
+  it('nomme le plan pour que l’utilisateur sache où il travaille', () => {
+    expect(describePlane(horizontal)).toBe('plan horizontal Z = 10 mm');
+    expect(describePlane({ origin: [800, 0, 0], normal: [1, 0, 0] })).toBe('plan vertical X = 800 mm');
+    expect(describePlane({ origin: [0, 60, 0], normal: [0, -1, 0] })).toBe('plan vertical Y = 60 mm');
+    expect(describePlane({ origin: [0, 0, 0], normal: normalize([1, 1, 1]) })).toBe('plan incliné');
+  });
+
+  it('reprend la normale pour un plan parallèle passant par un point', () => {
+    const moved = planeThrough([1, 2, 3], horizontal);
+    expect(moved.origin).toEqual([1, 2, 3]);
+    expect(moved.normal).toEqual([0, 0, 1]);
+    expect(distanceToPlane([1, 2, 3], moved)).toBe(0);
   });
 });

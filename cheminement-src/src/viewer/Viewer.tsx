@@ -1,18 +1,21 @@
 /** Vue 3D, fond clair, repère Z vers le haut comme en CAO.
- *  Un seul geste : quand un tracé est en cours, cliquer sur la pièce ajoute un
- *  point — accroché au centre d'un perçage, à un sommet ou à une arête. */
+ *
+ *  Commandes : molette pressée pour tourner, Ctrl + molette pour translater,
+ *  molette pour zoomer. Le bouton gauche reste au tracé et à la sélection.
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { GizmoHelper, GizmoViewport, Grid, OrbitControls } from '@react-three/drei';
-import { boxFromPoints, type Box3 } from '../core/math/vec';
+import { planeThrough, projectOnPlane, type Plane } from '../core/curve/plane';
+import { boxFromPoints, type Box3, type Vec3 } from '../core/math/vec';
 import type { ImportedMesh } from '../io/types';
 import { useProject } from '../state/project';
 import { useSession } from '../state/session';
 import { ModelScene } from './ModelScene';
 import { WireScene } from './WireScene';
 import { usePathEditing } from './editing';
-import { findSnap, type SnapCandidate } from './snapping';
+import { usePicking, type PickResult } from './picking';
 
 function modelBounds(meshes: ImportedMesh[]): Box3 | null {
   if (meshes.length === 0) return null;
@@ -69,65 +72,108 @@ function CameraRig({ onFit }: { onFit: (fit: Fit) => void }) {
   return null;
 }
 
-/** Repère d'accrochage : un simple point, insensible au pointeur — tout élément
- *  posé sous le curseur intercepterait le clic qu'il est censé guider. Son
- *  libellé est affiché dans le bandeau de tracé, hors de la scène. */
+/** Rien de ce qui guide le geste ne doit intercepter le clic qu'il guide. */
 const IGNORE_POINTER = () => null;
 
-function SnapMarker({ candidate, diagonal }: { candidate: SnapCandidate | null; diagonal: number }) {
-  if (!candidate) return null;
+function SnapMarker({ position, diagonal }: { position: Vec3 | null; diagonal: number }) {
+  if (!position) return null;
   return (
-    <mesh position={candidate.position} raycast={IGNORE_POINTER}>
+    <mesh position={position} raycast={IGNORE_POINTER}>
       <sphereGeometry args={[diagonal / 220, 14, 12]} />
       <meshBasicMaterial color="#e0801f" depthTest={false} transparent opacity={0.9} />
     </mesh>
   );
 }
 
+/** Matérialise le plan de travail : c'est lui qui répond à « sur quelle face
+ *  suis-je en train de travailler ? ». */
+function WorkPlaneView({ plane, anchor, size }: { plane: Plane; anchor: Vec3; size: number }) {
+  const quaternion = useMemo(
+    () => new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(...plane.normal).normalize(),
+    ),
+    [plane.normal],
+  );
+  const center = useMemo(() => projectOnPlane(anchor, plane), [anchor, plane]);
+  const outline = useMemo(() => new THREE.EdgesGeometry(new THREE.PlaneGeometry(size, size)), [size]);
+
+  return (
+    <group position={center} quaternion={quaternion}>
+      <mesh raycast={IGNORE_POINTER}>
+        <planeGeometry args={[size, size]} />
+        <meshBasicMaterial color="#1f6f9c" transparent opacity={0.07} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      <lineSegments geometry={outline} raycast={IGNORE_POINTER}>
+        <lineBasicMaterial color="#1f6f9c" transparent opacity={0.45} />
+      </lineSegments>
+    </group>
+  );
+}
+
 function Scene({ fit, setFit }: { fit: Fit; setFit: (value: Fit) => void }) {
-  const { camera, size } = useThree();
+  const gl = useThree((state) => state.gl);
+  const modelGroup = useRef<THREE.Group>(null);
+  const picking = usePicking(modelGroup, fit.diagonal);
+  const editing = usePathEditing(picking);
+
   const drawing = useSession((state) => state.drawing);
+  const drag = useSession((state) => state.drag);
+  const workPlane = useSession((state) => state.workPlane);
+  const setWorkPlane = useSession((state) => state.setWorkPlane);
   const setSnapLabel = useSession((state) => state.setSnapLabel);
   const addPoint = useProject((state) => state.addPoint);
-  const [snap, setSnap] = useState<SnapCandidate | null>(null);
-  const pointer = useRef(new THREE.Vector2());
-  // Le groupe du modèle sert de cible de lancer de rayon pendant qu'on tire un point.
-  const modelGroup = useRef<THREE.Group>(null);
-  const editing = usePathEditing(modelGroup, fit.diagonal);
+  const [preview, setPreview] = useState<PickResult | null>(null);
 
-  const snapAt = useCallback(
-    (event: ThreeEvent<PointerEvent>, mesh: ImportedMesh): SnapCandidate => {
-      pointer.current.set(
-        (event.nativeEvent.offsetX / size.width) * 2 - 1,
-        -(event.nativeEvent.offsetY / size.height) * 2 + 1,
-      );
-      return findSnap(
-        { point: event.point, face: event.face ?? null, meshId: mesh.id, mesh },
-        { camera, size, pointer: pointer.current, pixelRadius: 12, diagonal: fit.diagonal },
-      );
-    },
-    [camera, size, fit.diagonal],
-  );
+  /** Points déjà posés sur le tracé en cours. */
+  const drawnPoints = useProject((state) => {
+    if (!drawing) return null;
+    const holder = drawing.kind === 'fil'
+      ? state.project.wires.find((wire) => wire.id === drawing.id)
+      : state.project.torons.find((toron) => toron.id === drawing.id);
+    return holder?.points ?? null;
+  });
 
-  const handleMove = useCallback(
-    (event: ThreeEvent<PointerEvent>, mesh: ImportedMesh) => {
-      if (!drawing) { if (snap) setSnap(null); return; }
-      const candidate = snapAt(event, mesh);
-      setSnap(candidate);
-      setSnapLabel(candidate.label);
-    },
-    [drawing, snap, snapAt, setSnapLabel],
-  );
+  /** Le tracé se poursuit dans un plan parallèle passant par le dernier point. */
+  const drawingPlane: Plane = useMemo(() => {
+    const last = drawnPoints?.[drawnPoints.length - 1];
+    return last ? planeThrough(last, workPlane) : workPlane;
+  }, [drawnPoints, workPlane]);
 
-  const handleDown = useCallback(
-    (event: ThreeEvent<PointerEvent>, mesh: ImportedMesh) => {
-      if (!drawing || event.nativeEvent.button !== 0) return;
-      const candidate = snapAt(event, mesh);
-      event.stopPropagation();
-      addPoint(drawing, [candidate.position.x, candidate.position.y, candidate.position.z]);
-    },
-    [drawing, snapAt, addPoint],
-  );
+  useEffect(() => {
+    if (!drawing) { setPreview(null); return; }
+    const canvas = gl.domElement;
+
+    const onMove = (event: PointerEvent) => {
+      const result = picking.pick(event.clientX, event.clientY, { plane: drawingPlane });
+      setPreview(result);
+      setSnapLabel(result?.label ?? null);
+    };
+
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      const result = picking.pick(event.clientX, event.clientY, { plane: drawingPlane });
+      if (!result) return;
+      // Toucher une face en fait le nouveau plan de travail : les points suivants
+      // s'y poseront, y compris hors de la matière.
+      if (result.face) setWorkPlane({ ...result.face.plane, source: result.face.meshName });
+      addPoint(drawing, result.position);
+    };
+
+    canvas.addEventListener('pointermove', onMove);
+    canvas.addEventListener('pointerdown', onDown);
+    return () => {
+      canvas.removeEventListener('pointermove', onMove);
+      canvas.removeEventListener('pointerdown', onDown);
+    };
+  }, [drawing, drawingPlane, gl, picking, addPoint, setWorkPlane, setSnapLabel]);
+
+  const planeAnchor: Vec3 | null = drag
+    ? drag.position
+    : drawing
+      ? preview?.position ?? drawnPoints?.[drawnPoints.length - 1] ?? null
+      : null;
+  const activePlane: Plane = drag ? planeThrough(drag.position, workPlane) : drawingPlane;
 
   return (
     <>
@@ -150,18 +196,13 @@ function Scene({ fit, setFit }: { fit: Fit; setFit: (value: Fit) => void }) {
       />
 
       <group ref={modelGroup}>
-        <ModelScene
-          onPointerMove={handleMove}
-          onPointerDown={handleDown}
-          onPointerLeave={() => { setSnap(null); setSnapLabel(null); }}
-        />
+        <ModelScene />
       </group>
       <WireScene diagonal={fit.diagonal} editing={editing} />
-      {drawing && <SnapMarker candidate={snap} diagonal={fit.diagonal} />}
 
-      {/* Commandes à la mode CAO : molette pressée pour tourner, Ctrl + molette
-          pour translater (OrbitControls traite déjà Ctrl comme modificateur),
-          molette pour zoomer. Le bouton gauche reste libre pour le tracé. */}
+      {planeAnchor && <WorkPlaneView plane={activePlane} anchor={planeAnchor} size={fit.diagonal * 0.55} />}
+      {drawing && <SnapMarker position={preview?.position ?? null} diagonal={fit.diagonal} />}
+
       <OrbitControls
         makeDefault
         enableDamping
@@ -188,7 +229,13 @@ export function Viewer() {
     return () => window.removeEventListener('keydown', onKey);
   }, [setDrawing]);
 
-  const camera = useMemo(() => ({ fov: 45, up: [0, 0, 1] as [number, number, number], position: [600, -700, 500] as [number, number, number], near: 1, far: 50000 }), []);
+  const camera = useMemo(() => ({
+    fov: 45,
+    up: [0, 0, 1] as [number, number, number],
+    position: [600, -700, 500] as [number, number, number],
+    near: 1,
+    far: 50000,
+  }), []);
 
   // Le clic molette déclenche le défilement automatique du navigateur : on le
   // neutralise, sinon la rotation démarre avec un curseur de défilement collé.

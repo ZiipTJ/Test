@@ -2,19 +2,16 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Bvh } from '@react-three/drei';
-import type { ThreeEvent } from '@react-three/fiber';
 import { buildGeometry, buildLineGeometry } from './bvh';
 import type { ImportedMesh } from '../io/types';
 import { useSession } from '../state/session';
 
-interface BodyProps {
-  mesh: ImportedMesh;
-  onPointerMove: (event: ThreeEvent<PointerEvent>, mesh: ImportedMesh) => void;
-  onPointerDown: (event: ThreeEvent<PointerEvent>, mesh: ImportedMesh) => void;
-  onPointerLeave: () => void;
-}
+/** Rien d'autre que la matière ne doit répondre au pointeur. */
+const IGNORE_POINTER = () => null;
 
-function Body({ mesh, onPointerMove, onPointerDown, onPointerLeave }: BodyProps) {
+/** Le pointeur est traité par un lancer de rayon manuel (voir picking.ts) : les
+ *  corps n'ont donc pas de gestionnaire d'événement, seulement un identifiant. */
+function Body({ mesh }: { mesh: ImportedMesh }) {
   const showEdges = useSession((state) => state.showEdges);
   const geometry = useMemo(() => buildGeometry(mesh), [mesh]);
   const edgeGeometry = useMemo(() => buildLineGeometry(mesh.edgePositions), [mesh]);
@@ -31,13 +28,7 @@ function Body({ mesh, onPointerMove, onPointerDown, onPointerLeave }: BodyProps)
 
   return (
     <group>
-      <mesh
-        geometry={geometry}
-        userData={{ meshId: mesh.id }}
-        onPointerMove={(event) => onPointerMove(event, mesh)}
-        onPointerDown={(event) => onPointerDown(event, mesh)}
-        onPointerOut={onPointerLeave}
-      >
+      <mesh geometry={geometry} userData={{ meshId: mesh.id }}>
         <meshStandardMaterial
           color={color}
           roughness={0.7}
@@ -49,7 +40,9 @@ function Body({ mesh, onPointerMove, onPointerDown, onPointerLeave }: BodyProps)
         />
       </mesh>
       {showEdges && (
-        <lineSegments geometry={edgeGeometry} renderOrder={2}>
+        // Décoratives : sans cela, une arête intercepte le lancer de rayon et
+        // renvoie un point sans face — donc sans plan de travail ni accrochage.
+        <lineSegments geometry={edgeGeometry} renderOrder={2} raycast={IGNORE_POINTER}>
           <lineBasicMaterial color="#5a6270" transparent opacity={0.85} />
         </lineSegments>
       )}
@@ -57,12 +50,12 @@ function Body({ mesh, onPointerMove, onPointerDown, onPointerLeave }: BodyProps)
   );
 }
 
-export function ModelScene(props: Omit<BodyProps, 'mesh'>) {
+export function ModelScene() {
   const model = useSession((state) => state.model);
   if (!model) return null;
   return (
     <Bvh key={model.name} firstHitOnly>
-      {model.meshes.map((mesh) => <Body key={mesh.id} mesh={mesh} {...props} />)}
+      {model.meshes.map((mesh) => <Body key={mesh.id} mesh={mesh} />)}
     </Bvh>
   );
 }

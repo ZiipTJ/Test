@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { ACCEPTED_EXTENSIONS, importModel } from './io/importer';
 import { downloadProject, downloadWireTable, parseProject } from './io/project';
 import { buildDemoProject } from './state/demo';
+import { describePlane } from './core/curve/plane';
 import { projectHistory, useComputation, useProject } from './state/project';
 import { useSession } from './state/session';
 import { clearMeshIndexes } from './viewer/snapping';
@@ -89,8 +90,15 @@ function HintBar() {
   const snapLabel = useSession((state) => state.snapLabel);
   const drag = useSession((state) => state.drag);
   const model = useSession((state) => state.model);
+  const workPlane = useSession((state) => state.workPlane);
   const project = useProject((state) => state.project);
   const removeLastPoint = useProject((state) => state.removeLastPoint);
+
+  const planeChip = (
+    <span className="plane" title="Les points posés hors de la pièce, et les déplacements, se font dans ce plan">
+      {describePlane(workPlane)} · {workPlane.source}
+    </span>
+  );
 
   const find = (target: { kind: 'fil' | 'toron'; id: string }) =>
     target.kind === 'fil'
@@ -103,12 +111,13 @@ function HintBar() {
     return (
       <div className="hintbar">
         <strong>{holder?.name}</strong>
+        {planeChip}
         <span className={snapLabel ? 'snap' : ''}>
           {!model
-            ? 'Importez d’abord une pièce pour pouvoir cliquer dessus.'
+            ? 'Cliquez pour poser les points dans le plan du sol.'
             : snapLabel
-              ? `Accrochage : ${snapLabel.toLowerCase()}`
-              : 'Cliquez les points sur la pièce.'}
+              ? snapLabel.charAt(0).toUpperCase() + snapLabel.slice(1)
+              : 'Cliquez sur la pièce, ou à côté pour poser le point dans le plan.'}
         </span>
         <span className="count">{count} point{count > 1 ? 's' : ''}</span>
         <button disabled={count === 0} onClick={() => removeLastPoint(drawing)}>Annuler le dernier</button>
@@ -124,12 +133,13 @@ function HintBar() {
   return (
     <div className="hintbar quiet">
       <strong>{holder.name}</strong>
+      {planeChip}
       <span className={drag ? 'snap' : ''}>
         {drag
           ? snapLabel
-            ? `Accrochage : ${snapLabel.toLowerCase()}`
+            ? snapLabel.charAt(0).toUpperCase() + snapLabel.slice(1)
             : 'Relâchez pour poser le point.'
-          : 'Glissez un point pour l’ajuster (ses trois axes apparaissent) · glissez la courbe pour en ajouter un · double-clic pour en retirer un.'}
+          : 'Glissez un point pour l’ajuster (il reste dans le plan) · glissez la courbe pour en ajouter un · double-clic pour en retirer un.'}
       </span>
       <span className="count">{holder.points.length} points</span>
     </div>

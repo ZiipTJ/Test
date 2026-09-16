@@ -6,13 +6,13 @@
  *  un seul geste remplirait la pile d'annulation.
  */
 import { useCallback, useEffect, useRef } from 'react';
-import * as THREE from 'three';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
 import { closestPointOnAxis, insertIndexFor } from '../core/curve/edit';
+import { planeThrough, type Plane } from '../core/curve/plane';
 import type { Vec3 } from '../core/math/vec';
 import { useProject, type PathTarget } from '../state/project';
 import { useSession } from '../state/session';
-import { findSnap } from './snapping';
+import type { Picking } from './picking';
 
 /** Déplacement en pixels à partir duquel on considère que l'utilisateur tire
  *  la courbe, et non qu'il clique dessus pour la sélectionner. */
@@ -34,6 +34,8 @@ interface Gesture {
   engaged: boolean;
   /** Renseigné pour un déplacement contraint : origine et direction de l'axe. */
   axis?: { origin: Vec3; direction: Vec3 };
+  /** Plan dans lequel le point se déplace, à défaut de contrainte d'axe. */
+  plane: Plane;
 }
 
 function pointsOf(target: PathTarget): Vec3[] {
@@ -44,57 +46,9 @@ function pointsOf(target: PathTarget): Vec3[] {
   return holder?.points ?? [];
 }
 
-export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, diagonal: number): PathEditing {
-  const { camera, gl, size } = useThree();
+export function usePathEditing(picking: Picking): PathEditing {
   const controls = useThree((state) => state.controls) as { enabled: boolean } | null;
   const gesture = useRef<Gesture | null>(null);
-  const raycaster = useRef(new THREE.Raycaster());
-  const pointer = useRef(new THREE.Vector2());
-
-  /** Rayon du curseur dans la scène. */
-  const rayAt = useCallback(
-    (clientX: number, clientY: number): { origin: Vec3; direction: Vec3 } | null => {
-      const rect = gl.domElement.getBoundingClientRect();
-      pointer.current.set(
-        ((clientX - rect.left) / rect.width) * 2 - 1,
-        -((clientY - rect.top) / rect.height) * 2 + 1,
-      );
-      raycaster.current.setFromCamera(pointer.current, camera);
-      const { origin, direction } = raycaster.current.ray;
-      return { origin: [origin.x, origin.y, origin.z], direction: [direction.x, direction.y, direction.z] };
-    },
-    [camera, gl],
-  );
-
-  /** Position accrochée sous le curseur, ou null si le pointeur quitte la pièce. */
-  const snappedAt = useCallback(
-    (clientX: number, clientY: number): { position: Vec3; label: string } | null => {
-      const group = modelGroup.current;
-      if (!group) return null;
-      const rect = gl.domElement.getBoundingClientRect();
-      pointer.current.set(
-        ((clientX - rect.left) / rect.width) * 2 - 1,
-        -((clientY - rect.top) / rect.height) * 2 + 1,
-      );
-      raycaster.current.setFromCamera(pointer.current, camera);
-      const hit = raycaster.current.intersectObject(group, true)[0];
-      if (!hit) return null;
-
-      const meshId = hit.object.userData['meshId'] as string | undefined;
-      const mesh = useSession.getState().model?.meshes.find((item) => item.id === meshId);
-      if (!mesh) return { position: [hit.point.x, hit.point.y, hit.point.z], label: 'Sur face' };
-
-      const candidate = findSnap(
-        { point: hit.point, face: hit.face ?? null, meshId: mesh.id, mesh },
-        { camera, size, pointer: pointer.current, pixelRadius: 12, diagonal },
-      );
-      return {
-        position: [candidate.position.x, candidate.position.y, candidate.position.z],
-        label: candidate.label,
-      };
-    },
-    [camera, gl, size, diagonal, modelGroup],
-  );
 
   const finish = useCallback(() => {
     const current = gesture.current;
@@ -127,7 +81,7 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
       if (current.axis) {
         // Contraint : le point suit le curseur sans quitter son axe, donc sans
         // s'accrocher à la géométrie.
-        const ray = rayAt(event.clientX, event.clientY);
+        const ray = picking.ray(event.clientX, event.clientY);
         if (!ray) return;
         const position = closestPointOnAxis(current.axis.origin, current.axis.direction, ray.origin, ray.direction);
         useSession.getState().setDrag({
@@ -141,7 +95,9 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
         return;
       }
 
-      const snapped = snappedAt(event.clientX, event.clientY);
+      // Libre, mais dans le plan de travail : la caméra ne doit pas décider
+      // d'où atterrit le point.
+      const snapped = picking.pick(event.clientX, event.clientY, { plane: current.plane, constrain: true });
       if (!snapped) return;
       useSession.getState().setDrag({
         kind: current.target.kind,
@@ -163,7 +119,7 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [snappedAt, rayAt, finish]);
+  }, [picking, finish]);
 
   const start = useCallback(
     (
@@ -177,6 +133,10 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
       event.stopPropagation();
       // La vue ne doit pas tourner pendant qu'on tire un point.
       if (controls) controls.enabled = false;
+      const points = pointsOf(target);
+      // Le point se déplace dans un plan parallèle au plan de travail passant
+      // par sa position de départ.
+      const anchor = points[Math.max(0, Math.min(points.length - 1, index))] ?? [0, 0, 0];
       gesture.current = {
         target,
         mode,
@@ -185,10 +145,10 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
         startY: event.nativeEvent.clientY,
         // Un point attrapé se déplace tout de suite ; la courbe attend un vrai geste.
         engaged: mode === 'deplace',
+        plane: planeThrough(anchor, useSession.getState().workPlane),
         ...(axis ? { axis } : {}),
       };
       if (mode === 'deplace') {
-        const points = pointsOf(target);
         const position = points[index];
         if (position) {
           useSession.getState().setDrag({ kind: target.kind, id: target.id, index, position, mode });

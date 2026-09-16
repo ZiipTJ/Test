@@ -58,12 +58,16 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .hintbar {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px;
-  display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px);
+  display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); flex-wrap: wrap;
   background: var(--bg); border: 1px solid var(--accent); border-radius: 8px;
   padding: 8px 12px; box-shadow: 0 6px 20px rgba(20, 30, 45, 0.16);
 }
 .hintbar strong { white-space: nowrap; }
-.hintbar span { color: var(--muted); }
+.hintbar .plane {
+  background: var(--accent-soft); color: var(--accent); border-radius: 4px;
+  padding: 2px 7px; white-space: nowrap; font-size: 12px;
+}
+.hintbar span { color: var(--muted); white-space: nowrap; }
 .hintbar span.snap { color: var(--accent); font-weight: 600; }
 .hintbar .count { color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hintbar.quiet { border-color: var(--line); }

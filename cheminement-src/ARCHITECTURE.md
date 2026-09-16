@@ -51,6 +51,22 @@ contours fermés en suivant, à chaque sommet, la continuation la plus douce —
 qui traverse les coutures de cylindre — et retient ceux qui sont circulaires et
 plans. La tolérance est exprimée **en pixels**, donc constante à l'écran.
 
+**Un clic ne suffit pas à placer un point : il y faut un plan.** Un rayon n'a de
+position dans l'espace que s'il rencontre quelque chose. Tant qu'on ne cliquait
+que sur la matière, la question ne se posait pas ; dès qu'on veut poser un point
+à côté de la pièce, ou déplacer un point sans que la caméra décide du résultat,
+il faut une référence. D'où le **plan de travail** (`core/curve/plane.ts`) :
+repris de la face que l'on vient de toucher, nommé en clair dans le bandeau,
+matérialisé à l'écran pendant le geste. Hors matière, le point se pose dans ce
+plan ; un déplacement libre s'y maintient, et n'accepte un accrochage que s'il
+appartient déjà au plan.
+
+**Seule la matière répond au pointeur.** Les arêtes sont dessinées en
+`LineSegments` dans le même groupe que les corps : elles interceptaient le lancer
+de rayon et renvoyaient un point sans face — donc sans plan de travail ni
+accrochage, ce qui faisait « sauter » les points. Elles sont désormais
+transparentes au pointeur, comme tout ce qui est décoratif.
+
 **Le bouton gauche ne pilote jamais la caméra.** Il sert à tracer et à
 sélectionner ; la vue se manœuvre à la molette pressée, comme dans un
 modeleur. OrbitControls traite déjà Ctrl comme modificateur d'une action de

@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type { ImportedModel } from '../io/types';
 import type { Id } from '../core/harness/types';
+import { GROUND_PLANE, type Plane } from '../core/curve/plane';
 
 /** Ce dont on trace le chemin en ce moment. */
 export interface DrawTarget {
@@ -37,6 +38,9 @@ interface SessionState {
   drag: DragState | null;
   /** Point désigné : il porte le trièdre de manipulation. */
   activePoint: { kind: 'fil' | 'toron'; id: Id; index: number } | null;
+  /** Plan dans lequel se posent les points hors matière, et dans lequel ils se
+   *  déplacent. Repris de la dernière face touchée. */
+  workPlane: Plane & { source: string };
   showEdges: boolean;
 
   setModel(model: ImportedModel | null): void;
@@ -49,6 +53,7 @@ interface SessionState {
   setSnapLabel(label: string | null): void;
   setDrag(drag: DragState | null): void;
   setActivePoint(point: SessionState['activePoint']): void;
+  setWorkPlane(plane: SessionState['workPlane']): void;
   setShowEdges(value: boolean): void;
 }
 
@@ -62,6 +67,7 @@ export const useSession = create<SessionState>()((set) => ({
   snapLabel: null,
   drag: null,
   activePoint: null,
+  workPlane: { ...GROUND_PLANE, source: 'le sol' },
   showEdges: true,
 
   setModel: (model) => set(() => ({ model })),
@@ -77,5 +83,6 @@ export const useSession = create<SessionState>()((set) => ({
   setSnapLabel: (snapLabel) => set((state) => (state.snapLabel === snapLabel ? state : { snapLabel })),
   setDrag: (drag) => set(() => ({ drag })),
   setActivePoint: (activePoint) => set(() => ({ activePoint })),
+  setWorkPlane: (workPlane) => set(() => ({ workPlane })),
   setShowEdges: (showEdges) => set(() => ({ showEdges })),
 }));

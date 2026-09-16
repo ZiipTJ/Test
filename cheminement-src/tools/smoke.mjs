@@ -56,6 +56,19 @@ await page.waitForTimeout(250);
 const pointCount = (await page.locator('.hintbar .count').textContent()) ?? '';
 check(/2 points/.test(pointCount), `deux points posés sur la pièce (${pointCount.trim()})`);
 
+// Hors de la pièce : le point se pose dans le plan de travail, pris sur la
+// dernière face touchée.
+const planLabel = (await page.locator('.hintbar .plane').textContent()) ?? '';
+check(/plan/.test(planLabel), `le plan de travail est affiché (${planLabel.trim()})`);
+await page.mouse.move(box.x + box.width * 0.06, box.y + box.height * 0.8);
+await page.waitForTimeout(300);
+const horsLabel = (await page.locator('.hintbar span').nth(1).textContent()) ?? '';
+await page.mouse.click(box.x + box.width * 0.06, box.y + box.height * 0.8);
+await page.waitForTimeout(300);
+const apresHors = (await page.locator('.hintbar .count').textContent()) ?? '';
+check(/dans le plan/i.test(horsLabel), `hors matière, le curseur vise le plan (${horsLabel.trim()})`);
+check(/3 points/.test(apresHors), 'un point se pose hors de la pièce');
+
 await page.locator('.hintbar').getByRole('button', { name: 'Terminer' }).click();
 const essai = page.locator('ul.wires li', { hasText: 'ESSAI' });
 check(!(await essai.textContent())?.includes('à tracer'), 'le fil tracé a une longueur');
@@ -82,11 +95,11 @@ await page.mouse.move(handle.x + 95, handle.y + 44);
 await page.mouse.down();
 await page.mouse.move(handle.x + 95, handle.y - 80, { steps: 16 });
 await page.waitForTimeout(200);
-const pendantAxe = (await page.locator('.hintbar span').first().textContent()) ?? '';
+const pendantAxe = (await page.locator('.hintbar span').nth(1).textContent()) ?? '';
 await page.mouse.up();
 await page.waitForTimeout(400);
 const apresAxe = (await page.locator('dl.results dd').first().textContent()) ?? '';
-check(/le long de l/.test(pendantAxe), 'tirer une flèche contraint le déplacement à son axe');
+check(/le long de l/i.test(pendantAxe), 'tirer une flèche contraint le déplacement à son axe');
 check(avantAxe !== apresAxe, `le déplacement contraint change la longueur (${avantAxe.trim()} → ${apresAxe.trim()})`);
 
 // Commandes de la vue : molette pressée pour tourner, bouton gauche inerte.

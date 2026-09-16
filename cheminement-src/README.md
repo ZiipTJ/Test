@@ -18,11 +18,17 @@ charger une platine percée et un faisceau déjà tracé.
 3. **Tracer le chemin** — on clique les points sur la pièce. L'accrochage vise le
    **centre des perçages**, les sommets, les milieux d'arêtes et les arêtes ;
    *Entrée* ou *Terminer* clôt le tracé.
+   Toucher une face en fait le **plan de travail**, nommé en clair dans le bandeau
+   (« plan horizontal Z = 10 mm · Platine »). Cliquer **à côté de la pièce** pose
+   alors le point dans ce plan : on peut sortir de la matière sans perdre la
+   cote. Le plan est matérialisé à l'écran pendant le geste.
 4. **Ajuster** — un fil sélectionné montre ses points : on **glisse un point**
    pour le déplacer, on **glisse la courbe** pour y ajouter un point, on
    **double-clique** sur un point pour le retirer. Le point désigné porte un
    **trièdre** — le long du fil, latéral, vertical — et tirer une de ses flèches
-   contraint le déplacement à cet axe seul. Longueur et poids suivent.
+   contraint le déplacement à cet axe seul. Un point déplacé reste dans son plan
+   de travail : tourner la caméra ne le fait plus sauter d'une face à l'autre.
+   Longueur et poids suivent.
 5. **Lire le résultat** — longueur, poids et résistance s'affichent sous le fil,
    les totaux en bas de l'écran.
 6. **Réunir en toron** — cocher plusieurs fils, puis *Réunir en toron* : ils
@@ -89,6 +95,8 @@ Repère interne : **millimètre, Z vers le haut**.
 
 - L'accrochage attire le point vers un perçage, un sommet ou une arête proche : le
   point relâché n'est donc pas toujours exactement sous le curseur.
+- Le plan de travail est celui de la dernière face touchée ; pour en changer, il
+  suffit de cliquer sur une autre face. Sans pièce importée, c'est le plan du sol.
 - Un fil très fin est dessiné un peu plus épais que nature pour rester visible
   sur une grande pièce ; les torons, eux, sont à leur taille réelle.
 - Le catalogue de fils est un point de départ éditable, pas une base fournisseur.
