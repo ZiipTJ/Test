@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
-import { insertIndexFor } from '../core/curve/edit';
+import { closestPointOnAxis, insertIndexFor } from '../core/curve/edit';
 import type { Vec3 } from '../core/math/vec';
 import { useProject, type PathTarget } from '../state/project';
 import { useSession } from '../state/session';
@@ -21,6 +21,8 @@ const DRAG_THRESHOLD = 4;
 export interface PathEditing {
   onHandleDown(target: PathTarget, index: number, event: ThreeEvent<PointerEvent>): void;
   onCurveDown(target: PathTarget, event: ThreeEvent<PointerEvent>): void;
+  /** Déplacement contraint le long d'un axe du trièdre. */
+  onAxisDown(target: PathTarget, index: number, origin: Vec3, axis: Vec3, event: ThreeEvent<PointerEvent>): void;
 }
 
 interface Gesture {
@@ -30,6 +32,8 @@ interface Gesture {
   startX: number;
   startY: number;
   engaged: boolean;
+  /** Renseigné pour un déplacement contraint : origine et direction de l'axe. */
+  axis?: { origin: Vec3; direction: Vec3 };
 }
 
 function pointsOf(target: PathTarget): Vec3[] {
@@ -46,6 +50,21 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
   const gesture = useRef<Gesture | null>(null);
   const raycaster = useRef(new THREE.Raycaster());
   const pointer = useRef(new THREE.Vector2());
+
+  /** Rayon du curseur dans la scène. */
+  const rayAt = useCallback(
+    (clientX: number, clientY: number): { origin: Vec3; direction: Vec3 } | null => {
+      const rect = gl.domElement.getBoundingClientRect();
+      pointer.current.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.current.setFromCamera(pointer.current, camera);
+      const { origin, direction } = raycaster.current.ray;
+      return { origin: [origin.x, origin.y, origin.z], direction: [direction.x, direction.y, direction.z] };
+    },
+    [camera, gl],
+  );
 
   /** Position accrochée sous le curseur, ou null si le pointeur quitte la pièce. */
   const snappedAt = useCallback(
@@ -105,6 +124,23 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
         if (moved < DRAG_THRESHOLD) return;
         current.engaged = true;
       }
+      if (current.axis) {
+        // Contraint : le point suit le curseur sans quitter son axe, donc sans
+        // s'accrocher à la géométrie.
+        const ray = rayAt(event.clientX, event.clientY);
+        if (!ray) return;
+        const position = closestPointOnAxis(current.axis.origin, current.axis.direction, ray.origin, ray.direction);
+        useSession.getState().setDrag({
+          kind: current.target.kind,
+          id: current.target.id,
+          index: current.index,
+          position,
+          mode: current.mode,
+        });
+        useSession.getState().setSnapLabel('Le long de l\u2019axe');
+        return;
+      }
+
       const snapped = snappedAt(event.clientX, event.clientY);
       if (!snapped) return;
       useSession.getState().setDrag({
@@ -127,10 +163,16 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [snappedAt, finish]);
+  }, [snappedAt, rayAt, finish]);
 
   const start = useCallback(
-    (target: PathTarget, mode: Gesture['mode'], index: number, event: ThreeEvent<PointerEvent>) => {
+    (
+      target: PathTarget,
+      mode: Gesture['mode'],
+      index: number,
+      event: ThreeEvent<PointerEvent>,
+      axis?: { origin: Vec3; direction: Vec3 },
+    ) => {
       if (event.nativeEvent.button !== 0) return;
       event.stopPropagation();
       // La vue ne doit pas tourner pendant qu'on tire un point.
@@ -143,6 +185,7 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
         startY: event.nativeEvent.clientY,
         // Un point attrapé se déplace tout de suite ; la courbe attend un vrai geste.
         engaged: mode === 'deplace',
+        ...(axis ? { axis } : {}),
       };
       if (mode === 'deplace') {
         const points = pointsOf(target);
@@ -156,7 +199,12 @@ export function usePathEditing(modelGroup: React.RefObject<THREE.Group | null>, 
   );
 
   return {
-    onHandleDown: (target, index, event) => start(target, 'deplace', index, event),
+    onHandleDown: (target, index, event) => {
+      useSession.getState().setActivePoint({ kind: target.kind, id: target.id, index });
+      start(target, 'deplace', index, event);
+    },
+    onAxisDown: (target, index, origin, direction, event) =>
+      start(target, 'deplace', index, event, { origin, direction }),
     onCurveDown: (target, event) => {
       const position: Vec3 = [event.point.x, event.point.y, event.point.z];
       start(target, 'insere', insertIndexFor(pointsOf(target), position), event);

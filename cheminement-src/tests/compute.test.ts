@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { compute } from '../src/core/harness/compute';
-import { insertIndexFor } from '../src/core/curve/edit';
+import { closestPointOnAxis, insertIndexFor, manipulationAxes, tangentAt } from '../src/core/curve/edit';
 import { gradeForSection } from '../src/core/harness/library';
 import { emptyProject, type Project, type Wire } from '../src/core/harness/types';
 import type { Vec3 } from '../src/core/math/vec';
@@ -255,5 +255,54 @@ describe('ajuster le tracé', () => {
 
     useProject.getState().movePoint(target, 7, [9, 9, 9]);
     expect(useProject.getState().project.wires[0]!.points).toEqual([[0, 0, 0], [100, 0, 0]]);
+  });
+});
+
+describe('trièdre de manipulation', () => {
+  it('prend la direction de la courbe au point visé', () => {
+    const points: Vec3[] = [[0, 0, 0], [100, 0, 0], [100, 100, 0]];
+    expect(tangentAt(points, 0)).toEqual([1, 0, 0]);
+    expect(tangentAt(points, 2)).toEqual([0, 1, 0]);
+    // Au sommet du coude : la moyenne des deux brins.
+    const middle = tangentAt(points, 1);
+    expect(middle[0]).toBeCloseTo(Math.SQRT1_2, 6);
+    expect(middle[1]).toBeCloseTo(Math.SQRT1_2, 6);
+  });
+
+  it('reste défini sur un tracé d’un seul point', () => {
+    expect(tangentAt([[0, 0, 0]], 0)).toEqual([1, 0, 0]);
+  });
+
+  it('produit trois axes orthonormés, le troisième vers le haut', () => {
+    for (const tangent of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [0.6, 0.8, 0]] as Vec3[]) {
+      const { along, across, up } = manipulationAxes(tangent);
+      for (const axis of [along, across, up]) expect(Math.hypot(...axis)).toBeCloseTo(1, 6);
+      expect(along[0] * across[0] + along[1] * across[1] + along[2] * across[2]).toBeCloseTo(0, 6);
+      expect(along[0] * up[0] + along[1] * up[1] + along[2] * up[2]).toBeCloseTo(0, 6);
+      expect(across[0] * up[0] + across[1] * up[1] + across[2] * up[2]).toBeCloseTo(0, 6);
+    }
+    // Pour un fil horizontal, le troisième axe est bien la verticale.
+    expect(manipulationAxes([1, 0, 0]).up[2]).toBeCloseTo(1, 6);
+  });
+});
+
+describe('déplacement contraint à un axe', () => {
+  it('suit le rayon du curseur le long de l’axe', () => {
+    // Axe X à l'origine, rayon vertical descendant depuis (70, 0, 100).
+    const position = closestPointOnAxis([0, 0, 0], [1, 0, 0], [70, 0, 100], [0, 0, -1]);
+    expect(position[0]).toBeCloseTo(70, 6);
+    expect(position[1]).toBeCloseTo(0, 6);
+    expect(position[2]).toBeCloseTo(0, 6);
+  });
+
+  it('ne quitte jamais son axe, même quand le rayon passe loin', () => {
+    const position = closestPointOnAxis([0, 0, 0], [1, 0, 0], [40, 500, 100], [0, 0, -1]);
+    expect(position[1]).toBeCloseTo(0, 6);
+    expect(position[2]).toBeCloseTo(0, 6);
+    expect(position[0]).toBeCloseTo(40, 6);
+  });
+
+  it('ne bouge pas quand l’axe est vu de bout', () => {
+    expect(closestPointOnAxis([5, 5, 5], [0, 0, 1], [5, 5, 200], [0, 0, -1])).toEqual([5, 5, 5]);
   });
 });

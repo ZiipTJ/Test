@@ -159,7 +159,15 @@ function Scene({ fit, setFit }: { fit: Fit; setFit: (value: Fit) => void }) {
       <WireScene diagonal={fit.diagonal} editing={editing} />
       {drawing && <SnapMarker candidate={snap} diagonal={fit.diagonal} />}
 
-      <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
+      {/* Commandes à la mode CAO : molette pressée pour tourner, Ctrl + molette
+          pour translater (OrbitControls traite déjà Ctrl comme modificateur),
+          molette pour zoomer. Le bouton gauche reste libre pour le tracé. */}
+      <OrbitControls
+        makeDefault
+        enableDamping
+        dampingFactor={0.12}
+        mouseButtons={{ MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.PAN }}
+      />
       <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
         <GizmoViewport axisColors={['#c0554a', '#5aa469', '#3f7fb0']} labelColor="#2b313a" />
       </GizmoHelper>
@@ -182,8 +190,14 @@ export function Viewer() {
 
   const camera = useMemo(() => ({ fov: 45, up: [0, 0, 1] as [number, number, number], position: [600, -700, 500] as [number, number, number], near: 1, far: 50000 }), []);
 
+  // Le clic molette déclenche le défilement automatique du navigateur : on le
+  // neutralise, sinon la rotation démarre avec un curseur de défilement collé.
+  const blockMiddleClick = useCallback((event: React.MouseEvent) => {
+    if (event.button === 1) event.preventDefault();
+  }, []);
+
   return (
-    <div className={`viewer${drawing ? ' is-drawing' : ''}`}>
+    <div className={`viewer${drawing ? ' is-drawing' : ''}`} onMouseDown={blockMiddleClick}>
       <Canvas
         dpr={[1, 2]}
         gl={{ antialias: true }}

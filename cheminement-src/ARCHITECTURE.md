@@ -51,6 +51,18 @@ contours fermés en suivant, à chaque sommet, la continuation la plus douce —
 qui traverse les coutures de cylindre — et retient ceux qui sont circulaires et
 plans. La tolérance est exprimée **en pixels**, donc constante à l'écran.
 
+**Le bouton gauche ne pilote jamais la caméra.** Il sert à tracer et à
+sélectionner ; la vue se manœuvre à la molette pressée, comme dans un
+modeleur. OrbitControls traite déjà Ctrl comme modificateur d'une action de
+rotation, il suffit donc de remapper les boutons pour obtenir « molette pour
+tourner, Ctrl + molette pour translater ».
+
+**Un déplacement contraint se calcule sur le rayon du curseur.** Tirer une
+flèche du trièdre ne projette pas la souris sur un plan : on cherche le point de
+l'axe le plus proche du rayon de la caméra (`closestPointOnAxis`). Le point suit
+donc le curseur sans jamais quitter son axe, et l'accrochage à la géométrie est
+volontairement désactivé — l'axe est la contrainte.
+
 **Un geste de la souris ne remplit pas la pile d'annulation.** Tirer un point
 met à jour un état de session, pas le projet : la courbe se recalcule en direct,
 mais seule la position finale est consignée au relâchement — une insertion sur la

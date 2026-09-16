@@ -35,6 +35,8 @@ interface SessionState {
   /** Ce que vise l'accrochage sous le curseur, affiché dans le bandeau. */
   snapLabel: string | null;
   drag: DragState | null;
+  /** Point désigné : il porte le trièdre de manipulation. */
+  activePoint: { kind: 'fil' | 'toron'; id: Id; index: number } | null;
   showEdges: boolean;
 
   setModel(model: ImportedModel | null): void;
@@ -46,6 +48,7 @@ interface SessionState {
   setDrawing(target: DrawTarget | null): void;
   setSnapLabel(label: string | null): void;
   setDrag(drag: DragState | null): void;
+  setActivePoint(point: SessionState['activePoint']): void;
   setShowEdges(value: boolean): void;
 }
 
@@ -58,19 +61,21 @@ export const useSession = create<SessionState>()((set) => ({
   drawing: null,
   snapLabel: null,
   drag: null,
+  activePoint: null,
   showEdges: true,
 
   setModel: (model) => set(() => ({ model })),
   setImporting: (importing) => set(() => ({ importing })),
   setStatus: (status) => set(() => ({ status })),
-  select: (selected) => set(() => ({ selected, drawing: null, snapLabel: null })),
+  select: (selected) => set(() => ({ selected, drawing: null, snapLabel: null, activePoint: null })),
   toggleChecked: (id) =>
     set((state) => ({
       checked: state.checked.includes(id) ? state.checked.filter((item) => item !== id) : [...state.checked, id],
     })),
   clearChecked: () => set(() => ({ checked: [] })),
-  setDrawing: (drawing) => set(() => ({ drawing, snapLabel: null })),
+  setDrawing: (drawing) => set(() => ({ drawing, snapLabel: null, activePoint: null })),
   setSnapLabel: (snapLabel) => set((state) => (state.snapLabel === snapLabel ? state : { snapLabel })),
   setDrag: (drag) => set(() => ({ drag })),
+  setActivePoint: (activePoint) => set(() => ({ activePoint })),
   setShowEdges: (showEdges) => set(() => ({ showEdges })),
 }));

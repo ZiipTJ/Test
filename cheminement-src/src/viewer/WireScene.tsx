@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
+import { manipulationAxes, tangentAt } from '../core/curve/edit';
 import { buildPath, parallelFrames, resampleUniform, type SampledPath } from '../core/curve/path';
 import { buildHelixTube, buildTube, corrugatedRadius, type MeshData } from '../core/geometry/tube';
 import type { Toron, Wire } from '../core/harness/types';
@@ -129,6 +130,82 @@ function SleeveMesh({ toron, path, radius, interactive }: {
   );
 }
 
+const AXIS_COLORS = { along: '#e0801f', across: '#2f9e51', up: '#2f6fd0' } as const;
+
+/** Une flèche du trièdre. Le cylindre de three pointe vers +Y : on l'oriente
+ *  vers l'axe voulu. Une gaine transparente et plus large l'entoure : une flèche
+ *  fine est jolie mais impossible à attraper, c'est elle qui reçoit le pointeur. */
+function Arrow({ direction, length, radius, color, onPointerDown }: {
+  direction: Vec3;
+  length: number;
+  radius: number;
+  color: string;
+  onPointerDown: (event: ThreeEvent<PointerEvent>) => void;
+}) {
+  const quaternion = useMemo(
+    () => new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(...direction).normalize(),
+    ),
+    [direction],
+  );
+  const gl = useThree((state) => state.gl);
+
+  return (
+    <group
+      quaternion={quaternion}
+      onPointerDown={onPointerDown}
+      onPointerOver={() => { gl.domElement.style.cursor = 'grab'; }}
+      onPointerOut={() => { gl.domElement.style.cursor = ''; }}
+    >
+      <mesh position={[0, length / 2, 0]} renderOrder={4}>
+        <cylinderGeometry args={[radius, radius, length, 8]} />
+        <meshBasicMaterial color={color} depthTest={false} />
+      </mesh>
+      <mesh position={[0, length, 0]} renderOrder={4}>
+        <coneGeometry args={[radius * 3, length * 0.24, 10]} />
+        <meshBasicMaterial color={color} depthTest={false} />
+      </mesh>
+      {/* Zone de préhension : invisible, mais bien plus large que la flèche. */}
+      <mesh position={[0, length * 0.55, 0]}>
+        <cylinderGeometry args={[radius * 6, radius * 6, length * 1.3, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} depthTest={false} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Trièdre de manipulation, posé sur le point désigné : un axe le long du fil,
+ *  un latéral, un vertical. Tirer une flèche déplace le point sur cet axe seul. */
+function AxisTriad({ target, points, index, size, editing }: {
+  target: PathTarget;
+  points: readonly Vec3[];
+  index: number;
+  size: number;
+  editing: PathEditing;
+}) {
+  const drag = useSession((state) => state.drag);
+  const active = drag && drag.kind === target.kind && drag.id === target.id && drag.index === index;
+  const origin = (active ? drag.position : points[index]) ?? null;
+  const axes = useMemo(() => manipulationAxes(tangentAt(points, index)), [points, index]);
+  if (!origin) return null;
+
+  return (
+    <group position={origin}>
+      {(['along', 'across', 'up'] as const).map((key) => (
+        <Arrow
+          key={key}
+          direction={axes[key]}
+          length={size}
+          radius={size / 16}
+          color={AXIS_COLORS[key]}
+          onPointerDown={(event) => editing.onAxisDown(target, index, origin, axes[key], event)}
+        />
+      ))}
+    </group>
+  );
+}
+
 /** Poignées : un point par clic posé. On les tire pour ajuster, on double-clique
  *  pour les retirer. */
 function Handles({ target, points, radius, editing, editable }: {
@@ -174,6 +251,7 @@ function ToronView({ toron, diagonal, editing }: ItemProps & { toron: Toron }) {
   const selected = useSession((state) => state.selected);
   const drawing = useSession((state) => state.drawing);
   const drag = useSession((state) => state.drag);
+  const activePoint = useSession((state) => state.activePoint);
   const select = useSession((state) => state.select);
 
   const target: PathTarget = { kind: 'toron', id: toron.id };
@@ -215,6 +293,9 @@ function ToronView({ toron, diagonal, editing }: ItemProps & { toron: Toron }) {
       {(isSelected || drawing?.id === toron.id) && (
         <Handles target={target} points={shown} radius={diagonal / 170} editing={editing} editable={editable} />
       )}
+      {editable && activePoint?.id === toron.id && (
+        <AxisTriad target={target} points={shown} index={activePoint.index} size={diagonal * 0.05} editing={editing} />
+      )}
     </group>
   );
 }
@@ -224,6 +305,7 @@ function WireView({ wire, diagonal, editing }: ItemProps & { wire: Wire }) {
   const selected = useSession((state) => state.selected);
   const drawing = useSession((state) => state.drawing);
   const drag = useSession((state) => state.drag);
+  const activePoint = useSession((state) => state.activePoint);
   const select = useSession((state) => state.select);
 
   const target: PathTarget = { kind: 'fil', id: wire.id };
@@ -254,6 +336,9 @@ function WireView({ wire, diagonal, editing }: ItemProps & { wire: Wire }) {
       )}
       {(isSelected || drawing?.id === wire.id) && (
         <Handles target={target} points={shown} radius={diagonal / 170} editing={editing} editable={editable} />
+      )}
+      {editable && activePoint?.id === wire.id && (
+        <AxisTriad target={target} points={shown} index={activePoint.index} size={diagonal * 0.05} editing={editing} />
       )}
     </group>
   );

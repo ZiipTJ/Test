@@ -74,6 +74,45 @@ await page.waitForTimeout(400);
 const longueurApres = (await page.locator('dl.results dd').first().textContent()) ?? '';
 check(longueurAvant !== longueurApres, `tirer un point change la longueur (${longueurAvant.trim()} → ${longueurApres.trim()})`);
 
+// Déplacement contraint : le trièdre du point désigné.
+await page.mouse.click(handle.x + 90, handle.y + 70);
+await page.waitForTimeout(500);
+const avantAxe = (await page.locator('dl.results dd').first().textContent()) ?? '';
+await page.mouse.move(handle.x + 95, handle.y + 44);
+await page.mouse.down();
+await page.mouse.move(handle.x + 95, handle.y - 80, { steps: 16 });
+await page.waitForTimeout(200);
+const pendantAxe = (await page.locator('.hintbar span').first().textContent()) ?? '';
+await page.mouse.up();
+await page.waitForTimeout(400);
+const apresAxe = (await page.locator('dl.results dd').first().textContent()) ?? '';
+check(/le long de l/.test(pendantAxe), 'tirer une flèche contraint le déplacement à son axe');
+check(avantAxe !== apresAxe, `le déplacement contraint change la longueur (${avantAxe.trim()} → ${apresAxe.trim()})`);
+
+// Commandes de la vue : molette pressée pour tourner, bouton gauche inerte.
+const viewShot = async () => { await page.waitForTimeout(800); return page.screenshot({ clip: box }); };
+const vueInitiale = await viewShot();
+await page.mouse.move(box.x + box.width * 0.15, box.y + box.height * 0.12);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width * 0.15 + 160, box.y + box.height * 0.12 + 110, { steps: 12 });
+await page.mouse.up();
+check(Buffer.compare(vueInitiale, await viewShot()) === 0, 'le bouton gauche ne fait pas tourner la vue');
+
+await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.45);
+await page.mouse.down({ button: 'middle' });
+await page.mouse.move(box.x + box.width * 0.5 + 150, box.y + box.height * 0.45 + 60, { steps: 12 });
+await page.mouse.up({ button: 'middle' });
+const vueTournee = await viewShot();
+check(Buffer.compare(vueInitiale, vueTournee) !== 0, 'la molette pressée fait tourner la vue');
+
+await page.keyboard.down('Control');
+await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.45);
+await page.mouse.down({ button: 'middle' });
+await page.mouse.move(box.x + box.width * 0.5 - 140, box.y + box.height * 0.45 - 40, { steps: 12 });
+await page.mouse.up({ button: 'middle' });
+await page.keyboard.up('Control');
+check(Buffer.compare(vueTournee, await viewShot()) !== 0, 'Ctrl + molette translate la vue');
+
 // Réunir deux fils en toron.
 await page.locator('ul.wires li', { hasText: 'CAN-H' }).locator('input[type="checkbox"]').check();
 await page.locator('ul.wires li', { hasText: 'CAN-L' }).locator('input[type="checkbox"]').check();

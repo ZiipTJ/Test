@@ -129,7 +129,7 @@ function HintBar() {
           ? snapLabel
             ? `Accrochage : ${snapLabel.toLowerCase()}`
             : 'Relâchez pour poser le point.'
-          : 'Glissez un point pour l’ajuster · glissez la courbe pour en ajouter un · double-clic pour en retirer un.'}
+          : 'Glissez un point pour l’ajuster (ses trois axes apparaissent) · glissez la courbe pour en ajouter un · double-clic pour en retirer un.'}
       </span>
       <span className="count">{holder.points.length} points</span>
     </div>

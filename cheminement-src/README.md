@@ -20,7 +20,9 @@ charger une platine percée et un faisceau déjà tracé.
    *Entrée* ou *Terminer* clôt le tracé.
 4. **Ajuster** — un fil sélectionné montre ses points : on **glisse un point**
    pour le déplacer, on **glisse la courbe** pour y ajouter un point, on
-   **double-clique** sur un point pour le retirer. Longueur et poids suivent.
+   **double-clique** sur un point pour le retirer. Le point désigné porte un
+   **trièdre** — le long du fil, latéral, vertical — et tirer une de ses flèches
+   contraint le déplacement à cet axe seul. Longueur et poids suivent.
 5. **Lire le résultat** — longueur, poids et résistance s'affichent sous le fil,
    les totaux en bas de l'écran.
 6. **Réunir en toron** — cocher plusieurs fils, puis *Réunir en toron* : ils
@@ -28,6 +30,16 @@ charger une platine percée et un faisceau déjà tracé.
    porte la gaine (spiralée, annelée, tressée) et s'ajuste de la même façon.
 7. **Exporter le tableau** — un CSV avec repère, section, extrémités, longueur,
    poids, résistance et toron. *Enregistrer* conserve le projet en JSON.
+
+### Commandes de la vue
+
+| Geste | Effet |
+| --- | --- |
+| Molette pressée, glisser | tourner |
+| Ctrl + molette pressée, glisser | translater |
+| Molette | zoomer |
+| Bouton droit, glisser | translater |
+| Bouton gauche | tracer et sélectionner, jamais tourner |
 
 `Ctrl+Z` / `Ctrl+Maj+Z` annulent et rétablissent.
 
