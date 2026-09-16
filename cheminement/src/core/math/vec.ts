@@ -1,7 +1,9 @@
 /** Algèbre 3D sur des tuples, volontairement sans dépendance à three.js :
  *  tout `core/` reste testable en Node et sérialisable tel quel en JSON. */
-export type Vec3 = readonly [number, number, number];
-export type Vec2 = readonly [number, number];
+/** Tuple mutable : le modèle est manipulé par immer, qui refuse les tuples
+ *  figés. Les fonctions de ce module ne modifient jamais leurs arguments. */
+export type Vec3 = [number, number, number];
+export type Vec2 = [number, number];
 
 export const v3 = (x: number, y: number, z: number): Vec3 => [x, y, z];
 export const ZERO: Vec3 = [0, 0, 0];
