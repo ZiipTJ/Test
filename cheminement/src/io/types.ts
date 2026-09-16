@@ -14,6 +14,9 @@ export interface ImportedMesh {
   edgePositions: Float32Array;
   /** Sommets dédupliqués, pour l'accrochage. */
   weldedVertices: Float32Array;
+  /** Arêtes en paires d'indices dans `weldedVertices` : sert à reconstruire les
+   *  contours, donc à retrouver les perçages. */
+  edgeSegments: Uint32Array;
 }
 
 export interface ImportStats {

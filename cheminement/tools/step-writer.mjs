@@ -66,7 +66,9 @@ export class StepWriter {
 
   /** Arc de cercle, décrit par son support et ses deux extrémités. */
   arcEdge(center, axis, ref, radius, a, b) {
-    const key = `e:a:${center.map(fmt)}|${radius}|${[a.map(fmt).join(','), b.map(fmt).join(',')].sort().join('|')}`;
+    // Le sens fait partie de l'identité : les deux moitiés d'un cercle partagent
+    // leurs extrémités mais ne décrivent pas le même arc.
+    const key = `e:a:${center.map(fmt)}|${radius}|${a.map(fmt).join(',')}>${b.map(fmt).join(',')}`;
     return this.shared(key, () => {
       const placement = this.axis2(center, axis, ref);
       const circle = this.raw(`CIRCLE('',#${placement},${fmt(radius)})`);
@@ -195,16 +197,27 @@ export function plateWithHoles(writer, [x0, y0, z0], [dx, dy, dz], holes) {
   const z1 = z0 + dz;
   const faces = [];
 
-  const holeLoops = (z, reverse) => holes.map((hole) => {
-    const { x, y, r } = hole;
+  /** Les deux moitiés d'un perçage, décrites sur le même support : la première
+   *  balaie θ de 0 à π, la seconde de π à 2π. Elles sont partagées entre la face
+   *  plane et la paroi cylindrique, comme l'exige une coque cousue. */
+  const halves = (x, y, z, r) => {
     const right = [x + r, y, z];
     const left = [x - r, y, z];
-    const front = writer.arcEdge([x, y, z], [0, 0, 1], [1, 0, 0], r, right, left);
-    const back = writer.arcEdge([x, y, z], [0, 0, -1], [1, 0, 0], r, left, right);
-    const oriented = reverse
-      ? [writer.orientedEdge(back, false), writer.orientedEdge(front, false)]
-      : [writer.orientedEdge(front, true), writer.orientedEdge(back, true)];
-    return writer.edgeLoop(oriented);
+    return {
+      right,
+      left,
+      upper: writer.arcEdge([x, y, z], [0, 0, 1], [1, 0, 0], r, right, left),
+      lower: writer.arcEdge([x, y, z], [0, 0, 1], [1, 0, 0], r, left, right),
+    };
+  };
+
+  /** Contour intérieur d'un perçage. Il tourne à l'envers du contour extérieur,
+   *  vu depuis la normale de la face : d'où le sens inversé côté dessus. */
+  const holeLoops = (z, reverse) => holes.map(({ x, y, r }) => {
+    const { upper, lower } = halves(x, y, z, r);
+    return writer.edgeLoop(reverse
+      ? [writer.orientedEdge(lower, false), writer.orientedEdge(upper, false)]
+      : [writer.orientedEdge(upper, true), writer.orientedEdge(lower, true)]);
   });
 
   const rectangle = (z, corners) => writer.edgeLoop([
@@ -218,8 +231,8 @@ export function plateWithHoles(writer, [x0, y0, z0], [dx, dy, dz], holes) {
   const bottom = [[x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [x1, y0, z0]];
   const top = [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]];
 
-  faces.push(writer.planeFace([x0, y0, z0], [0, 0, -1], [1, 0, 0], [rectangle(z0, bottom), ...holeLoops(z0, true)]));
-  faces.push(writer.planeFace([x0, y0, z1], [0, 0, 1], [1, 0, 0], [rectangle(z1, top), ...holeLoops(z1, false)]));
+  faces.push(writer.planeFace([x0, y0, z0], [0, 0, -1], [1, 0, 0], [rectangle(z0, bottom), ...holeLoops(z0, false)]));
+  faces.push(writer.planeFace([x0, y0, z1], [0, 0, 1], [1, 0, 0], [rectangle(z1, top), ...holeLoops(z1, true)]));
 
   const side = (a, b) => writer.planeFace(a, normalize([-(b[1] - a[1]), b[0] - a[0], 0]), [0, 0, 1], [
     writer.edgeLoop([
@@ -234,30 +247,26 @@ export function plateWithHoles(writer, [x0, y0, z0], [dx, dy, dz], holes) {
   faces.push(side([x1, y1, z0], [x0, y1, z0]));
   faces.push(side([x0, y1, z0], [x0, y0, z0]));
 
-  // Paroi de chaque perçage, en deux demi-cylindres partageant leurs génératrices.
+  // Paroi de chaque perçage : deux demi-cylindres refermés sur les mêmes génératrices.
   for (const { x, y, r } of holes) {
-    const rightLow = [x + r, y, z0], leftLow = [x - r, y, z0];
-    const rightHigh = [x + r, y, z1], leftHigh = [x - r, y, z1];
-    const lowFront = writer.arcEdge([x, y, z0], [0, 0, 1], [1, 0, 0], r, rightLow, leftLow);
-    const lowBack = writer.arcEdge([x, y, z0], [0, 0, -1], [1, 0, 0], r, leftLow, rightLow);
-    const highFront = writer.arcEdge([x, y, z1], [0, 0, 1], [1, 0, 0], r, rightHigh, leftHigh);
-    const highBack = writer.arcEdge([x, y, z1], [0, 0, -1], [1, 0, 0], r, leftHigh, rightHigh);
-    const seamRight = writer.lineEdge(rightLow, rightHigh);
-    const seamLeft = writer.lineEdge(leftLow, leftHigh);
+    const low = halves(x, y, z0, r);
+    const high = halves(x, y, z1, r);
+    const seamRight = writer.lineEdge(low.right, high.right);
+    const seamLeft = writer.lineEdge(low.left, high.left);
 
     faces.push(writer.cylinderFace([x, y, z0], [0, 0, 1], [1, 0, 0], r, [
       writer.edgeLoop([
-        writer.orientedEdge(lowFront, true),
+        writer.orientedEdge(low.upper, true),
         writer.orientedEdge(seamLeft, true),
-        writer.orientedEdge(highFront, false),
+        writer.orientedEdge(high.upper, false),
         writer.orientedEdge(seamRight, false),
       ]),
     ]));
     faces.push(writer.cylinderFace([x, y, z0], [0, 0, 1], [1, 0, 0], r, [
       writer.edgeLoop([
-        writer.orientedEdge(lowBack, true),
+        writer.orientedEdge(low.lower, true),
         writer.orientedEdge(seamRight, true),
-        writer.orientedEdge(highBack, false),
+        writer.orientedEdge(high.lower, false),
         writer.orientedEdge(seamLeft, false),
       ]),
     ]));

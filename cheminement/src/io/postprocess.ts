@@ -71,12 +71,14 @@ export function finalizeMeshes(
       color: entry.color ?? null,
       edgePositions: extracted.positions,
       weldedVertices: extracted.vertices,
+      edgeSegments: extracted.segments,
     });
 
     triangles += indices.length / 3;
     edges += extracted.count;
     transfer.push(positions.buffer as ArrayBuffer, normals.buffer as ArrayBuffer, indices.buffer as ArrayBuffer);
     transfer.push(extracted.positions.buffer as ArrayBuffer, extracted.vertices.buffer as ArrayBuffer);
+    transfer.push(extracted.segments.buffer as ArrayBuffer);
     if (entry.faceIds) transfer.push(entry.faceIds.buffer as ArrayBuffer);
   }
 

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import type { OcctModule } from 'occt-import-js';
+import { detectCircles } from '../src/core/geometry/features';
 import { occtResultToRaw } from '../src/io/formats/step';
 import { parseThreeMf } from '../src/io/formats/threemf';
 import { finalizeMeshes } from '../src/io/postprocess';
@@ -102,3 +103,25 @@ describe('import 3MF', () => {
     expect(support.edgePositions.length / 6).toBe(12);
   });
 });
+
+describe('repères d’accrochage', () => {
+  it('retrouve les seize contours de perçage de la platine', () => {
+    const buffer = readFileSync(join(samples, 'platine-cheminement.step'));
+    const { raw } = occtResultToRaw(occt.ReadStepFile(new Uint8Array(buffer), null));
+    const { meshes } = finalizeMeshes(raw, DEFAULT_IMPORT_OPTIONS);
+    const plate = meshes.find((m) => m.name.startsWith('Platine'))!;
+
+    const circles = detectCircles(plate.weldedVertices, plate.edgeSegments);
+    // Huit perçages, vus du dessus et du dessous.
+    expect(circles).toHaveLength(16);
+    // Quatre trous de collier Ø8,5 et quatre trous de fixation Ø10.
+    const radii = circles.map((c) => Number(c.radius.toFixed(2))).sort((a, b) => a - b);
+    expect(radii.filter((r) => Math.abs(r - 4.25) < 0.05)).toHaveLength(8);
+    expect(radii.filter((r) => Math.abs(r - 5) < 0.05)).toHaveLength(8);
+    // Les axes sont verticaux et les centres aux cotes du modèle.
+    for (const circle of circles) expect(Math.abs(circle.axis[2]!)).toBeCloseTo(1, 3);
+    const clampHole = circles.find((c) => Math.abs(c.center[0]! - 300) < 0.1 && Math.abs(c.center[1]! - 200) < 0.1);
+    expect(clampHole).toBeDefined();
+  });
+});
+
