@@ -2,8 +2,8 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
-/** Le WASM d'OpenCascade et les mailleurs tournent dans des workers : on garde
- *  le format ES pour que Vite puisse les découper comme le reste du bundle. */
+/** L'import de géométrie (STEP, 3MF, STL) tourne dans un worker : l'interface
+ *  reste réactive même sur un assemblage de plusieurs millions de triangles. */
 export default defineConfig({
   base: './',
   plugins: [react()],
@@ -16,8 +16,9 @@ export default defineConfig({
       '@ui': fileURLToPath(new URL('./src/ui', import.meta.url)),
     },
   },
-  worker: { format: 'es' },
-  optimizeDeps: { exclude: ['occt-import-js'] },
+  // Worker classique : le moteur OpenCascade est un module Emscripten UMD, chargé
+  // par `importScripts` depuis public/wasm plutôt que passé au bundler.
+  worker: { format: 'iife' },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,

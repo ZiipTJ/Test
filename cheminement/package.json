@@ -5,9 +5,13 @@
   "type": "module",
   "description": "Module de cheminement de câbles (routing electrical) dans le navigateur : import STEP/3MF, tracé de chemins, torons, gaines, nomenclature.",
   "scripts": {
+    "prepare": "node tools/copy-wasm.mjs",
+    "predev": "node tools/copy-wasm.mjs",
     "dev": "vite",
+    "prebuild": "node tools/copy-wasm.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "fixtures": "node tools/make-fixtures.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
@@ -15,7 +19,6 @@
   "dependencies": {
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
-    "comlink": "^4.4.2",
     "immer": "^11.1.18",
     "occt-import-js": "^0.0.23",
     "react": "~19.2.0",
