@@ -10,6 +10,18 @@ export interface DrawTarget {
   id: Id;
 }
 
+/** Point en cours de déplacement. Il vit ici, hors de l'historique : on
+ *  n'enregistre dans le projet que la position finale, une fois relâché. */
+export interface DragState {
+  kind: 'fil' | 'toron';
+  id: Id;
+  /** Rang du point déplacé, ou rang d'insertion du point qu'on est en train de créer. */
+  index: number;
+  position: [number, number, number];
+  /** « deplace » ajuste un point existant, « insere » en crée un sur la courbe. */
+  mode: 'deplace' | 'insere';
+}
+
 interface SessionState {
   model: ImportedModel | null;
   importing: { step: string; ratio: number } | null;
@@ -20,8 +32,9 @@ interface SessionState {
   /** Fils cochés, en attente d'être réunis en toron. */
   checked: Id[];
   drawing: DrawTarget | null;
-  /** Ce que vise l'accrochage sous le curseur, affiché dans le bandeau de tracé. */
+  /** Ce que vise l'accrochage sous le curseur, affiché dans le bandeau. */
   snapLabel: string | null;
+  drag: DragState | null;
   showEdges: boolean;
 
   setModel(model: ImportedModel | null): void;
@@ -32,6 +45,7 @@ interface SessionState {
   clearChecked(): void;
   setDrawing(target: DrawTarget | null): void;
   setSnapLabel(label: string | null): void;
+  setDrag(drag: DragState | null): void;
   setShowEdges(value: boolean): void;
 }
 
@@ -43,6 +57,7 @@ export const useSession = create<SessionState>()((set) => ({
   checked: [],
   drawing: null,
   snapLabel: null,
+  drag: null,
   showEdges: true,
 
   setModel: (model) => set(() => ({ model })),
@@ -56,5 +71,6 @@ export const useSession = create<SessionState>()((set) => ({
   clearChecked: () => set(() => ({ checked: [] })),
   setDrawing: (drawing) => set(() => ({ drawing, snapLabel: null })),
   setSnapLabel: (snapLabel) => set((state) => (state.snapLabel === snapLabel ? state : { snapLabel })),
+  setDrag: (drag) => set(() => ({ drag })),
   setShowEdges: (showEdges) => set(() => ({ showEdges })),
 }));

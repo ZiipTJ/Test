@@ -18,12 +18,15 @@ charger une platine percée et un faisceau déjà tracé.
 3. **Tracer le chemin** — on clique les points sur la pièce. L'accrochage vise le
    **centre des perçages**, les sommets, les milieux d'arêtes et les arêtes ;
    *Entrée* ou *Terminer* clôt le tracé.
-4. **Lire le résultat** — longueur, poids et résistance s'affichent sous le fil,
+4. **Ajuster** — un fil sélectionné montre ses points : on **glisse un point**
+   pour le déplacer, on **glisse la courbe** pour y ajouter un point, on
+   **double-clique** sur un point pour le retirer. Longueur et poids suivent.
+5. **Lire le résultat** — longueur, poids et résistance s'affichent sous le fil,
    les totaux en bas de l'écran.
-5. **Réunir en toron** — cocher plusieurs fils, puis *Réunir en toron* : ils
+6. **Réunir en toron** — cocher plusieurs fils, puis *Réunir en toron* : ils
    suivent désormais un chemin commun et se rangent dans la section. Le toron
-   porte la gaine (spiralée, annelée, tressée).
-6. **Exporter le tableau** — un CSV avec repère, section, extrémités, longueur,
+   porte la gaine (spiralée, annelée, tressée) et s'ajuste de la même façon.
+7. **Exporter le tableau** — un CSV avec repère, section, extrémités, longueur,
    poids, résistance et toron. *Enregistrer* conserve le projet en JSON.
 
 `Ctrl+Z` / `Ctrl+Maj+Z` annulent et rétablissent.
@@ -72,7 +75,8 @@ Repère interne : **millimètre, Z vers le haut**.
 
 ## Limites connues
 
-- Un point posé ne se déplace pas : on annule le dernier, ou on efface le tracé.
+- L'accrochage attire le point vers un perçage, un sommet ou une arête proche : le
+  point relâché n'est donc pas toujours exactement sous le curseur.
 - Un fil très fin est dessiné un peu plus épais que nature pour rester visible
   sur une grande pièce ; les torons, eux, sont à leur taille réelle.
 - Le catalogue de fils est un point de départ éditable, pas une base fournisseur.

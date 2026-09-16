@@ -1,12 +1,18 @@
-/** Affichage des fils et des torons dans la vue 3D. */
+/** Affichage des fils et des torons, et édition de leur tracé à la souris. */
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { parallelFrames, resampleUniform, type SampledPath } from '../core/curve/path';
+import { useThree, type ThreeEvent } from '@react-three/fiber';
+import { buildPath, parallelFrames, resampleUniform, type SampledPath } from '../core/curve/path';
 import { buildHelixTube, buildTube, corrugatedRadius, type MeshData } from '../core/geometry/tube';
 import type { Toron, Wire } from '../core/harness/types';
 import type { Vec3 } from '../core/math/vec';
-import { useComputation, useProject } from '../state/project';
-import { useSession } from '../state/session';
+import { useComputation, useProject, type PathTarget } from '../state/project';
+import { useSession, type DragState } from '../state/session';
+import type { PathEditing } from './editing';
+
+/** Rend un objet insensible au pointeur : rien ne doit voler le clic destiné à
+ *  la pièce pendant un tracé. */
+const IGNORE_POINTER = () => null;
 
 function toGeometry(data: MeshData): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
@@ -33,49 +39,71 @@ function offsetPath(path: SampledPath, x: number, y: number): { points: Vec3[]; 
   return { points, tangents: path.tangents };
 }
 
-/** Rend un objet insensible au pointeur : il ne doit pas voler le clic destiné
- *  à la pièce pendant un tracé. */
-const IGNORE_POINTER = () => null;
+/** Points du tracé tels qu'on les voit pendant un déplacement. */
+function previewPoints(points: readonly Vec3[], drag: DragState | null): Vec3[] {
+  if (!drag) return points as Vec3[];
+  const next = points.slice() as Vec3[];
+  if (drag.mode === 'insere') next.splice(drag.index, 0, drag.position);
+  else if (next[drag.index]) next[drag.index] = drag.position;
+  return next;
+}
 
-function WireTube({ wire, path, offsetX, offsetY, radius, highlight }: {
-  wire: Wire;
+/** Chemin affiché : celui du calcul, ou celui du geste en cours. */
+function useLivePath(
+  target: PathTarget,
+  points: readonly Vec3[],
+  bendRadius: number,
+  settled: SampledPath | null,
+): SampledPath | null {
+  const drag = useSession((state) => state.drag);
+  const active = drag && drag.kind === target.kind && drag.id === target.id ? drag : null;
+  return useMemo(() => {
+    if (!active) return settled;
+    const moved = previewPoints(points, active);
+    return moved.length >= 2 ? buildPath(moved, { bendRadius }) : null;
+  }, [active, points, bendRadius, settled]);
+}
+
+function Tube({ path, offsetX, offsetY, radius, color, highlight, interactive, onPointerDown }: {
   path: SampledPath;
   offsetX: number;
   offsetY: number;
   radius: number;
+  color: string;
   highlight: boolean;
+  interactive: boolean;
+  onPointerDown?: (event: ThreeEvent<PointerEvent>) => void;
 }) {
-  const select = useSession((state) => state.select);
-  const drawing = useSession((state) => state.drawing);
   const geometry = useMemo(() => {
     const moved = offsetPath(path, offsetX, offsetY);
     const step = Math.max(2, path.length / 240);
-    const dense = resampleUniform(
-      { ...path, points: moved.points, tangents: moved.tangents },
-      step,
-    );
+    const dense = resampleUniform({ ...path, points: moved.points, tangents: moved.tangents }, step);
     return toGeometry(buildTube(dense.points, dense.tangents, radius, 10));
   }, [path, offsetX, offsetY, radius]);
 
   return (
     <mesh
       geometry={geometry}
-      {...(drawing ? { raycast: IGNORE_POINTER } : {})}
-      onClick={(event) => { event.stopPropagation(); select({ kind: 'fil', id: wire.id }); }}
+      {...(interactive ? {} : { raycast: IGNORE_POINTER })}
+      {...(onPointerDown ? { onPointerDown } : {})}
     >
       <meshStandardMaterial
-        color={wire.color}
+        color={color}
         roughness={0.45}
         metalness={0.02}
-        emissive={highlight ? new THREE.Color(wire.color) : new THREE.Color('#000000')}
+        emissive={highlight ? new THREE.Color(color) : new THREE.Color('#000000')}
         emissiveIntensity={highlight ? 0.35 : 0}
       />
     </mesh>
   );
 }
 
-function SleeveMesh({ toron, path, radius }: { toron: Toron; path: SampledPath; radius: number }) {
-  const drawing = useSession((state) => state.drawing);
+function SleeveMesh({ toron, path, radius, interactive }: {
+  toron: Toron;
+  path: SampledPath;
+  radius: number;
+  interactive: boolean;
+}) {
   const geometry = useMemo(() => {
     if (toron.sleeve === 'aucune') return null;
     const step = Math.max(2, path.length / 400);
@@ -95,110 +123,152 @@ function SleeveMesh({ toron, path, radius }: { toron: Toron; path: SampledPath; 
   if (!geometry) return null;
   const color = toron.sleeve === 'spiralee' ? '#b9bec7' : toron.sleeve === 'annelee' ? '#3a3f47' : '#565c66';
   return (
-    <mesh geometry={geometry} {...(drawing ? { raycast: IGNORE_POINTER } : {})}>
+    <mesh geometry={geometry} {...(interactive ? {} : { raycast: IGNORE_POINTER })}>
       <meshStandardMaterial color={color} roughness={0.8} transparent opacity={0.85} />
     </mesh>
   );
 }
 
-/** Points cliqués : repères visibles pendant et après le tracé. */
-function PathPoints({ points, color }: { points: readonly Vec3[]; color: string }) {
-  const radius = useMemo(() => {
-    let span = 0;
-    for (let i = 1; i < points.length; i += 1) {
-      span = Math.max(span, Math.hypot(
-        points[i]![0] - points[i - 1]![0],
-        points[i]![1] - points[i - 1]![1],
-        points[i]![2] - points[i - 1]![2],
-      ));
-    }
-    return Math.max(2, span * 0.02);
-  }, [points]);
+/** Poignées : un point par clic posé. On les tire pour ajuster, on double-clique
+ *  pour les retirer. */
+function Handles({ target, points, radius, editing, editable }: {
+  target: PathTarget;
+  points: readonly Vec3[];
+  radius: number;
+  editing: PathEditing;
+  editable: boolean;
+}) {
+  const removePoint = useProject((state) => state.removePoint);
+  const gl = useThree((state) => state.gl);
+  const drag = useSession((state) => state.drag);
+  const activeIndex = drag && drag.kind === target.kind && drag.id === target.id ? drag.index : -1;
 
   return (
     <group>
       {points.map((point, index) => (
-        <mesh key={index} position={point} raycast={IGNORE_POINTER}>
-          <sphereGeometry args={[radius, 12, 10]} />
-          <meshBasicMaterial color={color} />
+        <mesh
+          key={index}
+          position={point}
+          {...(editable ? {} : { raycast: IGNORE_POINTER })}
+          onPointerDown={(event) => editing.onHandleDown(target, index, event)}
+          onDoubleClick={(event) => { event.stopPropagation(); removePoint(target, index); }}
+          onPointerOver={() => { gl.domElement.style.cursor = 'grab'; }}
+          onPointerOut={() => { gl.domElement.style.cursor = ''; }}
+        >
+          <sphereGeometry args={[index === activeIndex ? radius * 1.4 : radius, 14, 12]} />
+          <meshBasicMaterial color={index === activeIndex ? '#c0552a' : '#e0801f'} />
         </mesh>
       ))}
     </group>
   );
 }
 
-export function WireScene({ diagonal }: { diagonal: number }) {
+interface ItemProps {
+  diagonal: number;
+  editing: PathEditing;
+}
+
+function ToronView({ toron, diagonal, editing }: ItemProps & { toron: Toron }) {
   const project = useProject((state) => state.project);
   const computation = useComputation();
   const selected = useSession((state) => state.selected);
   const drawing = useSession((state) => state.drawing);
+  const drag = useSession((state) => state.drag);
+  const select = useSession((state) => state.select);
 
-  // Un fil de 2 mm sur une pièce d'un mètre serait invisible : on lui garantit
-  // une épaisseur minimale à l'écran. Les torons, eux, sont à leur taille réelle.
+  const target: PathTarget = { kind: 'toron', id: toron.id };
+  const result = computation.torons.get(toron.id);
+  const path = useLivePath(target, toron.points, toron.bendRadius, result?.path ?? null);
+
+  const isSelected = selected?.kind === 'toron' && selected.id === toron.id;
+  const editable = isSelected && !drawing;
+  const shown = previewPoints(toron.points, drag?.id === toron.id ? drag : null);
+
+  const minRadius = diagonal / 550;
+  const radius = Math.max((result?.diameter ?? 4) / 2, minRadius);
+  const scale = radius / Math.max((result?.diameter ?? 4) / 2, 1e-6);
+
+  return (
+    <group>
+      {path && toron.wireIds.map((wireId) => {
+        const wire = project.wires.find((item) => item.id === wireId);
+        const circle = result?.offsets.get(wireId);
+        if (!wire || !circle) return null;
+        return (
+          <Tube
+            key={wireId}
+            path={path}
+            offsetX={circle.x * scale}
+            offsetY={circle.y * scale}
+            radius={Math.max(circle.r * scale, minRadius * 0.4)}
+            color={wire.color}
+            highlight={isSelected || (selected?.kind === 'fil' && selected.id === wireId)}
+            interactive={!drawing && !drag}
+            onPointerDown={(event) => {
+              if (editable) editing.onCurveDown(target, event);
+              else { event.stopPropagation(); select({ kind: 'toron', id: toron.id }); }
+            }}
+          />
+        );
+      })}
+      {path && <SleeveMesh toron={toron} path={path} radius={radius} interactive={false} />}
+      {(isSelected || drawing?.id === toron.id) && (
+        <Handles target={target} points={shown} radius={diagonal / 170} editing={editing} editable={editable} />
+      )}
+    </group>
+  );
+}
+
+function WireView({ wire, diagonal, editing }: ItemProps & { wire: Wire }) {
+  const computation = useComputation();
+  const selected = useSession((state) => state.selected);
+  const drawing = useSession((state) => state.drawing);
+  const drag = useSession((state) => state.drag);
+  const select = useSession((state) => state.select);
+
+  const target: PathTarget = { kind: 'fil', id: wire.id };
+  const result = computation.wires.get(wire.id);
+  const path = useLivePath(target, wire.points, wire.bendRadius, result?.path ?? null);
+
+  const isSelected = selected?.kind === 'fil' && selected.id === wire.id;
+  const editable = isSelected && !drawing;
+  const shown = previewPoints(wire.points, drag?.id === wire.id ? drag : null);
   const minRadius = diagonal / 550;
 
   return (
     <group>
-      {project.torons.map((toron) => {
-        const result = computation.torons.get(toron.id);
-        if (!result?.path) return null;
-        const radius = Math.max(result.diameter / 2, minRadius);
-        const isSelected = selected?.kind === 'toron' && selected.id === toron.id;
-        return (
-          <group key={toron.id}>
-            {toron.wireIds.map((wireId) => {
-              const wire = project.wires.find((item) => item.id === wireId);
-              const circle = result.offsets.get(wireId);
-              if (!wire || !circle) return null;
-              const scale = radius / Math.max(result.diameter / 2, 1e-6);
-              return (
-                <WireTube
-                  key={wireId}
-                  wire={wire}
-                  path={result.path!}
-                  offsetX={circle.x * scale}
-                  offsetY={circle.y * scale}
-                  radius={Math.max(circle.r * scale, minRadius * 0.4)}
-                  highlight={isSelected || (selected?.kind === 'fil' && selected.id === wireId)}
-                />
-              );
-            })}
-            <SleeveMesh toron={toron} path={result.path} radius={radius} />
-            {(isSelected || drawing?.id === toron.id) && (
-              <PathPoints points={toron.points} color="#e0801f" />
-            )}
-          </group>
-        );
-      })}
+      {path && (
+        <Tube
+          path={path}
+          offsetX={0}
+          offsetY={0}
+          radius={Math.max(wire.outerDiameter / 2, minRadius)}
+          color={wire.color}
+          highlight={isSelected}
+          interactive={!drawing && !drag}
+          onPointerDown={(event) => {
+            if (editable) editing.onCurveDown(target, event);
+            else { event.stopPropagation(); select({ kind: 'fil', id: wire.id }); }
+          }}
+        />
+      )}
+      {(isSelected || drawing?.id === wire.id) && (
+        <Handles target={target} points={shown} radius={diagonal / 170} editing={editing} editable={editable} />
+      )}
+    </group>
+  );
+}
 
-      {project.wires.map((wire) => {
-        if (wire.toronId) return null;
-        const result = computation.wires.get(wire.id);
-        if (!result?.path) return null;
-        const isSelected = selected?.kind === 'fil' && selected.id === wire.id;
-        return (
-          <group key={wire.id}>
-            <WireTube
-              wire={wire}
-              path={result.path}
-              offsetX={0}
-              offsetY={0}
-              radius={Math.max(wire.outerDiameter / 2, minRadius)}
-              highlight={isSelected}
-            />
-            {(isSelected || drawing?.id === wire.id) && <PathPoints points={wire.points} color="#e0801f" />}
-          </group>
-        );
-      })}
-
-      {/* Un fil en cours de tracé n'a pas encore deux points : on montre quand même ses repères. */}
-      {drawing && (() => {
-        const holder = drawing.kind === 'fil'
-          ? project.wires.find((wire) => wire.id === drawing.id)
-          : project.torons.find((toron) => toron.id === drawing.id);
-        if (!holder || holder.points.length >= 2) return null;
-        return <PathPoints points={holder.points} color="#e0801f" />;
-      })()}
+export function WireScene({ diagonal, editing }: ItemProps) {
+  const project = useProject((state) => state.project);
+  return (
+    <group>
+      {project.torons.map((toron) => (
+        <ToronView key={toron.id} toron={toron} diagonal={diagonal} editing={editing} />
+      ))}
+      {project.wires.map((wire) =>
+        wire.toronId ? null : <WireView key={wire.id} wire={wire} diagonal={diagonal} editing={editing} />,
+      )}
     </group>
   );
 }

@@ -7,6 +7,12 @@ import type { Vec3 } from '../core/math/vec';
 import { gradeForSection, WIRE_COLORS } from '../core/harness/library';
 import { emptyProject, newId, type Id, type Project, type SleeveKind, type Toron, type Wire } from '../core/harness/types';
 
+/** Ce dont on modifie le chemin : un fil libre, ou un toron. */
+export interface PathTarget {
+  kind: 'fil' | 'toron';
+  id: Id;
+}
+
 interface ProjectActions {
   replaceProject(project: Project): void;
   resetProject(name?: string): void;
@@ -18,9 +24,14 @@ interface ProjectActions {
   removeWire(id: Id): void;
 
   /** Ajoute un point au chemin du fil, ou à celui de son toron. */
-  addPoint(target: { kind: 'fil' | 'toron'; id: Id }, point: Vec3): void;
-  removeLastPoint(target: { kind: 'fil' | 'toron'; id: Id }): void;
-  clearPath(target: { kind: 'fil' | 'toron'; id: Id }): void;
+  addPoint(target: PathTarget, point: Vec3): void;
+  removeLastPoint(target: PathTarget): void;
+  clearPath(target: PathTarget): void;
+  /** Déplace un point existant : c'est le geste d'ajustement du tracé. */
+  movePoint(target: PathTarget, index: number, position: Vec3): void;
+  /** Insère un point entre deux autres, pour infléchir la courbe. */
+  insertPoint(target: PathTarget, index: number, position: Vec3): void;
+  removePoint(target: PathTarget, index: number): void;
 
   groupToron(wireIds: Id[]): Id | null;
   ungroupToron(id: Id): void;
@@ -121,6 +132,32 @@ export const useProject = create<ProjectStore>()(
             ? state.project.wires.find((wire) => wire.id === target.id)
             : state.project.torons.find((toron) => toron.id === target.id);
           if (holder) holder.points = [];
+        }),
+
+      movePoint: (target, index, position) =>
+        set((state) => {
+          const holder = target.kind === 'fil'
+            ? state.project.wires.find((wire) => wire.id === target.id)
+            : state.project.torons.find((toron) => toron.id === target.id);
+          if (holder?.points[index]) holder.points[index] = position;
+        }),
+
+      insertPoint: (target, index, position) =>
+        set((state) => {
+          const holder = target.kind === 'fil'
+            ? state.project.wires.find((wire) => wire.id === target.id)
+            : state.project.torons.find((toron) => toron.id === target.id);
+          if (!holder) return;
+          const at = Math.max(0, Math.min(holder.points.length, index));
+          holder.points.splice(at, 0, position);
+        }),
+
+      removePoint: (target, index) =>
+        set((state) => {
+          const holder = target.kind === 'fil'
+            ? state.project.wires.find((wire) => wire.id === target.id)
+            : state.project.torons.find((toron) => toron.id === target.id);
+          holder?.points.splice(index, 1);
         }),
 
       /** Réunit des fils : ils suivent désormais un chemin commun, repris du

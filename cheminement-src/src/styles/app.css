@@ -35,11 +35,11 @@ button, input, select { font: inherit; color: inherit; }
   border: 1px solid var(--line); border-radius: var(--radius);
   padding: 5px 8px; min-width: 230px; background: var(--bg);
 }
-.topbar button, .panel button, .drawbar button {
+.topbar button, .panel button, .hintbar button {
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 5px 11px; cursor: pointer;
 }
-.topbar button:hover, .panel button:hover, .drawbar button:hover { background: var(--surface); }
+.topbar button:hover, .panel button:hover, .hintbar button:hover { background: var(--surface); }
 .topbar button.is-on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 button.primary {
   background: var(--accent) !important; border-color: var(--accent) !important;
@@ -56,15 +56,17 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .viewer canvas { display: block; }
 .viewer.is-drawing canvas { cursor: crosshair; }
 
-.drawbar {
+.hintbar {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px;
   display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px);
   background: var(--bg); border: 1px solid var(--accent); border-radius: 8px;
   padding: 8px 12px; box-shadow: 0 6px 20px rgba(20, 30, 45, 0.16);
 }
-.drawbar span { color: var(--muted); }
-.drawbar span.snap { color: var(--accent); }
-.drawbar .count { color: var(--fg); font-variant-numeric: tabular-nums; }
+.hintbar strong { white-space: nowrap; }
+.hintbar span { color: var(--muted); }
+.hintbar span.snap { color: var(--accent); font-weight: 600; }
+.hintbar .count { color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hintbar.quiet { border-color: var(--line); }
 
 /* ------------------------------------------------------------- panneau */
 .panel {

@@ -33,6 +33,7 @@ function Body({ mesh, onPointerMove, onPointerDown, onPointerLeave }: BodyProps)
     <group>
       <mesh
         geometry={geometry}
+        userData={{ meshId: mesh.id }}
         onPointerMove={(event) => onPointerMove(event, mesh)}
         onPointerDown={(event) => onPointerDown(event, mesh)}
         onPointerOut={onPointerLeave}

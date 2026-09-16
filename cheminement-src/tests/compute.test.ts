@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { compute } from '../src/core/harness/compute';
+import { insertIndexFor } from '../src/core/curve/edit';
 import { gradeForSection } from '../src/core/harness/library';
 import { emptyProject, type Project, type Wire } from '../src/core/harness/types';
 import type { Vec3 } from '../src/core/math/vec';
@@ -201,5 +202,58 @@ describe('réunir et séparer des fils', () => {
     expect(wire.sectionMm2).toBe(6);
     expect(wire.outerDiameter).toBe(grade.outerDiameter);
     expect(wire.massPerMeter).toBe(grade.massPerMeter);
+  });
+});
+
+describe('ajuster le tracé', () => {
+  beforeEach(() => {
+    useProject.getState().resetProject('Test');
+  });
+
+  it('insère un point sur le brin le plus proche', () => {
+    const points: Vec3[] = [[0, 0, 0], [100, 0, 0], [100, 100, 0]];
+    // Au milieu du premier brin.
+    expect(insertIndexFor(points, [50, 3, 0])).toBe(1);
+    // Au milieu du second.
+    expect(insertIndexFor(points, [103, 50, 0])).toBe(2);
+    // Près d'un sommet partagé : le rang reste valide.
+    expect([1, 2]).toContain(insertIndexFor(points, [100, 0, 0]));
+  });
+
+  it('n’insère jamais avant le premier ni après le dernier point', () => {
+    const points: Vec3[] = [[0, 0, 0], [100, 0, 0]];
+    expect(insertIndexFor(points, [-500, 0, 0])).toBe(1);
+    expect(insertIndexFor(points, [600, 0, 0])).toBe(1);
+  });
+
+  it('reste défini sur un tracé incomplet', () => {
+    expect(insertIndexFor([], [0, 0, 0])).toBe(0);
+    expect(insertIndexFor([[0, 0, 0]], [1, 1, 1])).toBe(1);
+  });
+
+  it('déplace, insère et retire un point', () => {
+    const store = useProject.getState();
+    const id = store.addWire();
+    const target = { kind: 'fil' as const, id };
+    store.updateWire(id, { points: [[0, 0, 0], [100, 0, 0]] });
+
+    useProject.getState().movePoint(target, 1, [200, 0, 0]);
+    expect(useProject.getState().project.wires[0]!.points[1]).toEqual([200, 0, 0]);
+
+    useProject.getState().insertPoint(target, 1, [100, 50, 0]);
+    expect(useProject.getState().project.wires[0]!.points).toEqual([[0, 0, 0], [100, 50, 0], [200, 0, 0]]);
+
+    useProject.getState().removePoint(target, 1);
+    expect(useProject.getState().project.wires[0]!.points).toEqual([[0, 0, 0], [200, 0, 0]]);
+  });
+
+  it('ignore un rang hors du tracé', () => {
+    const store = useProject.getState();
+    const id = store.addWire();
+    const target = { kind: 'fil' as const, id };
+    store.updateWire(id, { points: [[0, 0, 0], [100, 0, 0]] });
+
+    useProject.getState().movePoint(target, 7, [9, 9, 9]);
+    expect(useProject.getState().project.wires[0]!.points).toEqual([[0, 0, 0], [100, 0, 0]]);
   });
 });

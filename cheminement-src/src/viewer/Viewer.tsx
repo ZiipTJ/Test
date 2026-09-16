@@ -11,6 +11,7 @@ import { useProject } from '../state/project';
 import { useSession } from '../state/session';
 import { ModelScene } from './ModelScene';
 import { WireScene } from './WireScene';
+import { usePathEditing } from './editing';
 import { findSnap, type SnapCandidate } from './snapping';
 
 function modelBounds(meshes: ImportedMesh[]): Box3 | null {
@@ -90,6 +91,9 @@ function Scene({ fit, setFit }: { fit: Fit; setFit: (value: Fit) => void }) {
   const addPoint = useProject((state) => state.addPoint);
   const [snap, setSnap] = useState<SnapCandidate | null>(null);
   const pointer = useRef(new THREE.Vector2());
+  // Le groupe du modèle sert de cible de lancer de rayon pendant qu'on tire un point.
+  const modelGroup = useRef<THREE.Group>(null);
+  const editing = usePathEditing(modelGroup, fit.diagonal);
 
   const snapAt = useCallback(
     (event: ThreeEvent<PointerEvent>, mesh: ImportedMesh): SnapCandidate => {
@@ -145,12 +149,14 @@ function Scene({ fit, setFit }: { fit: Fit; setFit: (value: Fit) => void }) {
         position={[0, 0, fit.floorZ - fit.diagonal * 0.004]}
       />
 
-      <ModelScene
-        onPointerMove={handleMove}
-        onPointerDown={handleDown}
-        onPointerLeave={() => { setSnap(null); setSnapLabel(null); }}
-      />
-      <WireScene diagonal={fit.diagonal} />
+      <group ref={modelGroup}>
+        <ModelScene
+          onPointerMove={handleMove}
+          onPointerDown={handleDown}
+          onPointerLeave={() => { setSnap(null); setSnapLabel(null); }}
+        />
+      </group>
+      <WireScene diagonal={fit.diagonal} editing={editing} />
       {drawing && <SnapMarker candidate={snap} diagonal={fit.diagonal} />}
 
       <OrbitControls makeDefault enableDamping dampingFactor={0.12} />

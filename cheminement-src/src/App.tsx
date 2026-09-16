@@ -81,34 +81,57 @@ function Header() {
   );
 }
 
-/** Bandeau d'aide, visible uniquement pendant un tracé. */
-function DrawingBar() {
+/** Bandeau d'aide : pendant un tracé, puis pendant l'ajustement du tracé. */
+function HintBar() {
   const drawing = useSession((state) => state.drawing);
   const setDrawing = useSession((state) => state.setDrawing);
+  const selected = useSession((state) => state.selected);
+  const snapLabel = useSession((state) => state.snapLabel);
+  const drag = useSession((state) => state.drag);
+  const model = useSession((state) => state.model);
   const project = useProject((state) => state.project);
   const removeLastPoint = useProject((state) => state.removeLastPoint);
-  const model = useSession((state) => state.model);
-  const snapLabel = useSession((state) => state.snapLabel);
-  if (!drawing) return null;
 
-  const holder = drawing.kind === 'fil'
-    ? project.wires.find((wire) => wire.id === drawing.id)
-    : project.torons.find((toron) => toron.id === drawing.id);
-  const count = holder?.points.length ?? 0;
+  const find = (target: { kind: 'fil' | 'toron'; id: string }) =>
+    target.kind === 'fil'
+      ? project.wires.find((wire) => wire.id === target.id)
+      : project.torons.find((toron) => toron.id === target.id);
+
+  if (drawing) {
+    const holder = find(drawing);
+    const count = holder?.points.length ?? 0;
+    return (
+      <div className="hintbar">
+        <strong>{holder?.name}</strong>
+        <span className={snapLabel ? 'snap' : ''}>
+          {!model
+            ? 'Importez d’abord une pièce pour pouvoir cliquer dessus.'
+            : snapLabel
+              ? `Accrochage : ${snapLabel.toLowerCase()}`
+              : 'Cliquez les points sur la pièce.'}
+        </span>
+        <span className="count">{count} point{count > 1 ? 's' : ''}</span>
+        <button disabled={count === 0} onClick={() => removeLastPoint(drawing)}>Annuler le dernier</button>
+        <button className="primary" onClick={() => setDrawing(null)}>Terminer</button>
+      </div>
+    );
+  }
+
+  if (!selected) return null;
+  const holder = find(selected);
+  if (!holder || holder.points.length === 0) return null;
 
   return (
-    <div className="drawbar">
-      <strong>{holder?.name}</strong>
-      <span>
-        {!model
-          ? 'Importez d’abord une pièce pour pouvoir cliquer dessus.'
-          : snapLabel
+    <div className="hintbar quiet">
+      <strong>{holder.name}</strong>
+      <span className={drag ? 'snap' : ''}>
+        {drag
+          ? snapLabel
             ? `Accrochage : ${snapLabel.toLowerCase()}`
-            : 'Cliquez les points sur la pièce — l’accrochage vise les perçages, les sommets et les arêtes.'}
+            : 'Relâchez pour poser le point.'
+          : 'Glissez un point pour l’ajuster · glissez la courbe pour en ajouter un · double-clic pour en retirer un.'}
       </span>
-      <span className="count">{count} point{count > 1 ? 's' : ''}</span>
-      <button disabled={count === 0} onClick={() => removeLastPoint(drawing)}>Annuler le dernier</button>
-      <button className="primary" onClick={() => setDrawing(null)}>Terminer</button>
+      <span className="count">{holder.points.length} points</span>
     </div>
   );
 }
@@ -160,7 +183,7 @@ export function App() {
       <div className="workspace">
         <div className="stage">
           <Viewer />
-          <DrawingBar />
+          <HintBar />
         </div>
         <Panel />
       </div>

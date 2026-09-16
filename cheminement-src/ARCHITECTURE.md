@@ -51,6 +51,11 @@ contours fermés en suivant, à chaque sommet, la continuation la plus douce —
 qui traverse les coutures de cylindre — et retient ceux qui sont circulaires et
 plans. La tolérance est exprimée **en pixels**, donc constante à l'écran.
 
+**Un geste de la souris ne remplit pas la pile d'annulation.** Tirer un point
+met à jour un état de session, pas le projet : la courbe se recalcule en direct,
+mais seule la position finale est consignée au relâchement — une insertion sur la
+courbe ne compte, elle aussi, que pour une entrée.
+
 **Rien ne se pose sous le curseur pendant un tracé.** Un repère d'accrochage
 sensible au pointeur intercepte le clic qu'il est censé guider : le repère 3D est
 donc rendu transparent au pointeur (`raycast` neutralisé), les fils et gaines le

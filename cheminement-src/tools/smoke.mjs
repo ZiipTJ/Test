@@ -46,19 +46,33 @@ check(/\d[.,]\d\d m/.test((await page.locator('ul.wires').first().textContent())
 await page.getByRole('button', { name: '+ Nouveau fil' }).click();
 await page.locator('.detail input').first().fill('ESSAI');
 await page.getByRole('button', { name: 'Tracer le chemin' }).click();
-check(await page.locator('.drawbar').isVisible(), 'le bandeau de tracé apparaît');
+check(await page.locator('.hintbar').isVisible(), 'le bandeau de tracé apparaît');
 
 const box = await page.locator('canvas').boundingBox();
 await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.58);
 await page.waitForTimeout(250);
 await page.mouse.click(box.x + box.width * 0.62, box.y + box.height * 0.66);
 await page.waitForTimeout(250);
-const pointCount = (await page.locator('.drawbar .count').textContent()) ?? '';
+const pointCount = (await page.locator('.hintbar .count').textContent()) ?? '';
 check(/2 points/.test(pointCount), `deux points posés sur la pièce (${pointCount.trim()})`);
 
-await page.locator('.drawbar').getByRole('button', { name: 'Terminer' }).click();
+await page.locator('.hintbar').getByRole('button', { name: 'Terminer' }).click();
 const essai = page.locator('ul.wires li', { hasText: 'ESSAI' });
 check(!(await essai.textContent())?.includes('à tracer'), 'le fil tracé a une longueur');
+
+// Ajuster le tracé : attraper un point et le tirer.
+await page.locator('ul.wires li', { hasText: 'ESSAI' }).locator('button').click();
+await page.waitForTimeout(400);
+const longueurAvant = (await page.locator('dl.results dd').first().textContent()) ?? '';
+const handle = { x: box.x + box.width * 0.35, y: box.y + box.height * 0.58 };
+await page.mouse.move(handle.x, handle.y);
+await page.mouse.down();
+await page.mouse.move(handle.x + 90, handle.y + 70, { steps: 12 });
+await page.waitForTimeout(150);
+await page.mouse.up();
+await page.waitForTimeout(400);
+const longueurApres = (await page.locator('dl.results dd').first().textContent()) ?? '';
+check(longueurAvant !== longueurApres, `tirer un point change la longueur (${longueurAvant.trim()} → ${longueurApres.trim()})`);
 
 // Réunir deux fils en toron.
 await page.locator('ul.wires li', { hasText: 'CAN-H' }).locator('input[type="checkbox"]').check();
