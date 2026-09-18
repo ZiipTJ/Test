@@ -114,19 +114,82 @@
         .btn-mini-amber { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
         .btn-mini-amber:hover { background-color: #fde68a; }
 
-        /* Check-lists */
-        .check-row {
-            display: flex; gap: 1rem; align-items: flex-start;
-            padding: 0.75rem 0.9rem; border: 1px solid var(--slate-200);
-            border-radius: var(--radius); background: #fff; margin-bottom: 0.5rem;
+        /* ---- Check-lists ---- */
+        /* L'en-tête générique est une rangée ; ici il empile titre et barre. */
+        #checklistModal .modal-header { flex-direction: column; align-items: stretch; }
+        .check-progress {
+            height: 0.3rem; border-radius: 9999px; background: rgba(255,255,255,0.22);
+            overflow: hidden; margin-top: 0.6rem;
         }
-        .check-row.check-done { background: #f0fdf4; border-color: #bbf7d0; }
-        .check-row .check-desc { font-size: 0.8125rem; font-weight: 600; color: var(--slate-800); line-height: 1.4; }
+        .check-progress > div {
+            height: 100%; width: 0; border-radius: 9999px;
+            background: linear-gradient(90deg, var(--emerald), #34d399);
+            transition: width 0.35s ease;
+        }
+        .check-signbar {
+            display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+            background: var(--slate-50); border: 1px solid var(--slate-200);
+            border-radius: var(--radius); padding: 0.6rem 0.8rem; margin-bottom: 1rem;
+        }
+        .check-signbar label {
+            font-size: 0.6875rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.04em; color: var(--slate-500); margin: 0;
+        }
+        /* Sélecteur plus précis que la règle générale input[type="text"],
+           qui vient plus bas et imposerait sinon une largeur pleine. */
+        .check-signbar input[type="text"] {
+            width: 5.5rem; flex: 0 0 auto; text-align: center;
+            font-weight: 800; font-size: 1rem;
+            letter-spacing: 0.18em; text-transform: uppercase; padding: 0.4rem 0.5rem;
+        }
+        .check-signbar .hint { font-size: 0.7rem; color: var(--slate-400); flex: 1; min-width: 10rem; }
+
+        .check-item {
+            display: grid; grid-template-columns: 2rem 1fr auto; gap: 0.9rem;
+            align-items: start; padding: 0.85rem 1rem; margin-bottom: 0.5rem;
+            border: 1px solid var(--slate-200); border-left: 3px solid var(--slate-300);
+            border-radius: var(--radius); background: #fff;
+            transition: border-color var(--transition), background-color var(--transition), box-shadow var(--transition);
+        }
+        .check-item:hover { box-shadow: var(--shadow-sm); border-color: var(--slate-300); }
+        .check-item.check-done { background: #f6fef9; border-color: #bbf7d0; border-left-color: var(--emerald); }
+        .check-num {
+            width: 1.6rem; height: 1.6rem; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 800;
+            background: var(--slate-100); color: var(--slate-500); border: 1px solid var(--slate-200);
+        }
+        .check-item.check-done .check-num {
+            background: var(--emerald); color: #fff; border-color: var(--emerald); font-size: 0.85rem;
+        }
+        .check-item .check-desc {
+            font-size: 0.8125rem; font-weight: 600; color: var(--slate-800); line-height: 1.45;
+        }
         .check-photo {
-            margin-top: 0.5rem; max-height: 8rem; max-width: 100%;
-            border-radius: var(--radius); border: 1px solid var(--slate-200); cursor: zoom-in; display: block;
+            margin-top: 0.6rem; height: 5.5rem; width: auto; max-width: 100%;
+            border-radius: var(--radius); border: 1px solid var(--slate-200);
+            cursor: zoom-in; display: block; background: var(--slate-50);
+            transition: transform var(--transition);
         }
-        .check-sign { font-size: 0.6875rem; color: var(--emerald-d); font-weight: 600; margin-top: 0.4rem; }
+        .check-photo:hover { transform: scale(1.03); }
+        .check-sign {
+            font-size: 0.6875rem; color: var(--emerald-d); font-weight: 700; margin-top: 0.5rem;
+            display: flex; align-items: center; gap: 0.3rem;
+        }
+        .check-act {
+            font-size: 0.75rem; font-weight: 700; padding: 0.4rem 0.9rem;
+            border-radius: 9999px; border: 1px solid transparent;
+        }
+        .check-act.todo { background: var(--emerald); color: #fff; box-shadow: 0 1px 3px rgba(16,185,129,0.35); }
+        .check-act.todo:hover { background: var(--emerald-d); }
+        .check-act.undo { background: transparent; color: var(--slate-500); border-color: var(--slate-200); }
+        .check-act.undo:hover { background: var(--slate-100); color: var(--slate-700); }
+        .check-allgood {
+            display: flex; align-items: center; gap: 0.5rem; justify-content: center;
+            background: #f0fdf4; border: 1px solid #bbf7d0; color: var(--emerald-d);
+            border-radius: var(--radius); padding: 0.7rem; font-size: 0.8125rem; font-weight: 700;
+            margin-bottom: 1rem;
+        }
         .photo-viewer {
             position: fixed; inset: 0; background: rgba(15,23,42,0.88); z-index: 100;
             display: flex; align-items: center; justify-content: center; padding: 2rem; cursor: zoom-out;
@@ -1073,8 +1136,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" onclick="closeModal('batteryChargeModal')" class="btn-gray">Annuler</button>
-                    <button type="submit" class="btn-blue">Enregistrer</button>
+                    <button type="button" id="batCancelBtn" onclick="closeModal('batteryChargeModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" id="batSaveBtn" class="btn-blue">Enregistrer</button>
                 </div>
             </form>
         </div>
@@ -1097,8 +1160,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" onclick="closeModal('rackBatteryModal')" class="btn-gray">Annuler</button>
-                    <button type="submit" class="btn-blue">Enregistrer</button>
+                    <button type="button" id="rackCancelBtn" onclick="closeModal('rackBatteryModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" id="rackSaveBtn" class="btn-blue">Enregistrer</button>
                 </div>
             </form>
         </div>
@@ -1179,16 +1242,19 @@
 
     <div id="checklistModal" class="modal hidden">
         <div class="modal-content" style="max-width: 720px;">
-            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 id="checklistTitle">Check-list</h3>
-                <span id="checklistCount" style="font-size: 0.75rem; font-weight: 700; color: #64748b;"></span>
+            <div class="modal-header">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;">
+                    <h3 id="checklistTitle">Check-list</h3>
+                    <span id="checklistCount" style="font-size: 0.75rem; font-weight: 700; color: rgba(255,255,255,0.75); white-space: nowrap;"></span>
+                </div>
+                <div class="check-progress"><div id="checklistProgress"></div></div>
             </div>
-            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
-                <div class="form-group" style="max-width: 12rem; margin-bottom: 1rem;">
-                    <label>Trigramme du contrôleur</label>
-                    <input id="checklistOperator" type="text" maxlength="3"
-                           style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;"
+            <div class="modal-body" style="max-height: 62vh; overflow-y: auto;">
+                <div class="check-signbar">
+                    <label for="checklistOperator">Trigramme</label>
+                    <input id="checklistOperator" type="text" maxlength="3" autocomplete="off"
                            oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                    <span class="hint">Chaque point validé est signé de ce trigramme et horodaté.</span>
                 </div>
                 <div id="checklistBody"></div>
             </div>
@@ -2812,17 +2878,21 @@
                     `;
                 }
 
-                // Cellule désignation : bouton de charge à droite du nom (batteries)
+                // Cellule désignation : bouton de charge à droite du nom (batteries).
+                // Le relevé reste lisible sur la ligne, dossier clôturé compris.
                 let designationCell;
-                if (isBattery && !locked) {
+                if (isBattery) {
                     const openFn = item.ref === RACK_BATTERY_REF ? 'openRackBatteryModal' : 'openBatteryChargeModal';
-                    const chargeLabel = item.charged ? 'Modifier la charge' : 'Saisir la charge';
+                    const chargeLabel = locked
+                        ? 'Voir la charge'
+                        : (item.charged ? 'Modifier la charge' : 'Saisir la charge');
                     designationCell = `
                         <td class="normal-wrap" style="font-weight: 500;">
                             <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
                                 <span>${item.designation}</span>
                                 <button onclick="${openFn}(${idx})" class="btn-gray" style="padding: 0.15rem 0.55rem; font-size: 0.7rem; white-space: nowrap; flex-shrink: 0;">${chargeLabel}</button>
                             </div>
+                            ${chargeSummaryHtml(item)}
                         </td>
                     `;
                 } else {
@@ -3116,20 +3186,25 @@
             const list = checklistOf(checklistScope);
             const done = checksDone(list);
 
+            const pct = list.length ? Math.round((done / list.length) * 100) : 0;
             document.getElementById('checklistCount').textContent = `${done} / ${list.length} validés`;
+            document.getElementById('checklistProgress').style.width = `${pct}%`;
 
-            box.innerHTML = list.map((c, i) => `
-                <div class="check-row${c.done ? ' check-done' : ''}">
-                    <div style="flex: 1;">
+            box.innerHTML = (done === list.length && list.length > 0
+                    ? `<div class="check-allgood">✓ Check-list complète</div>` : '')
+                + list.map((c, i) => `
+                <div class="check-item${c.done ? ' check-done' : ''}">
+                    <div class="check-num">${c.done ? '✓' : i + 1}</div>
+                    <div>
                         <div class="check-desc">${escapeHtml(c.desc || '')}</div>
                         ${c.photo ? `<img src="${c.photo}" class="check-photo" alt=""
-                                          onclick="openPhotoViewer(this.src)">` : ''}
-                        ${c.done ? `<div class="check-sign">Validé par <strong>${escapeHtml(c.operator || '')}</strong> — ${escapeHtml(c.date || '')}</div>` : ''}
+                                          title="Agrandir" onclick="openPhotoViewer(this.src)">` : ''}
+                        ${c.done ? `<div class="check-sign">✓ ${escapeHtml(c.operator || '')} — ${escapeHtml(c.date || '')}</div>` : ''}
                     </div>
-                    <div style="flex-shrink: 0;">
-                        ${c.done
-                            ? (locked ? '' : `<button type="button" class="btn-mini" onclick="uncheckItem(${i})">Annuler</button>`)
-                            : (locked ? '' : `<button type="button" class="btn-mini btn-mini-green" onclick="checkItem(${i})">Fait</button>`)}
+                    <div>
+                        ${locked ? '' : (c.done
+                            ? `<button type="button" class="check-act undo" onclick="uncheckItem(${i})">Annuler</button>`
+                            : `<button type="button" class="check-act todo" onclick="checkItem(${i})">Fait</button>`)}
                     </div>
                 </div>
             `).join('');
@@ -4755,9 +4830,26 @@
             return pos;
         }
 
+        // Un dossier clôturé ouvre la même fenêtre en lecture seule : les
+        // relevés de charge restent consultables une fois le dossier figé.
+        // Relevé de charge résumé sous le nom de la batterie : indice, tensions
+        // et état. Visible en permanence, y compris quand le dossier est figé.
+        function chargeSummaryHtml(item) {
+            const ch = item.charge || {};
+            const parts = [];
+            if (ch.index) parts.push(`Batterie ${escapeHtml(String(ch.index))}`);
+            if (ch.vWake) parts.push(`réveil ${escapeHtml(String(ch.vWake))} V`);
+            if (ch.vEnd) parts.push(`fin de charge ${escapeHtml(String(ch.vEnd))} V`);
+            if (parts.length === 0 && !item.charged) return '';
+            parts.push(item.charged ? 'chargée' : 'charge à finir');
+            return `<div style="font-size: 0.7rem; font-weight: 600; margin-top: 0.2rem;
+                        color: ${item.charged ? '#059669' : '#ea580c'};">${parts.join(' · ')}</div>`;
+        }
+
         function openBatteryChargeModal(index) {
             const el = getActiveElement();
-            if (!el || el.closed) return;
+            if (!el) return;
+            const readOnly = !!el.closed;
             activeBatteryRowIndex = index;
             const item = el.bom[index];
             const batIndex = batteryDefaultIndex(el, BATTERY_REF, index);
@@ -4766,7 +4858,23 @@
             document.getElementById('batVWake').value = ch.vWake || '';
             document.getElementById('batVEnd').value = ch.vEnd || '';
             document.getElementById('batCheckCharged').checked = !!item.charged;
+            setChargeModalMode('bat', readOnly);
             document.getElementById('batteryChargeModal').classList.remove('hidden');
+        }
+
+        // Bascule consultation / saisie d'une fenêtre de charge.
+        function setChargeModalMode(prefix, readOnly) {
+            const ids = prefix === 'bat'
+                ? ['batVWake', 'batVEnd', 'batCheckCharged']
+                : ['rackCheckCharged'];
+            ids.forEach(id => {
+                const f = document.getElementById(id);
+                if (f) f.disabled = readOnly;
+            });
+            const save = document.getElementById(prefix + 'SaveBtn');
+            const cancel = document.getElementById(prefix + 'CancelBtn');
+            if (save) save.classList.toggle('hidden', readOnly);
+            if (cancel) cancel.textContent = readOnly ? 'Fermer' : 'Annuler';
         }
 
         function handleSaveBatteryCharge(e) {
@@ -4795,12 +4903,13 @@
 
         function openRackBatteryModal(index) {
             const el = getActiveElement();
-            if (!el || el.closed) return;
+            if (!el) return;
             activeBatteryRowIndex = index;
             const item = el.bom[index];
             const batIndex = batteryDefaultIndex(el, RACK_BATTERY_REF, index);
             document.getElementById('rackBatIndexLabel').textContent = `Batterie Rackable ${batIndex}`;
             document.getElementById('rackCheckCharged').checked = !!item.charged;
+            setChargeModalMode('rack', !!el.closed);
             document.getElementById('rackBatteryModal').classList.remove('hidden');
         }
 
