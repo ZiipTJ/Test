@@ -1652,6 +1652,93 @@
             return out;
         }
 
+        // ---- Rattachement des check-lists aux dossiers existants -------------
+        // Les sous-ensembles restent figés à la création (config en vigueur ce
+        // jour-là), mais les check-lists, elles, se rattachent aux dossiers déjà
+        // ouverts : elles se raccrochent à l'IDENTIFIANT du sous-ensemble, qui
+        // ne change pas. Un robot en cours de montage récupère donc ses points
+        // de contrôle sans qu'il faille le recréer.
+        //
+        // Deux garde-fous : un dossier clôturé ou dont la MER est déjà validée
+        // n'est pas touché — lui ajouter des points non cochés le ferait
+        // repasser sous les 100 % et effacerait sa validation.
+        function elementTokens(el) {
+            const tokens = [];
+            const opts = (config && config.robot_options && config.robot_options[el.type]) || [];
+            (el.optionsList || []).forEach(label => {
+                const match = opts.find(o => o.label === label || o.id === label);
+                tokens.push(match ? match.id : label);
+            });
+            const tok = (el.top && el.top.abbr) ? topToken(el.top.abbr) : '';
+            if (tok) tokens.push(tok);
+            return tokens;
+        }
+
+        // Aligne une liste de points sur la configuration, en conservant les
+        // réponses déjà données. Renvoie true si quelque chose a bougé.
+        function syncCheckList(holder, key, wanted) {
+            const current = Array.isArray(holder[key]) ? holder[key] : [];
+            if (wanted.length === 0 && current.length === 0) return false;
+
+            const byId = new Map();
+            current.forEach(c => { if (c && c.id) byId.set(c.id, c); });
+
+            const out = wanted.map(w => {
+                const old = byId.get(w.id);
+                if (!old) return w;
+                // La config fait foi pour la description et la photo ;
+                // la réponse du contrôleur est conservée telle quelle.
+                return Object.assign({}, w, {
+                    done: !!old.done, operator: old.operator || '',
+                    date: old.date || '', at: old.at || 0
+                });
+            });
+
+            // Un point retiré de la config mais déjà validé reste comme trace ;
+            // s'il n'a jamais été coché, il disparaît (sinon il bloquerait la MER).
+            current.forEach(c => {
+                if (c && c.done && !wanted.some(w => w.id === c.id)) out.push(c);
+            });
+
+            const identical = out.length === current.length && out.every((c, i) => {
+                const o = current[i];
+                return o && o.id === c.id && o.desc === c.desc && o.photo === c.photo
+                    && !!o.done === !!c.done && (o.operator || '') === (c.operator || '');
+            });
+            if (identical) return false;
+            holder[key] = out;
+            return true;
+        }
+
+        function hydrateChecks(el) {
+            if (!el || !config) return false;
+            if (el.objectType === 'envoi') return false;
+            if (el.closed || el.merValidation) return false;
+
+            const isRobot = el.objectType === 'robot';
+            const subSrc = isRobot
+                ? (config.robot_subassembly_checks || {})[el.type]
+                : (config.station_subassembly_checks || {})[el.type];
+            const finSrc = isRobot ? (config.robot_final_checks || {})[el.type] : null;
+            const tokens = isRobot ? elementTokens(el) : [];
+
+            let changed = false;
+            (el.subassemblies || []).forEach(se => {
+                const wanted = buildChecks(subSrc ? subSrc[se.id] : null, tokens);
+                if (syncCheckList(se, 'checks', wanted)) changed = true;
+            });
+            if (syncCheckList(el, 'finalChecks', buildChecks(finSrc, tokens))) changed = true;
+
+            if (changed) updateCompletion(el);
+            return changed;
+        }
+
+        // Rattachement en mémoire : aucune écriture déclenchée, la prochaine
+        // action de l'utilisateur enregistrera naturellement.
+        function hydrateAllChecks() {
+            (elements || []).forEach(hydrateChecks);
+        }
+
         function elementChecks(el) {
             return Array.isArray(el && el.finalChecks) ? el.finalChecks : [];
         }
@@ -2050,6 +2137,7 @@
                 dataVersion = disk.version || 0;
             }
             elements.forEach(el => { if (!el.updatedAt) el.updatedAt = Date.now(); });
+            hydrateAllChecks();
         }
 
         // --- Sauvegarde atomique + fusion ---
@@ -2080,6 +2168,7 @@
 
                 // Fusion : le disque sert de base, nos éléments récents gagnent
                 elements = mergeElements(diskElements, elements);
+                hydrateAllChecks();
                 dataVersion = Math.max(diskVersion, dataVersion) + 1;
 
                 const payload = JSON.stringify({
@@ -2123,6 +2212,7 @@
             if (!disk || !Array.isArray(disk.elements)) return;
             const before = JSON.stringify(elements);
             elements = mergeElements(disk.elements, elements);
+            hydrateAllChecks();
             dataVersion = Math.max(dataVersion, disk.version || 0);
             // Rien de nouveau sur le disque : on ne redessine pas l'écran
             // (sinon une saisie en cours dans un champ serait effacée).
@@ -2369,6 +2459,7 @@
             reader.onload = function(e) {
                 try {
                     config = JSON.parse(e.target.result);
+                    hydrateAllChecks();
                     hideOverlay();
                     initApp();
                     setSync('', 'Mode limité (sans sauvegarde)');
