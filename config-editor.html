@@ -220,6 +220,33 @@
             font-size: 0.75rem; color: var(--slate-600); line-height: 1.5;
         }
         .group-hint strong { color: var(--slate-800); }
+
+        /* Photos des points de contrôle */
+        .photo-cell { display: flex; align-items: center; gap: 0.5rem; }
+        .photo-thumb {
+            width: 56px; height: 42px; object-fit: cover; border-radius: 4px;
+            border: 1px solid var(--slate-200); cursor: zoom-in; background: var(--slate-50);
+        }
+        .photo-none { font-size: 0.6875rem; color: var(--slate-400); font-style: italic; }
+        .btn-photo {
+            background-color: var(--slate-100); color: var(--slate-600);
+            border: 1px solid var(--slate-200); font-size: 0.6875rem; font-weight: 700;
+            padding: 0.25rem 0.5rem;
+        }
+        .btn-photo:hover { background-color: var(--slate-200); }
+        .photo-size { font-size: 0.625rem; color: var(--slate-400); }
+        .lightbox {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.85);
+            display: flex; align-items: center; justify-content: center; z-index: 100; padding: 2rem;
+        }
+        .lightbox img { max-width: 100%; max-height: 100%; border-radius: 6px; }
+        .check-desc { min-height: 2.2rem; resize: vertical; }
+        textarea {
+            width: 100%; border: 1px solid var(--slate-200); border-radius: 4px;
+            padding: 0.375rem 0.5rem; font-size: 0.8125rem; outline: none;
+            font-family: var(--font-stack);
+        }
+        textarea:focus { border-color: var(--blue-600); box-shadow: 0 0 0 1px var(--blue-600); }
     </style>
 </head>
 <body>
@@ -408,6 +435,67 @@
                                 </tr>
                             </thead>
                             <tbody id="dynMerFieldsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h3>6. Check-list par sous-ensemble</h3>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <select id="checkSubSelect" onchange="onCheckSubChange()" style="width: auto; min-width: 14rem;"></select>
+                            <button onclick="addSubCheck()" class="btn-success" style="padding: 0.25rem 0.5rem;">
+                                + Ajouter un point
+                            </button>
+                        </div>
+                    </div>
+                    <div class="group-hint">
+                        Points à vérifier lors du montage du sous-ensemble choisi. Dans le logiciel de suivi,
+                        la check-list s'ouvre <strong>automatiquement après chaque pointage de temps</strong> ;
+                        chaque point est validé avec un <strong>trigramme et une heure</strong>.
+                        La <strong>photo</strong> est facultative et sert d'illustration au monteur.
+                        Laissez la <strong>condition</strong> vide pour un point toujours demandé.
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 14%;">ID</th>
+                                    <th style="width: 40%;">Description du point à contrôler</th>
+                                    <th style="width: 18%;">Photo</th>
+                                    <th style="width: 20%;">Condition</th>
+                                    <th style="text-align: center; width: 8%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subChecksTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header-flex">
+                        <h3>7. Check-list de contrôle final</h3>
+                        <button onclick="addFinalCheck()" class="btn-success" style="padding: 0.25rem 0.5rem;">
+                            + Ajouter un point
+                        </button>
+                    </div>
+                    <div class="group-hint">
+                        Contrôle réalisé une fois le robot monté. Le dossier ne peut pas passer en
+                        <strong>MER</strong> tant que ce contrôle et toutes les check-lists de sous-ensembles
+                        ne sont pas validés.
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 14%;">ID</th>
+                                    <th style="width: 40%;">Description du point à contrôler</th>
+                                    <th style="width: 18%;">Photo</th>
+                                    <th style="width: 20%;">Condition</th>
+                                    <th style="text-align: center; width: 8%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="finalChecksTableBody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -617,6 +705,7 @@
         let activeSection = 'robots_list';
         let currentEditingRobotCode = '';
         let currentStationSubCode = '';
+        let currentCheckSubId = '';        // sous-ensemble dont on édite la check-list
 
         // Garantit que toutes les clés attendues existent (config ancienne ou partielle)
         function normalizeConfig(cfg) {
@@ -626,6 +715,8 @@
             if (!cfg.robot_components) cfg.robot_components = {};
             if (!cfg.robot_subassemblies) cfg.robot_subassemblies = {};
             if (!cfg.robot_mer_fields) cfg.robot_mer_fields = {};
+            if (!cfg.robot_subassembly_checks) cfg.robot_subassembly_checks = {};
+            if (!cfg.robot_final_checks) cfg.robot_final_checks = {};
             if (!cfg.station_subassemblies) cfg.station_subassemblies = {};
             if (!Array.isArray(cfg.station_types)) cfg.station_types = [];
             if (!Array.isArray(cfg.tops)) cfg.tops = [];
@@ -712,6 +803,16 @@
 
         function handleMerLogicKeyup(inputEl, idx) {
             applyLogicFeedback(inputEl, document.getElementById(`merlogic-status-${idx}`),
+                "Toujours demandé");
+        }
+
+        function handleCheckLogicKeyup(inputEl, idx) {
+            applyLogicFeedback(inputEl, document.getElementById(`chklogic-status-${idx}`),
+                "Toujours demandé");
+        }
+
+        function handleFinalCheckLogicKeyup(inputEl, idx) {
+            applyLogicFeedback(inputEl, document.getElementById(`fchklogic-status-${idx}`),
                 "Toujours demandé");
         }
 
@@ -832,6 +933,8 @@
             localConfig.robot_components[newCode] = [];
             localConfig.robot_subassemblies[newCode] = [];
             localConfig.robot_mer_fields[newCode] = [];
+            localConfig.robot_subassembly_checks[newCode] = {};
+            localConfig.robot_final_checks[newCode] = [];
 
             renderRobotTabs();
             renderRobotsList();
@@ -848,6 +951,8 @@
             delete localConfig.robot_components[code];
             delete localConfig.robot_subassemblies[code];
             delete localConfig.robot_mer_fields[code];
+            delete localConfig.robot_subassembly_checks[code];
+            delete localConfig.robot_final_checks[code];
 
             if (currentEditingRobotCode === code) {
                 currentEditingRobotCode = '';
@@ -935,7 +1040,270 @@
 
             // 5. Champs MER
             renderDynamicMerFields();
+
+            // 6 et 7. Check-lists
+            renderSubChecks();
+            renderFinalChecks();
         }
+
+        // ================= CHECK-LISTS =================
+        // Un point de contrôle : { id, desc, photo (data URI), option }.
+        // Les photos sont réduites avant d'être stockées : un config.json qui
+        // embarque des photos d'origine devient vite illisible.
+        const PHOTO_MAX_PX = 900;
+        const PHOTO_QUALITY = 0.7;
+
+        function subChecksOf(code, subId) {
+            const all = localConfig.robot_subassembly_checks[code] || {};
+            return all[subId] || [];
+        }
+
+        function photoCellHtml(cls, value, onPick, onClear) {
+            const size = value ? Math.round(value.length * 0.75 / 1024) : 0;
+            return `
+                <div class="photo-cell">
+                    ${value
+                        ? `<img src="${value}" class="photo-thumb" onclick="openLightbox(this.src)" alt="">`
+                        : `<span class="photo-none">Aucune</span>`}
+                    <div>
+                        <input type="file" accept="image/*" class="${cls}-file" style="display:none"
+                               onchange="${onPick}">
+                        <button class="btn-photo" onclick="this.parentNode.querySelector('.${cls}-file').click()">
+                            ${value ? 'Remplacer' : 'Ajouter'}
+                        </button>
+                        ${value ? `<button class="btn-photo" style="margin-left:0.25rem" onclick="${onClear}">×</button>
+                                   <div class="photo-size">${size} Ko</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Réduction puis encodage JPEG : l'image reste lisible en atelier sans
+        // faire exploser la taille du fichier de configuration.
+        function readPhoto(input, done) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => {
+                    let { width, height } = img;
+                    const ratio = Math.min(1, PHOTO_MAX_PX / Math.max(width, height));
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                    const cv = document.createElement('canvas');
+                    cv.width = width; cv.height = height;
+                    cv.getContext('2d').drawImage(img, 0, 0, width, height);
+                    done(cv.toDataURL('image/jpeg', PHOTO_QUALITY));
+                };
+                img.onerror = () => alert("Image illisible.");
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+            input.value = '';
+        }
+
+        function openLightbox(src) {
+            const box = document.createElement('div');
+            box.className = 'lightbox';
+            box.innerHTML = `<img src="${src}" alt="">`;
+            box.onclick = () => box.remove();
+            document.body.appendChild(box);
+        }
+
+        // ---- 6. Check-list par sous-ensemble ----
+        function renderSubChecks() {
+            const code = currentEditingRobotCode;
+            const sel = document.getElementById('checkSubSelect');
+            const tbody = document.getElementById('subChecksTableBody');
+            if (!sel || !tbody) return;
+
+            const subs = localConfig.robot_subassemblies[code] || [];
+            sel.innerHTML = '';
+            subs.forEach(se => {
+                const o = document.createElement('option');
+                o.value = se.id; o.textContent = se.name || se.id;
+                sel.appendChild(o);
+            });
+            const ids = subs.map(se => se.id);
+            if (!ids.includes(currentCheckSubId)) currentCheckSubId = ids[0] || '';
+            sel.value = currentCheckSubId;
+
+            tbody.innerHTML = '';
+            if (!currentCheckSubId) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color: var(--slate-400); font-style: italic; padding: 1.5rem; text-align: center;">Définissez d'abord un sous-ensemble (section 4).</td></tr>`;
+                return;
+            }
+            const list = subChecksOf(code, currentCheckSubId);
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color: var(--slate-400); font-style: italic; padding: 1.5rem; text-align: center;">Aucun point de contrôle pour ce sous-ensemble.</td></tr>`;
+                return;
+            }
+
+            list.forEach((c, idx) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="text" value="${escapeAttr(c.id || '')}" class="chk-id-${idx} font-code" style="text-transform: uppercase;"></td>
+                    <td><textarea rows="2" class="chk-desc-${idx} check-desc">${escapeHtml(c.desc || '')}</textarea></td>
+                    <td>${photoCellHtml(`chk-photo-${idx}`, c.photo,
+                            `pickSubCheckPhoto(this, ${idx})`, `clearSubCheckPhoto(${idx})`)}</td>
+                    <td>
+                        <div class="logic-input-wrapper">
+                            <input type="text" value="${escapeAttr(c.option || '')}"
+                                   class="chk-opt-${idx} font-code logic-input"
+                                   placeholder="Optionnel"
+                                   onkeyup="handleCheckLogicKeyup(this, ${idx})">
+                            <div id="chklogic-status-${idx}" class="logic-feedback"></div>
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <button onclick="removeSubCheck(${idx})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+                handleCheckLogicKeyup(row.querySelector(`.chk-opt-${idx}`), idx);
+            });
+        }
+
+        function onCheckSubChange() {
+            collectSubChecks();
+            currentCheckSubId = document.getElementById('checkSubSelect').value;
+            renderSubChecks();
+        }
+
+        function addSubCheck() {
+            collectCurrentViewData();
+            if (!currentCheckSubId) { alert("Définissez d'abord un sous-ensemble (section 4)."); return; }
+            const code = currentEditingRobotCode;
+            if (!localConfig.robot_subassembly_checks[code]) localConfig.robot_subassembly_checks[code] = {};
+            if (!localConfig.robot_subassembly_checks[code][currentCheckSubId]) {
+                localConfig.robot_subassembly_checks[code][currentCheckSubId] = [];
+            }
+            const list = localConfig.robot_subassembly_checks[code][currentCheckSubId];
+            list.push({ id: `CHK_${list.length + 1}`, desc: "Nouveau point à contrôler", photo: "", option: "" });
+            renderSubChecks();
+        }
+
+        function removeSubCheck(idx) {
+            collectSubChecks();
+            subChecksOf(currentEditingRobotCode, currentCheckSubId).splice(idx, 1);
+            renderSubChecks();
+        }
+
+        function pickSubCheckPhoto(input, idx) {
+            readPhoto(input, dataUrl => {
+                collectSubChecks();
+                const c = subChecksOf(currentEditingRobotCode, currentCheckSubId)[idx];
+                if (c) { c.photo = dataUrl; renderSubChecks(); }
+            });
+        }
+
+        function clearSubCheckPhoto(idx) {
+            collectSubChecks();
+            const c = subChecksOf(currentEditingRobotCode, currentCheckSubId)[idx];
+            if (c) { c.photo = ''; renderSubChecks(); }
+        }
+
+        function collectSubChecks() {
+            const list = subChecksOf(currentEditingRobotCode, currentCheckSubId);
+            list.forEach((c, idx) => {
+                const id = document.querySelector(`.chk-id-${idx}`);
+                const desc = document.querySelector(`.chk-desc-${idx}`);
+                const opt = document.querySelector(`.chk-opt-${idx}`);
+                if (id && desc && opt) {
+                    c.id = id.value.trim().toUpperCase();
+                    c.desc = desc.value.trim();
+                    c.option = opt.value.trim();
+                }
+            });
+        }
+
+        // ---- 7. Check-list de contrôle final ----
+        function finalChecksOf(code) {
+            return localConfig.robot_final_checks[code] || [];
+        }
+
+        function renderFinalChecks() {
+            const tbody = document.getElementById('finalChecksTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            const list = finalChecksOf(currentEditingRobotCode);
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="color: var(--slate-400); font-style: italic; padding: 1.5rem; text-align: center;">Aucun point de contrôle final pour ce robot.</td></tr>`;
+                return;
+            }
+            list.forEach((c, idx) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="text" value="${escapeAttr(c.id || '')}" class="fchk-id-${idx} font-code" style="text-transform: uppercase;"></td>
+                    <td><textarea rows="2" class="fchk-desc-${idx} check-desc">${escapeHtml(c.desc || '')}</textarea></td>
+                    <td>${photoCellHtml(`fchk-photo-${idx}`, c.photo,
+                            `pickFinalCheckPhoto(this, ${idx})`, `clearFinalCheckPhoto(${idx})`)}</td>
+                    <td>
+                        <div class="logic-input-wrapper">
+                            <input type="text" value="${escapeAttr(c.option || '')}"
+                                   class="fchk-opt-${idx} font-code logic-input"
+                                   placeholder="Optionnel"
+                                   onkeyup="handleFinalCheckLogicKeyup(this, ${idx})">
+                            <div id="fchklogic-status-${idx}" class="logic-feedback"></div>
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <button onclick="removeFinalCheck(${idx})" class="btn-delete">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+                handleFinalCheckLogicKeyup(row.querySelector(`.fchk-opt-${idx}`), idx);
+            });
+        }
+
+        function addFinalCheck() {
+            collectCurrentViewData();
+            const code = currentEditingRobotCode;
+            if (!localConfig.robot_final_checks[code]) localConfig.robot_final_checks[code] = [];
+            const list = localConfig.robot_final_checks[code];
+            list.push({ id: `FIN_${list.length + 1}`, desc: "Nouveau point de contrôle final", photo: "", option: "" });
+            renderFinalChecks();
+        }
+
+        function removeFinalCheck(idx) {
+            collectFinalChecks();
+            finalChecksOf(currentEditingRobotCode).splice(idx, 1);
+            renderFinalChecks();
+        }
+
+        function pickFinalCheckPhoto(input, idx) {
+            readPhoto(input, dataUrl => {
+                collectFinalChecks();
+                const c = finalChecksOf(currentEditingRobotCode)[idx];
+                if (c) { c.photo = dataUrl; renderFinalChecks(); }
+            });
+        }
+
+        function clearFinalCheckPhoto(idx) {
+            collectFinalChecks();
+            const c = finalChecksOf(currentEditingRobotCode)[idx];
+            if (c) { c.photo = ''; renderFinalChecks(); }
+        }
+
+        function collectFinalChecks() {
+            finalChecksOf(currentEditingRobotCode).forEach((c, idx) => {
+                const id = document.querySelector(`.fchk-id-${idx}`);
+                const desc = document.querySelector(`.fchk-desc-${idx}`);
+                const opt = document.querySelector(`.fchk-opt-${idx}`);
+                if (id && desc && opt) {
+                    c.id = id.value.trim().toUpperCase();
+                    c.desc = desc.value.trim();
+                    c.option = opt.value.trim();
+                }
+            });
+        }
+
+        function escapeHtml(v) {
+            return String(v).replace(/[&<>"']/g, ch =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+        function escapeAttr(v) { return escapeHtml(v); }
 
         // Catégories de sous-ensembles : uniquement Partie haute / Partie basse
         // (utile pour le Sherpa B). "Aucune" pour tous les autres robots.
@@ -1282,7 +1650,8 @@
                         robot.color = colorInput.value.trim().toUpperCase();
 
                         if (oldCode !== newCode) {
-                            ['robot_versions', 'robot_options', 'robot_components', 'robot_subassemblies', 'robot_mer_fields'].forEach(key => {
+                            ['robot_versions', 'robot_options', 'robot_components', 'robot_subassemblies',
+                             'robot_mer_fields', 'robot_subassembly_checks', 'robot_final_checks'].forEach(key => {
                                 if (localConfig[key][oldCode]) {
                                     localConfig[key][newCode] = localConfig[key][oldCode];
                                     delete localConfig[key][oldCode];
@@ -1330,16 +1699,29 @@
                     }
                 });
 
+                collectSubChecks();
+                collectFinalChecks();
+
                 (localConfig.robot_subassemblies[code] || []).forEach((se, idx) => {
                     const idInp = document.querySelector(`.sub-id-${idx}`);
                     const nameInp = document.querySelector(`.sub-name-${idx}`);
                     const groupInp = document.querySelector(`.sub-group-${idx}`);
                     const optInp = document.querySelector(`.sub-opt-${idx}`);
                     if (idInp && nameInp && groupInp && optInp) {
-                        se.id = idInp.value.trim().toUpperCase();
+                        const oldId = se.id;
+                        const newId = idInp.value.trim().toUpperCase();
+                        se.id = newId;
                         se.name = nameInp.value.trim();
                         se.group = groupInp.value.trim();
                         se.option = optInp.value.trim();
+
+                        // La check-list suit son sous-ensemble renommé.
+                        const checks = localConfig.robot_subassembly_checks[code];
+                        if (oldId && newId && oldId !== newId && checks && checks[oldId]) {
+                            checks[newId] = checks[oldId];
+                            delete checks[oldId];
+                            if (currentCheckSubId === oldId) currentCheckSubId = newId;
+                        }
                     }
                 });
             } else if (activeSection === 'tops') {

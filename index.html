@@ -109,6 +109,34 @@
         .btn-mini-blue { background-color: var(--blue); color: #fff; border-color: var(--blue); }
         .btn-mini-blue:hover { background-color: var(--blue-d); }
         .btn-mini-red { background-color: #fee2e2; color: var(--red-d); border-color: #fecaca; }
+        .btn-mini-green { background-color: var(--emerald); color: #fff; border-color: var(--emerald); }
+        .btn-mini-green:hover { background-color: var(--emerald-d); }
+        .btn-mini-amber { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
+        .btn-mini-amber:hover { background-color: #fde68a; }
+
+        /* Check-lists */
+        .check-row {
+            display: flex; gap: 1rem; align-items: flex-start;
+            padding: 0.75rem 0.9rem; border: 1px solid var(--slate-200);
+            border-radius: var(--radius); background: #fff; margin-bottom: 0.5rem;
+        }
+        .check-row.check-done { background: #f0fdf4; border-color: #bbf7d0; }
+        .check-row .check-desc { font-size: 0.8125rem; font-weight: 600; color: var(--slate-800); line-height: 1.4; }
+        .check-photo {
+            margin-top: 0.5rem; max-height: 8rem; max-width: 100%;
+            border-radius: var(--radius); border: 1px solid var(--slate-200); cursor: zoom-in; display: block;
+        }
+        .check-sign { font-size: 0.6875rem; color: var(--emerald-d); font-weight: 600; margin-top: 0.4rem; }
+        .photo-viewer {
+            position: fixed; inset: 0; background: rgba(15,23,42,0.88); z-index: 100;
+            display: flex; align-items: center; justify-content: center; padding: 2rem; cursor: zoom-out;
+        }
+        .photo-viewer img { max-width: 100%; max-height: 100%; border-radius: var(--radius); }
+        .check-blocker {
+            background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+            border-radius: var(--radius); padding: 0.85rem 1rem; font-size: 0.8125rem;
+            font-weight: 600; margin-bottom: 1rem;
+        }
         .btn-mini-red:hover { background-color: #fecaca; }
         .btn-red { background-color: var(--red); color: #fff; }
         .btn-red:hover { background-color: var(--red-d); }
@@ -438,6 +466,7 @@
         }
         .count-sn  { background-color: var(--blue); color: #fff; }
         .count-sub { background-color: var(--slate-900); color: #fff; }
+        .count-chk { background-color: #92400e; color: #fff; }
         .count-dossiers { background-color: var(--slate-500); color: #fff; }
         .count-dossiers.all-closed { background-color: var(--emerald); }
         .closed-toggle {
@@ -879,6 +908,7 @@
                         <div class="progress-row">
                             <span id="progSn" class="count-pill count-sn" title="Numéros de série scannés">0/0</span>
                             <span id="progSub" class="count-pill count-sub" title="Sous-ensembles réalisés">0/0</span>
+                            <span id="progChk" class="count-pill count-chk hidden" title="Points de check-list validés">0/0</span>
                             <div class="progress-bar-bg">
                                 <div id="activeProgressBar" class="progress-bar-fill"></div>
                             </div>
@@ -929,7 +959,13 @@
                     <div id="subAssyContainer" style="margin-bottom: 1.5rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                             <h3 class="section-title">Sous-ensembles</h3>
-                            <span id="subAssyCount" style="font-size: 0.75rem; font-weight: 700; color: #64748b;"></span>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span id="subAssyCount" style="font-size: 0.75rem; font-weight: 700; color: #64748b;"></span>
+                                <button id="btnExportChecklist" type="button" onclick="exportChecklistPDF()"
+                                        class="btn-mini" title="Une page par sous-ensemble">
+                                    Exporter la check-list (PDF)
+                                </button>
+                            </div>
                         </div>
                         <div class="table-wrap">
                             <table>
@@ -941,6 +977,7 @@
                                         <th style="width: 11rem;">Dernier pointage</th>
                                         <th style="text-align: center; width: 8rem;">Trigrammes</th>
                                         <th class="normal-wrap">Remarques</th>
+                                        <th style="width: 8rem; text-align: center;">Check-list</th>
                                         <th style="width: 8.5rem; text-align: center;">Pointages</th>
                                     </tr>
                                 </thead>
@@ -1137,6 +1174,27 @@
                     <button type="submit" class="btn-blue">Valider</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div id="checklistModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 720px;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="checklistTitle">Check-list</h3>
+                <span id="checklistCount" style="font-size: 0.75rem; font-weight: 700; color: #64748b;"></span>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div class="form-group" style="max-width: 12rem; margin-bottom: 1rem;">
+                    <label>Trigramme du contrôleur</label>
+                    <input id="checklistOperator" type="text" maxlength="3"
+                           style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;"
+                           oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                </div>
+                <div id="checklistBody"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeChecklist()" class="btn-blue">Fermer</button>
+            </div>
         </div>
     </div>
 
@@ -1412,8 +1470,11 @@
             const bomOk = bomItems.every(isItemComplete);
             const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
             const subOk = subs.every(s => s.done);
-            const hasSomething = bomItems.length > 0 || subs.length > 0;
-            return hasSomething && bomOk && subOk;
+            // Le passage en MER exige que toutes les check-lists soient validées.
+            const checks = allChecks(el);
+            const checksOk = checks.every(c => c.done);
+            const hasSomething = bomItems.length > 0 || subs.length > 0 || checks.length > 0;
+            return hasSomething && bomOk && subOk && checksOk;
         }
 
         // ---- Statuts du dossier ---------------------------------------------
@@ -1551,13 +1612,14 @@
 
         // Construit la liste des sous-ensembles à réaliser, filtrée par les
         // options cochées (même logique de condition que la nomenclature).
-        function buildSubassemblies(source, checkedOptionIds) {
+        function buildSubassemblies(source, checkedOptionIds, checkSource) {
             if (!Array.isArray(source)) return [];
             const out = [];
             source.forEach((se, i) => {
                 if (se.option && !evaluateOptionCondition(se.option, checkedOptionIds)) return;
+                const id = se.id || `SE${i}`;
                 out.push({
-                    id: se.id || `SE${i}`,
+                    id,
                     name: se.name || se.designation || `Sous-ensemble ${i + 1}`,
                     group: se.group || "",
                     done: false,
@@ -1565,10 +1627,49 @@
                     doneOperator: "",
                     durationMin: 0,
                     note: "",
-                    entries: []
+                    entries: [],
+                    checks: buildChecks(checkSource ? checkSource[id] : null, checkedOptionIds)
                 });
             });
             return out;
+        }
+
+        // ---- Check-lists ------------------------------------------------------
+        // Un point de contrôle vient de la config (description + photo) ; la
+        // réponse est un simple « fait », signée d'un trigramme et horodatée.
+        function buildChecks(source, activeTokens) {
+            if (!Array.isArray(source)) return [];
+            const out = [];
+            source.forEach((c, i) => {
+                if (c.option && !evaluateOptionCondition(c.option, activeTokens)) return;
+                out.push({
+                    id: c.id || `CHK${i}`,
+                    desc: c.desc || c.label || `Point ${i + 1}`,
+                    photo: c.photo || "",
+                    done: false, operator: "", date: "", at: 0
+                });
+            });
+            return out;
+        }
+
+        function elementChecks(el) {
+            return Array.isArray(el && el.finalChecks) ? el.finalChecks : [];
+        }
+
+        // Tous les points de contrôle du dossier : sous-ensembles + contrôle final.
+        function allChecks(el) {
+            const out = [];
+            (el && el.subassemblies || []).forEach(se => {
+                (se.checks || []).forEach(c => out.push(c));
+            });
+            elementChecks(el).forEach(c => out.push(c));
+            return out;
+        }
+
+        function checksDone(list) { return (list || []).filter(c => c.done).length; }
+
+        function checksComplete(el) {
+            return allChecks(el).every(c => c.done);
         }
 
         // ====================================================================
@@ -1841,9 +1942,28 @@
                 subEntries(s).forEach(e => { if (e && e.eid) byId.set(e.eid, e); });
                 const out = Object.assign({}, base);
                 out.entries = Array.from(byId.values()).sort((a, b) => (a.at || 0) - (b.at || 0));
+                if (Array.isArray(x.checks) || Array.isArray(s.checks)) {
+                    out.checks = mergeChecks(x.checks, s.checks);
+                }
                 syncSubLegacy(out);
                 out.at = Math.max(x.at || 0, s.at || 0);
                 map.set(s.id, out);
+            });
+            return Array.from(map.values());
+        }
+
+        // Check-lists : un point coché l'emporte sur un point à faire ; à égalité,
+        // la saisie la plus récente gagne. Deux personnes qui cochent des points
+        // différents du même sous-ensemble ne s'écrasent pas.
+        function mergeChecks(A, B) {
+            const map = new Map();
+            (A || []).forEach(c => { if (c && c.id) map.set(c.id, c); });
+            (B || []).forEach(c => {
+                if (!c || !c.id) return;
+                const x = map.get(c.id);
+                if (!x) { map.set(c.id, c); return; }
+                if (!!x.done !== !!c.done) map.set(c.id, x.done ? x : c);
+                else map.set(c.id, (c.at || 0) >= (x.at || 0) ? c : x);
             });
             return Array.from(map.values());
         }
@@ -1874,6 +1994,9 @@
             }
             if (Array.isArray(a.merFields) || Array.isArray(b.merFields)) {
                 out.merFields = mergeMerFields(a.merFields, b.merFields);
+            }
+            if (Array.isArray(a.finalChecks) || Array.isArray(b.finalChecks)) {
+                out.finalChecks = mergeChecks(a.finalChecks, b.finalChecks);
             }
             out.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
 
@@ -2687,8 +2810,19 @@
             subPill.classList.toggle('hidden', subs.length === 0);
             document.getElementById('paneTabSubCount').textContent = `${subDone}/${subs.length}`;
 
-            const totAll = bomItems.length + subs.length;
-            const doneAll = bomDone + subDone;
+            // Les points de check-list comptent dans l'avancement : sans eux, la
+            // barre afficherait 100 % alors que la MER est encore bloquée.
+            const checks = allChecks(el);
+            const chkDone = checksDone(checks);
+            const chkPill = document.getElementById('progChk');
+            chkPill.textContent = `${chkDone}/${checks.length}`;
+            chkPill.classList.toggle('hidden', checks.length === 0);
+
+            const btnExport = document.getElementById('btnExportChecklist');
+            if (btnExport) btnExport.classList.toggle('hidden', checks.length === 0);
+
+            const totAll = bomItems.length + subs.length + checks.length;
+            const doneAll = bomDone + subDone + chkDone;
             const pct = totAll > 0 ? Math.round((doneAll / totAll) * 100) : 0;
             document.getElementById('activeProgressBar').style.width = `${pct}%`;
 
@@ -2803,7 +2937,7 @@
             groups.forEach((rows, groupName) => {
                 if (groupName) {
                     const gr = document.createElement('tr');
-                    gr.innerHTML = `<td colspan="7" style="background-color: #f1f5f9; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569;">${groupName}</td>`;
+                    gr.innerHTML = `<td colspan="8" style="background-color: #f1f5f9; font-weight: 800; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: #475569;">${groupName}</td>`;
                     tbody.appendChild(gr);
                 }
                 rows.forEach(({ se, idx }) => {
@@ -2825,6 +2959,7 @@
                         <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(last ? (last.date || '--') : '--')}</td>
                         <td style="text-align: center; font-weight: 700; font-size: 0.8125rem;">${ops.length ? escapeHtml(ops.join(' / ')) : '--'}</td>
                         <td class="normal-wrap" style="font-size: 0.75rem; color: #475569;">${escapeHtml(se.note || '')}</td>
+                        <td style="text-align: center;">${checkCellHtml(se, idx)}</td>
                         <td style="text-align: center; white-space: nowrap;">
                             <button type="button" class="btn-mini" title="Détail des pointages" onclick="toggleSubDetail('${escapeHtml(se.id)}')">${entries.length} ${open ? '&#9662;' : '&#9656;'}</button>
                             ${locked ? '' : `<button type="button" class="btn-mini btn-mini-blue" title="Ajouter un pointage" onclick="addSubEntry(${idx})">+</button>`}
@@ -2834,7 +2969,7 @@
 
                     if (open) {
                         const dr = document.createElement('tr');
-                        dr.innerHTML = `<td colspan="7" style="background-color: #f8fafc; padding: 0.6rem 0.9rem;">${subEntriesHtml(entries, idx, locked)}</td>`;
+                        dr.innerHTML = `<td colspan="8" style="background-color: #f8fafc; padding: 0.6rem 0.9rem;">${subEntriesHtml(entries, idx, locked)}</td>`;
                         tbody.appendChild(dr);
                     }
                 });
@@ -2861,6 +2996,124 @@
                 </tr>
             `).join('');
             return `<table style="width: 100%; border-collapse: collapse;"><tbody>${rows}</tbody></table>`;
+        }
+
+        // Pastille de check-list d'un sous-ensemble : verte quand tout est coché.
+        function checkCellHtml(se, idx) {
+            const list = se.checks || [];
+            if (list.length === 0) {
+                return `<span style="color: #cbd5e1;">--</span>`;
+            }
+            const done = checksDone(list);
+            const full = done === list.length;
+            return `<button type="button" class="btn-mini${full ? ' btn-mini-green' : ' btn-mini-amber'}"
+                        title="Ouvrir la check-list" onclick="openChecklist('sub', ${idx})">
+                        ${done}/${list.length}${full ? ' ✓' : ''}
+                    </button>`;
+        }
+
+        // Le modal sert aux deux niveaux : 'sub' (un sous-ensemble) ou 'final'.
+        let checklistScope = null;     // { kind: 'sub'|'final', index }
+
+        function checklistOf(scope) {
+            const el = getActiveElement();
+            if (!el || !scope) return [];
+            if (scope.kind === 'final') return elementChecks(el);
+            const se = (el.subassemblies || [])[scope.index];
+            return (se && se.checks) || [];
+        }
+
+        function openChecklist(kind, index, presetOperator) {
+            const el = getActiveElement();
+            if (!el) return;
+            checklistScope = { kind, index };
+            const list = checklistOf(checklistScope);
+            if (list.length === 0) return;
+
+            document.getElementById('checklistTitle').textContent =
+                kind === 'final' ? 'Contrôle final' : ((el.subassemblies[index] || {}).name || 'Check-list');
+            const opInput = document.getElementById('checklistOperator');
+            if (presetOperator) opInput.value = presetOperator;
+            renderChecklistModal();
+            document.getElementById('checklistModal').classList.remove('hidden');
+        }
+
+        function renderChecklistModal() {
+            const box = document.getElementById('checklistBody');
+            const el = getActiveElement();
+            if (!box || !el) return;
+            const locked = !!el.closed;
+            const list = checklistOf(checklistScope);
+            const done = checksDone(list);
+
+            document.getElementById('checklistCount').textContent = `${done} / ${list.length} validés`;
+
+            box.innerHTML = list.map((c, i) => `
+                <div class="check-row${c.done ? ' check-done' : ''}">
+                    <div style="flex: 1;">
+                        <div class="check-desc">${escapeHtml(c.desc || '')}</div>
+                        ${c.photo ? `<img src="${c.photo}" class="check-photo" alt=""
+                                          onclick="openPhotoViewer(this.src)">` : ''}
+                        ${c.done ? `<div class="check-sign">Validé par <strong>${escapeHtml(c.operator || '')}</strong> — ${escapeHtml(c.date || '')}</div>` : ''}
+                    </div>
+                    <div style="flex-shrink: 0;">
+                        ${c.done
+                            ? (locked ? '' : `<button type="button" class="btn-mini" onclick="uncheckItem(${i})">Annuler</button>`)
+                            : (locked ? '' : `<button type="button" class="btn-mini btn-mini-green" onclick="checkItem(${i})">Fait</button>`)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function currentChecklistOperator() {
+            const v = document.getElementById('checklistOperator').value.trim().toUpperCase();
+            if (v.length !== 3) { alert("Renseignez votre trigramme (3 lettres) avant de valider un point."); return null; }
+            return v;
+        }
+
+        function checkItem(i) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const operator = currentChecklistOperator();
+            if (!operator) { document.getElementById('checklistOperator').focus(); return; }
+            const c = checklistOf(checklistScope)[i];
+            if (!c) return;
+            c.done = true; c.operator = operator; c.date = formatDateTime(); c.at = Date.now();
+            el.updatedAt = Date.now();
+            updateCompletion(el);
+            renderChecklistModal();
+            renderSubassemblies();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        function uncheckItem(i) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const c = checklistOf(checklistScope)[i];
+            if (!c) return;
+            c.done = false; c.operator = ''; c.date = ''; c.at = Date.now();
+            el.updatedAt = Date.now();
+            updateCompletion(el);
+            renderChecklistModal();
+            renderSubassemblies();
+            renderSidebarList();
+            if (activePane === 'mer') renderMerPane();
+            scheduleSave();
+        }
+
+        function closeChecklist() {
+            checklistScope = null;
+            closeModal('checklistModal');
+            renderScanTables();
+        }
+
+        function openPhotoViewer(src) {
+            const box = document.createElement('div');
+            box.className = 'photo-viewer';
+            box.innerHTML = `<img src="${src}" alt="">`;
+            box.onclick = () => box.remove();
+            document.body.appendChild(box);
         }
 
         function toggleSubDetail(id) {
@@ -2968,6 +3221,8 @@
             if (subAssyMode === 'validate') se.done = true;
             syncSubLegacy(se);
             se.at = Date.now();
+            const openChecksAfter = (se.checks || []).length > 0;
+            const subIdx = activeSubIndex;
 
             el.updatedAt = Date.now();
             updateCompletion(el);
@@ -2976,6 +3231,10 @@
             renderSubassemblies();
             renderSidebarList();
             scheduleSave();
+
+            // Après chaque pointage, la check-list du sous-ensemble s'ouvre :
+            // c'est le moment où le monteur a la pièce sous les yeux.
+            if (openChecksAfter) openChecklist('sub', subIdx, operator);
         }
 
         // ---- Onglet MER ------------------------------------------------------
@@ -2988,7 +3247,7 @@
             const status = computeStatus(el);
             const locked = !!el.closed;
 
-            let html = `
+            let html = finalChecksHtml(el, locked) + `
                 <div style="margin-bottom: 0.75rem;">
                     <h3 class="section-title">Validation MER</h3>
                 </div>
@@ -3070,15 +3329,66 @@
                     </div>
                 `;
             } else {
+                const pending = pendingChecklists(el);
                 html += `
                     <div class="empty-hint">
                         La validation MER sera possible une fois le dossier terminé à 100 %
-                        (numéros de série et sous-ensembles).
+                        (numéros de série, sous-ensembles et check-lists).
                     </div>
+                    ${pending.length ? `
+                        <div class="check-blocker" style="margin-top: 1rem;">
+                            Check-list${pending.length > 1 ? 's' : ''} encore à valider :
+                            ${pending.map(p => `${escapeHtml(p.name)} (${p.done}/${p.total})`).join(' · ')}
+                        </div>
+                    ` : ''}
                 `;
             }
 
             box.innerHTML = html;
+        }
+
+        // Check-lists incomplètes du dossier, pour dire précisément ce qui bloque.
+        function pendingChecklists(el) {
+            const out = [];
+            (el.subassemblies || []).forEach(se => {
+                const list = se.checks || [];
+                if (list.length && checksDone(list) < list.length) {
+                    out.push({ name: se.name, done: checksDone(list), total: list.length });
+                }
+            });
+            const fin = elementChecks(el);
+            if (fin.length && checksDone(fin) < fin.length) {
+                out.push({ name: 'Contrôle final', done: checksDone(fin), total: fin.length });
+            }
+            return out;
+        }
+
+        // Bloc « Contrôle final » affiché en tête de l'onglet MER : c'est lui qui
+        // ouvre la porte de la MER, avec les check-lists des sous-ensembles.
+        function finalChecksHtml(el, locked) {
+            const list = elementChecks(el);
+            if (list.length === 0) return '';
+            const done = checksDone(list);
+            const full = done === list.length;
+            return `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <h3 class="section-title">Contrôle final</h3>
+                    <span style="font-size: 0.75rem; font-weight: 700; color: ${full ? '#059669' : '#92400e'};">
+                        ${done} / ${list.length} validés${full ? ' ✓' : ''}
+                    </span>
+                </div>
+                <div class="table-wrap" style="padding: 1rem; margin-bottom: 1.5rem;">
+                    <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 0.85rem;">
+                        ${full
+                            ? 'Contrôle final validé.'
+                            : 'À réaliser une fois le robot monté. La MER reste bloquée tant qu\'il n\'est pas complet.'}
+                    </p>
+                    <button type="button" class="${full ? 'btn-gray' : 'btn-blue'}"
+                            onclick="openChecklist('final', null)" ${locked ? 'disabled' : ''}>
+                        ${full ? 'Revoir le contrôle final' : 'Ouvrir le contrôle final'}
+                    </button>
+                </div>
+            `;
         }
 
         function handleValidateMer(e) {
@@ -4061,7 +4371,10 @@
                     top: topSelected, optionsList: optionsList.slice(),
                     bom: nouvelleNomenclature(),
                     subassemblies: buildSubassemblies(
-                        config.robot_subassemblies ? config.robot_subassemblies[type] : null, activeTokens),
+                        config.robot_subassemblies ? config.robot_subassemblies[type] : null, activeTokens,
+                        config.robot_subassembly_checks ? config.robot_subassembly_checks[type] : null),
+                    finalChecks: buildChecks(
+                        config.robot_final_checks ? config.robot_final_checks[type] : null, activeTokens),
                     merFields: buildMerFields(
                         config.robot_mer_fields ? config.robot_mer_fields[type] : null, activeTokens),
                     createdAt: Date.now(), updatedAt: Date.now()
@@ -4106,7 +4419,8 @@
                     client, projectNum, operator, remarks,
                     bom: nouvelleNomenclature(),
                     subassemblies: buildSubassemblies(
-                        config.station_subassemblies ? config.station_subassemblies[code] : null, []),
+                        config.station_subassemblies ? config.station_subassemblies[code] : null, [],
+                        config.station_subassembly_checks ? config.station_subassembly_checks[code] : null),
                     createdAt: Date.now(), updatedAt: Date.now()
                 });
             }
@@ -4651,6 +4965,98 @@
             });
 
             triggerCSVDownload(csv, `indicateurs_generaux_${Date.now()}.csv`);
+        }
+
+        // ---- Export PDF de la check-list ------------------------------------
+        // Pas de bibliothèque : on construit un document imprimable et on laisse
+        // le navigateur produire le PDF (Imprimer → Enregistrer au format PDF).
+        // Une page par sous-ensemble, son nom en tête de page.
+        function exportChecklistPDF() {
+            const el = getActiveElement();
+            if (!el) return;
+
+            const pages = [];
+            (el.subassemblies || []).forEach(se => {
+                if ((se.checks || []).length) pages.push({ title: se.name, checks: se.checks });
+            });
+            const fin = elementChecks(el);
+            if (fin.length) pages.push({ title: 'Contrôle final', checks: fin });
+
+            if (pages.length === 0) {
+                alert("Aucune check-list configurée pour ce dossier.");
+                return;
+            }
+
+            const head = `${escapeHtml(el.displayName)} — ${escapeHtml(el.client || '')}`
+                + (el.projectNum ? ` — PR${escapeHtml(el.projectNum)}` : '');
+
+            const body = pages.map(pg => `
+                <section class="page">
+                    <header>
+                        <h1>${escapeHtml(pg.title)}</h1>
+                        <div class="sub">${head}</div>
+                    </header>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="c-state">État</th>
+                                <th>Point à contrôler</th>
+                                <th class="c-photo">Photo</th>
+                                <th class="c-op">Par</th>
+                                <th class="c-date">Le</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${pg.checks.map(c => `
+                                <tr>
+                                    <td class="c-state">${c.done ? '<span class="ok">✔</span>' : '<span class="todo">☐</span>'}</td>
+                                    <td>${escapeHtml(c.desc || '')}</td>
+                                    <td class="c-photo">${c.photo ? `<img src="${c.photo}" alt="">` : ''}</td>
+                                    <td class="c-op">${escapeHtml(c.operator || '')}</td>
+                                    <td class="c-date">${escapeHtml(c.date || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <footer>
+                        ${checksDone(pg.checks)} / ${pg.checks.length} points validés
+                        — édité le ${escapeHtml(formatDateTime())}
+                    </footer>
+                </section>
+            `).join('');
+
+            const doc = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+                <title>Check-list ${escapeHtml(el.displayName)}</title>
+                <style>
+                    @page { size: A4; margin: 14mm; }
+                    * { box-sizing: border-box; }
+                    body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; margin: 0; }
+                    .page { page-break-after: always; }
+                    .page:last-child { page-break-after: auto; }
+                    header { border-bottom: 2px solid #0f172a; padding-bottom: 6px; margin-bottom: 14px; }
+                    h1 { font-size: 17pt; margin: 0; }
+                    .sub { font-size: 9pt; color: #475569; margin-top: 3px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+                    th { background: #f1f5f9; text-align: left; font-size: 8pt; text-transform: uppercase;
+                         letter-spacing: 0.04em; color: #475569; padding: 5px 7px; border: 1px solid #cbd5e1; }
+                    td { padding: 6px 7px; border: 1px solid #cbd5e1; vertical-align: top; }
+                    .c-state { width: 34px; text-align: center; font-size: 13pt; }
+                    .c-photo { width: 92px; }
+                    .c-photo img { width: 100%; border-radius: 3px; }
+                    .c-op { width: 46px; text-align: center; font-weight: 700; }
+                    .c-date { width: 104px; font-size: 8.5pt; color: #475569; }
+                    .ok { color: #059669; } .todo { color: #94a3b8; }
+                    tr { break-inside: avoid; }
+                    footer { margin-top: 12px; font-size: 8pt; color: #64748b; }
+                </style></head><body>${body}</body></html>`;
+
+            const w = window.open('', '_blank');
+            if (!w) { alert("Autorisez les fenêtres surgissantes pour exporter la check-list."); return; }
+            w.document.write(doc);
+            w.document.close();
+            w.focus();
+            // Laisser les images se décoder avant d'ouvrir la boîte d'impression.
+            setTimeout(() => w.print(), 400);
         }
 
         function triggerCSVDownload(content, fileName) {
