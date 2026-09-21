@@ -1601,7 +1601,7 @@
                 if (el.completedAt) el.completedAt = null;
                 // Le dossier repasse sous 100 % : MER et endurance ne tiennent plus.
                 if (el.merValidation) el.merValidation = null;
-                if (el.enduranceValidation) el.enduranceValidation = null;
+                if (el.enduranceValidation || el.endurance) clearEndurance(el);
             }
         }
 
@@ -2111,6 +2111,19 @@
             return Array.from(map.values());
         }
 
+        // Phases d'endurance : chacune est arbitrée séparément, pour que deux
+        // personnes qui saisissent chacune une phase ne s'écrasent pas.
+        function mergeEndurance(A, B) {
+            const a = A || {}, b = B || {};
+            const out = {};
+            ENDURANCE_PHASES.forEach(ph => {
+                const x = a[ph.key], y = b[ph.key];
+                if (x && y) out[ph.key] = (y.at || 0) >= (x.at || 0) ? y : x;
+                else if (x || y) out[ph.key] = x || y;
+            });
+            return out;
+        }
+
         // Champs MER : une valeur saisie l'emporte sur une valeur vide.
         function mergeMerFields(A, B) {
             const map = new Map();
@@ -2140,6 +2153,10 @@
             }
             if (Array.isArray(a.finalChecks) || Array.isArray(b.finalChecks)) {
                 out.finalChecks = mergeChecks(a.finalChecks, b.finalChecks);
+            }
+            if (a.endurance || b.endurance) {
+                out.endurance = mergeEndurance(a.endurance, b.endurance);
+                syncEnduranceValidation(out);
             }
             out.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
 
@@ -3022,7 +3039,7 @@
         function autoStatus(el) {
             if (!el) return 'CREE';
             if (el.closed) return 'TERMINE';
-            if (el.enduranceValidation) return 'EXPE';
+            if (enduranceDone(el)) return 'EXPE';
             if (el.merValidation) return 'ENDURANCE';
             if (isElementComplete(el)) return 'MER';
             const anyScanned = (el.bom || []).some(i => i.scanned);
@@ -3296,7 +3313,7 @@
             }
             if (el.merValidation) {
                 msg += `• le dossier repassera sous les 100 % : la validation MER`
-                     + (el.enduranceValidation ? ` et l'endurance enregistrée seront effacées` : ` sera effacée`) + ` ;\n`;
+                     + (enduranceTotalMin(el) > 0 ? ` et l'endurance enregistrée seront effacées` : ` sera effacée`) + ` ;\n`;
             }
             msg += `\nCette opération est irréversible.`;
 
@@ -3671,9 +3688,9 @@
             const el = getActiveElement();
             if (!el || el.closed || !el.merValidation) return;
             if (!confirm("Annuler la validation MER ? Le dossier repassera au statut MER"
-                + (el.enduranceValidation ? " et l'endurance enregistrée sera effacée." : "."))) return;
+                + (enduranceTotalMin(el) > 0 ? " et l'endurance enregistrée sera effacée." : "."))) return;
             el.merValidation = null;
-            el.enduranceValidation = null;   // pas d'endurance sans MER validée
+            clearEndurance(el);              // pas d'endurance sans MER validée
             el.updatedAt = Date.now();
             renderScanTables();
             renderMerPane();
@@ -3683,8 +3700,51 @@
         }
 
         // ---- Onglet Endurance ------------------------------------------------
-        // Durée passée en endurance, saisie une fois la MER validée.
-        // La validation fait passer le dossier de ENDURANCE à EXPE.
+        // L'endurance se déroule en deux phases : d'abord sans capot, ensuite
+        // avec. Chacune est saisie séparément (durée, trigramme, remarques),
+        // par des personnes différentes si besoin. Le dossier passe en EXPE
+        // quand les deux sont renseignées.
+        //
+        // Les anciens dossiers portent une endurance unique dans
+        // enduranceValidation : elle reste lue telle quelle, sans phase.
+        const ENDURANCE_PHASES = [
+            { key: 'sansCapot', label: 'Endurance sans capot' },
+            { key: 'avecCapot', label: 'Endurance avec capot' }
+        ];
+
+        function endurancePhase(el, key) {
+            return (el && el.endurance && el.endurance[key]) || null;
+        }
+
+        // Endurance à l'ancien format : une seule durée, aucune phase.
+        function enduranceLegacy(el) {
+            return (el && el.enduranceValidation && !el.endurance) ? el.enduranceValidation : null;
+        }
+
+        function enduranceDone(el) {
+            if (!el) return false;
+            if (enduranceLegacy(el)) return true;
+            return ENDURANCE_PHASES.every(ph => {
+                const p = endurancePhase(el, ph.key);
+                return p && p.durationMin > 0;
+            });
+        }
+
+        function enduranceTotalMin(el) {
+            const legacy = enduranceLegacy(el);
+            if (legacy) return legacy.durationMin || 0;
+            return ENDURANCE_PHASES.reduce((a, ph) => {
+                const p = endurancePhase(el, ph.key);
+                return a + ((p && p.durationMin) || 0);
+            }, 0);
+        }
+
+        function clearEndurance(el) {
+            if (!el) return;
+            el.endurance = null;
+            el.enduranceValidation = null;
+        }
+
         function renderEndurancePane() {
             const box = document.getElementById('endContent');
             if (!box) return;
@@ -3692,64 +3752,63 @@
             if (!el) { box.innerHTML = ''; return; }
             const locked = !!el.closed;
 
-            let html = `<h3 class="section-title" style="margin-bottom: 0.75rem;">Endurance</h3>`;
+            const total = enduranceTotalMin(el);
+            const legacy = enduranceLegacy(el);
+            const doneAll = enduranceDone(el);
 
-            if (el.enduranceValidation) {
-                const v = el.enduranceValidation;
+            let html = `
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem;">
+                    <h3 class="section-title">Endurance</h3>
+                    ${total > 0 ? `<span style="font-size: 0.75rem; font-weight: 700; color: ${doneAll ? '#059669' : '#0891b2'};">
+                        Total ${formatMinutes(total)}${doneAll ? ' ✓' : ''}</span>` : ''}
+                </div>
+            `;
+
+            if (!el.merValidation && !doneAll) {
+                html += `<div class="empty-hint">L'endurance sera saisissable une fois la <strong>MER validée</strong>.</div>`;
+                box.innerHTML = html;
+                return;
+            }
+
+            // Dossier à l'ancien format : une endurance unique, sans phase.
+            if (legacy) {
                 html += `
                     <div class="table-wrap">
                         <table>
                             <tbody>
                                 <tr>
                                     <td style="font-weight: 700; width: 14rem;">Durée d'endurance</td>
-                                    <td style="font-weight: 700; color: #0f172a;">${formatMinutes(v.durationMin)}</td>
+                                    <td style="font-weight: 700; color: #0f172a;">${formatMinutes(legacy.durationMin)}</td>
                                 </tr>
                                 <tr>
                                     <td style="font-weight: 700;">Enregistrée par</td>
-                                    <td style="font-weight: 700; color: #059669;">${escapeHtml(v.operator || '')}</td>
+                                    <td style="font-weight: 700; color: #059669;">${escapeHtml(legacy.operator || '')}</td>
                                 </tr>
                                 <tr>
                                     <td style="font-weight: 700;">Le</td>
-                                    <td style="font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(v.date || '')}</td>
+                                    <td style="font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(legacy.date || '')}</td>
                                 </tr>
-                                ${v.note ? `<tr><td style="font-weight: 700;">Remarques</td><td style="color: #475569;">${escapeHtml(v.note)}</td></tr>` : ''}
+                                ${legacy.note ? `<tr><td style="font-weight: 700;">Remarques</td><td style="color: #475569;">${escapeHtml(legacy.note)}</td></tr>` : ''}
                             </tbody>
                         </table>
                     </div>
-                    ${locked ? '' : `<button onclick="cancelEnduranceValidation()" class="btn-gray" style="margin-top: 1rem;">Annuler l'endurance</button>`}
+                    <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.6rem;">
+                        Saisie avant la distinction des deux phases : conservée telle quelle.
+                    </p>
+                    ${locked ? '' : `<button onclick="cancelEnduranceValidation()" class="btn-gray" style="margin-top: 0.75rem;">Annuler l'endurance</button>`}
                 `;
-            } else if (!el.merValidation) {
-                html += `<div class="empty-hint">L'endurance sera saisissable une fois la <strong>MER validée</strong>.</div>`;
-            } else {
+                box.innerHTML = html;
+                return;
+            }
+
+            html += ENDURANCE_PHASES.map(ph => endurancePhaseHtml(el, ph, locked)).join('');
+
+            if (!doneAll) {
+                const reste = ENDURANCE_PHASES.filter(ph => !endurancePhase(el, ph.key));
                 html += `
-                    <div class="table-wrap" style="padding: 1.25rem;">
-                        <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 1rem;">
-                            Indiquez combien de temps le robot est resté en endurance. La validation fait passer le dossier en <strong>EXPE</strong>.
-                        </p>
-                        <form onsubmit="handleValidateEndurance(event)">
-                            <div style="display: flex; gap: 1.5rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem;">
-                                <div class="form-group" style="margin-bottom: 0;">
-                                    <label>Durée d'endurance</label>
-                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                        <input id="endHours" type="number" min="0" max="9999" style="text-align: center; max-width: 5.5rem;" ${locked ? 'disabled' : ''}>
-                                        <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
-                                        <input id="endMinutes" type="number" min="0" max="59" style="text-align: center; max-width: 5.5rem;" ${locked ? 'disabled' : ''}>
-                                        <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">min</span>
-                                    </div>
-                                </div>
-                                <div class="form-group" style="margin-bottom: 0; max-width: 9rem;">
-                                    <label>Trigramme</label>
-                                    <input id="endOperator" type="text" required maxlength="3"
-                                           style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;"
-                                           oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')" ${locked ? 'disabled' : ''}>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Remarques (facultatif)</label>
-                                <textarea id="endNote" rows="2" ${locked ? 'disabled' : ''}></textarea>
-                            </div>
-                            <button type="submit" class="btn-primary" ${locked ? 'disabled' : ''}>Valider l'endurance</button>
-                        </form>
+                    <div class="empty-hint" style="margin-top: 0.25rem;">
+                        Le dossier passera en <strong>EXPE</strong> une fois les deux phases renseignées.
+                        Il reste : ${reste.map(ph => escapeHtml(ph.label.toLowerCase())).join(' et ')}.
                     </div>
                 `;
             }
@@ -3757,26 +3816,103 @@
             box.innerHTML = html;
         }
 
-        function handleValidateEndurance(e) {
+        // Une phase : son relevé si elle est saisie, sinon son formulaire.
+        function endurancePhaseHtml(el, ph, locked) {
+            const p = endurancePhase(el, ph.key);
+            const head = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+                    <h4 style="font-size: 0.8125rem; font-weight: 800; color: #0f172a;">${escapeHtml(ph.label)}</h4>
+                    ${p ? `<span style="font-size: 0.75rem; font-weight: 700; color: #059669;">${formatMinutes(p.durationMin)} ✓</span>` : ''}
+                </div>
+            `;
+
+            if (p) {
+                return `
+                    <div style="margin-bottom: 1.25rem;">
+                        ${head}
+                        <div class="table-wrap">
+                            <table>
+                                <tbody>
+                                    <tr>
+                                        <td style="font-weight: 700; width: 14rem;">Durée</td>
+                                        <td style="font-weight: 700; color: #0f172a;">${formatMinutes(p.durationMin)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 700;">Enregistrée par</td>
+                                        <td style="font-weight: 700; color: #059669;">${escapeHtml(p.operator || '')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 700;">Le</td>
+                                        <td style="font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(p.date || '')}</td>
+                                    </tr>
+                                    ${p.note ? `<tr><td style="font-weight: 700;">Remarques</td><td style="color: #475569;">${escapeHtml(p.note)}</td></tr>` : ''}
+                                </tbody>
+                            </table>
+                        </div>
+                        ${locked ? '' : `<button onclick="cancelEndurancePhase('${ph.key}')" class="btn-gray" style="margin-top: 0.6rem; font-size: 0.75rem;">Annuler cette phase</button>`}
+                    </div>
+                `;
+            }
+
+            return `
+                <div style="margin-bottom: 1.25rem;">
+                    ${head}
+                    <div class="table-wrap" style="padding: 1.1rem;">
+                        <form onsubmit="handleValidateEndurance(event, '${ph.key}')">
+                            <div style="display: flex; gap: 1.5rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 0.9rem;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label>Durée</label>
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <input id="endHours-${ph.key}" type="number" min="0" max="9999" style="text-align: center; max-width: 5.5rem;" ${locked ? 'disabled' : ''}>
+                                        <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
+                                        <input id="endMinutes-${ph.key}" type="number" min="0" max="59" style="text-align: center; max-width: 5.5rem;" ${locked ? 'disabled' : ''}>
+                                        <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">min</span>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0; max-width: 9rem;">
+                                    <label>Trigramme</label>
+                                    <input id="endOperator-${ph.key}" type="text" required maxlength="3"
+                                           style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;"
+                                           oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')" ${locked ? 'disabled' : ''}>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Remarques (facultatif)</label>
+                                <textarea id="endNote-${ph.key}" rows="2" ${locked ? 'disabled' : ''}></textarea>
+                            </div>
+                            <button type="submit" class="btn-primary" ${locked ? 'disabled' : ''}>Enregistrer cette phase</button>
+                        </form>
+                    </div>
+                </div>
+            `;
+        }
+
+        function handleValidateEndurance(e, phaseKey) {
             e.preventDefault();
             const el = getActiveElement();
             if (!el || el.closed) return;
             if (!el.merValidation) { alert("La MER doit être validée avant l'endurance."); return; }
+            const ph = ENDURANCE_PHASES.find(x => x.key === phaseKey);
+            if (!ph) return;
 
-            const operator = document.getElementById('endOperator').value.trim().toUpperCase();
+            const operator = document.getElementById(`endOperator-${phaseKey}`).value.trim().toUpperCase();
             if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
 
-            const h = parseInt(document.getElementById('endHours').value, 10) || 0;
-            const m = parseInt(document.getElementById('endMinutes').value, 10) || 0;
+            const h = parseInt(document.getElementById(`endHours-${phaseKey}`).value, 10) || 0;
+            const m = parseInt(document.getElementById(`endMinutes-${phaseKey}`).value, 10) || 0;
             const durationMin = h * 60 + m;
-            if (durationMin <= 0) { alert("Veuillez renseigner la durée d'endurance."); return; }
+            if (durationMin <= 0) { alert(`Veuillez renseigner la durée de la phase « ${ph.label} ».`); return; }
 
-            el.enduranceValidation = {
+            if (!el.endurance) el.endurance = {};
+            el.endurance[phaseKey] = {
                 durationMin, operator,
-                note: document.getElementById('endNote').value.trim(),
+                note: document.getElementById(`endNote-${phaseKey}`).value.trim(),
                 date: formatDateTime(),
                 at: Date.now()
             };
+            // Marqueur global conservé : total des phases, dernière saisie.
+            syncEnduranceValidation(el);
+
             el.updatedAt = Date.now();
             renderScanTables();
             renderEndurancePane();
@@ -3784,11 +3920,44 @@
             scheduleSave();
         }
 
+        // enduranceValidation reste le résumé de l'endurance : total des deux
+        // phases et dernière signature. Il n'existe que lorsque les deux phases
+        // sont faites, pour que le statut EXPE et les indicateurs restent justes.
+        function syncEnduranceValidation(el) {
+            if (!enduranceDone(el)) { el.enduranceValidation = null; return; }
+            const phases = ENDURANCE_PHASES.map(ph => endurancePhase(el, ph.key));
+            const last = phases.slice().sort((a, b) => (a.at || 0) - (b.at || 0)).pop();
+            el.enduranceValidation = {
+                durationMin: enduranceTotalMin(el),
+                operator: last.operator || '',
+                date: last.date || '',
+                at: last.at || Date.now(),
+                note: phases.map(p => (p.note || '').trim()).filter(Boolean).join(' | ')
+            };
+        }
+
+        function cancelEndurancePhase(phaseKey) {
+            const el = getActiveElement();
+            if (!el || el.closed || !endurancePhase(el, phaseKey)) return;
+            const ph = ENDURANCE_PHASES.find(x => x.key === phaseKey);
+            if (!confirm(`Annuler la phase « ${ph.label} » ?\n\n`
+                + `Sa durée, son trigramme et sa date seront effacés`
+                + (enduranceDone(el) ? `, et le dossier repassera au statut ENDURANCE` : '') + `.`)) return;
+            delete el.endurance[phaseKey];
+            syncEnduranceValidation(el);
+            el.updatedAt = Date.now();
+            renderScanTables();
+            renderEndurancePane();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        // Annulation d'une endurance à l'ancien format (sans phases).
         function cancelEnduranceValidation() {
             const el = getActiveElement();
             if (!el || el.closed || !el.enduranceValidation) return;
             if (!confirm("Annuler l'endurance ? Le dossier repassera au statut ENDURANCE.")) return;
-            el.enduranceValidation = null;
+            clearEndurance(el);
             el.updatedAt = Date.now();
             renderScanTables();
             renderEndurancePane();
@@ -4057,36 +4226,69 @@
             }
 
             if (kpiTab === 'endurance') {
-                const end = el.enduranceValidation;
+                const total = enduranceTotalMin(el);
+                const legacy = enduranceLegacy(el);
                 html += `
                     <div style="margin-bottom: 0.5rem;">
                         <h3 class="section-title">Endurance</h3>
-                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Durée saisie dans l'onglet Endurance du dossier.</p>
+                        <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.2rem;">Durées saisies dans l'onglet Endurance du dossier, phase par phase.</p>
                     </div>
                 `;
-                if (!end) {
+                if (total === 0) {
                     html += `<div class="empty-hint">Endurance pas encore enregistrée.</div>`;
-                } else {
+                } else if (legacy) {
                     html += `
                         <div class="kpi-grid">
                             <div class="kpi-card">
                                 <div class="kpi-label">Durée d'endurance</div>
-                                <div class="kpi-value">${formatMinutes(end.durationMin || 0)}</div>
-                                <div class="kpi-sub">Enregistrée par ${escapeHtml(end.operator || '--')}</div>
+                                <div class="kpi-value">${formatMinutes(legacy.durationMin || 0)}</div>
+                                <div class="kpi-sub">Enregistrée par ${escapeHtml(legacy.operator || '--')} — saisie sans distinction de phase</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="kpi-grid">
+                            ${ENDURANCE_PHASES.map(ph => {
+                                const p = endurancePhase(el, ph.key);
+                                return `
+                                    <div class="kpi-card">
+                                        <div class="kpi-label">${escapeHtml(ph.label)}</div>
+                                        <div class="kpi-value">${p ? formatMinutes(p.durationMin) : '--'}</div>
+                                        <div class="kpi-sub">${p ? `${escapeHtml(p.operator || '')} — ${escapeHtml(p.date || '')}` : 'Pas encore saisie'}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                            <div class="kpi-card">
+                                <div class="kpi-label">Total endurance</div>
+                                <div class="kpi-value">${formatMinutes(total)}</div>
+                                <div class="kpi-sub">${enduranceDone(el) ? 'Les deux phases sont faites' : 'Une phase reste à saisir'}</div>
                             </div>
                         </div>
                         <div class="table-wrap">
                             <table>
+                                <thead>
+                                    <tr>
+                                        <th class="normal-wrap">Phase</th>
+                                        <th style="width: 9rem;">Durée</th>
+                                        <th style="width: 11rem;">Enregistrée le</th>
+                                        <th style="width: 7rem; text-align: center;">Trigramme</th>
+                                        <th class="normal-wrap">Remarques</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
-                                    <tr>
-                                        <td style="font-weight: 700; width: 14rem;">Enregistrée par</td>
-                                        <td style="font-weight: 700; color: #059669;">${escapeHtml(end.operator || '')}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight: 700;">Le</td>
-                                        <td style="font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(end.date || '')}</td>
-                                    </tr>
-                                    ${end.note ? `<tr><td style="font-weight: 700;">Remarques</td><td style="color: #475569;">${escapeHtml(end.note)}</td></tr>` : ''}
+                                    ${ENDURANCE_PHASES.map(ph => {
+                                        const p = endurancePhase(el, ph.key);
+                                        return `
+                                            <tr>
+                                                <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(ph.label)}</td>
+                                                <td style="font-weight: 700;">${p ? formatMinutes(p.durationMin) : '<span style="color:#94a3b8; font-style:italic; font-weight:500;">--</span>'}</td>
+                                                <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${p ? escapeHtml(p.date || '') : '--'}</td>
+                                                <td style="text-align: center; font-weight: 700;">${p ? escapeHtml(p.operator || '') : '--'}</td>
+                                                <td class="normal-wrap" style="font-size: 0.75rem; color: #475569;">${p ? escapeHtml(p.note || '') : ''}</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -4288,9 +4490,19 @@
             }
 
             if (globalKpiTab === 'endurance') {
-                const ends = elements.filter(el => el.enduranceValidation && el.enduranceValidation.durationMin > 0);
-                const endTotal = ends.reduce((a, el) => a + el.enduranceValidation.durationMin, 0);
+                const ends = elements.filter(el => enduranceTotalMin(el) > 0);
+                const endTotal = ends.reduce((a, el) => a + enduranceTotalMin(el), 0);
                 const endAvg = ends.length ? endTotal / ends.length : 0;
+                // Moyenne par phase : seuls les dossiers qui ont saisi la phase comptent.
+                const phaseAvg = {};
+                ENDURANCE_PHASES.forEach(ph => {
+                    const vals = ends.map(el => endurancePhase(el, ph.key))
+                                     .filter(p => p && p.durationMin > 0)
+                                     .map(p => p.durationMin);
+                    phaseAvg[ph.key] = vals.length
+                        ? { avg: vals.reduce((a, v) => a + v, 0) / vals.length, n: vals.length }
+                        : null;
+                });
 
                 html += `
                     <div style="margin-bottom: 0.5rem;">
@@ -4303,10 +4515,17 @@
                 } else {
                     html += `
                         <div class="kpi-grid">
+                            ${ENDURANCE_PHASES.map(ph => `
+                                <div class="kpi-card">
+                                    <div class="kpi-label">${escapeHtml(ph.label)} — moyenne</div>
+                                    <div class="kpi-value">${phaseAvg[ph.key] ? formatMinutes(Math.round(phaseAvg[ph.key].avg)) : '--'}</div>
+                                    <div class="kpi-sub">${phaseAvg[ph.key] ? `Sur ${phaseAvg[ph.key].n} dossier(s)` : 'Aucune saisie'}</div>
+                                </div>
+                            `).join('')}
                             <div class="kpi-card">
                                 <div class="kpi-label">Durée d'endurance moyenne</div>
                                 <div class="kpi-value">${formatMinutes(Math.round(endAvg))}</div>
-                                <div class="kpi-sub">Sur ${ends.length} dossier(s)</div>
+                                <div class="kpi-sub">Deux phases cumulées, sur ${ends.length} dossier(s)</div>
                             </div>
                             <div class="kpi-card">
                                 <div class="kpi-label">Durée d'endurance cumulée</div>
@@ -4320,7 +4539,9 @@
                                     <tr>
                                         <th class="normal-wrap">Dossier</th>
                                         <th style="width: 9rem;">Client</th>
-                                        <th style="width: 9rem;">Endurance</th>
+                                        <th style="width: 8rem;">Sans capot</th>
+                                        <th style="width: 8rem;">Avec capot</th>
+                                        <th style="width: 8rem;">Total</th>
                                         <th style="width: 11rem;">Enregistrée le</th>
                                         <th style="width: 7rem; text-align: center;">Trigramme</th>
                                     </tr>
@@ -4330,9 +4551,14 @@
                                         <tr>
                                             <td class="normal-wrap" style="font-weight: 700;">${escapeHtml(el.displayName)}</td>
                                             <td style="text-transform: uppercase; font-size: 0.75rem;">${escapeHtml(el.client || '')}</td>
-                                            <td style="font-weight: 700;">${formatMinutes(el.enduranceValidation.durationMin)}</td>
-                                            <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(el.enduranceValidation.date || '')}</td>
-                                            <td style="text-align: center; font-weight: 700;">${escapeHtml(el.enduranceValidation.operator || '')}</td>
+                                            ${ENDURANCE_PHASES.map(ph => {
+                                                const p = endurancePhase(el, ph.key);
+                                                return `<td>${p ? formatMinutes(p.durationMin)
+                                                    : '<span style="color:#94a3b8; font-style:italic;">--</span>'}</td>`;
+                                            }).join('')}
+                                            <td style="font-weight: 700;">${formatMinutes(enduranceTotalMin(el))}</td>
+                                            <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml((el.enduranceValidation || {}).date || '')}</td>
+                                            <td style="text-align: center; font-weight: 700;">${escapeHtml((el.enduranceValidation || {}).operator || '')}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -5204,8 +5430,14 @@
             const avgCal = done.length ? done.reduce((a, l) => a + l.calMs, 0) / done.length : 0;
             const mers = elements.filter(el => el.merValidation && el.merValidation.durationMin > 0);
             const merAvg = mers.length ? mers.reduce((a, el) => a + el.merValidation.durationMin, 0) / mers.length : 0;
-            const ends = elements.filter(el => el.enduranceValidation && el.enduranceValidation.durationMin > 0);
-            const endAvg = ends.length ? ends.reduce((a, el) => a + el.enduranceValidation.durationMin, 0) / ends.length : 0;
+            const ends = elements.filter(el => enduranceTotalMin(el) > 0);
+            const endAvg = ends.length ? ends.reduce((a, el) => a + enduranceTotalMin(el), 0) / ends.length : 0;
+            const phaseCsvAvg = {};
+            ENDURANCE_PHASES.forEach(ph => {
+                const vals = ends.map(el => endurancePhase(el, ph.key))
+                                 .filter(x => x && x.durationMin > 0).map(x => x.durationMin);
+                phaseCsvAvg[ph.key] = vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length : null;
+            });
 
             const h1 = (n) => Math.round(toBusinessHours(n) * 100) / 100;
             let csv = "﻿";
@@ -5218,6 +5450,10 @@
             csv += `${cleanCSVField("Temps de passage moyen (h ouvrees)")};${cleanCSVField(done.length ? h1(avgLead) : '')}\r\n`;
             csv += `${cleanCSVField("Temps de MER moyen (min)")};${cleanCSVField(mers.length ? Math.round(merAvg) : '')}\r\n`;
             csv += `${cleanCSVField("Mises en route validees")};${cleanCSVField(mers.length)}\r\n`;
+            ENDURANCE_PHASES.forEach(ph => {
+                csv += `${cleanCSVField(ph.label + " - moyenne (min)")};`
+                     + `${cleanCSVField(phaseCsvAvg[ph.key] ? Math.round(phaseCsvAvg[ph.key]) : '')}\r\n`;
+            });
             csv += `${cleanCSVField("Duree d'endurance moyenne (min)")};${cleanCSVField(ends.length ? Math.round(endAvg) : '')}\r\n`;
             csv += `${cleanCSVField("Endurances enregistrees")};${cleanCSVField(ends.length)}\r\n`;
             csv += `${cleanCSVField("Sous-ensembles mesures")};${cleanCSVField(stats.length)}\r\n`;
@@ -5234,7 +5470,8 @@
             csv += "\r\n";
 
             csv += "TEMPS DE PASSAGE PAR DOSSIER\r\n";
-            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Delai (j);Temps ouvre (h);Temps MER (min);Endurance (min);Statut\r\n";
+            csv += "Dossier;Client;Projet;Ouverture;100% atteint;Delai (j);Temps ouvre (h);Temps MER (min);"
+                 + "Endurance sans capot (min);Endurance avec capot (min);Endurance totale (min);Statut\r\n";
             leads.forEach(l => {
                 csv += `${cleanCSVField(l.el.displayName)};${cleanCSVField(l.el.client)};`
                      + `${cleanCSVField(l.el.projectNum ? 'PR' + l.el.projectNum : '')};`
@@ -5243,7 +5480,11 @@
                      + `${cleanCSVField(l.calMs > 0 ? (Math.round(l.calMs / 86400000 * 10) / 10) : '')};`
                      + `${cleanCSVField(l.ms > 0 ? h1(l.ms) : '')};`
                      + `${cleanCSVField(l.el.merValidation ? (l.el.merValidation.durationMin || '') : '')};`
-                     + `${cleanCSVField(l.el.enduranceValidation ? (l.el.enduranceValidation.durationMin || '') : '')};`
+                     + ENDURANCE_PHASES.map(ph => {
+                            const p = endurancePhase(l.el, ph.key);
+                            return `${cleanCSVField(p ? (p.durationMin || '') : '')};`;
+                       }).join('')
+                     + `${cleanCSVField(enduranceTotalMin(l.el) || '')};`
                      + `${cleanCSVField(STATUS_DEFS[computeStatus(l.el)].label)}\r\n`;
             });
 
