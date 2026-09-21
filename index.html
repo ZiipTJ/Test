@@ -183,7 +183,18 @@
         .check-act.todo { background: var(--emerald); color: #fff; box-shadow: 0 1px 3px rgba(16,185,129,0.35); }
         .check-act.todo:hover { background: var(--emerald-d); }
         .check-act.undo { background: transparent; color: var(--slate-500); border-color: var(--slate-200); }
+        /* Action destructrice : elle ne doit pas ressembler à une validation. */
+        .check-act.danger { background: var(--red); color: #fff; box-shadow: 0 1px 3px rgba(220,38,38,0.35); }
+        .check-act.danger:hover { background: var(--red-d); }
         .check-act.undo:hover { background: var(--slate-100); color: var(--slate-700); }
+        .check-update {
+            display: flex; gap: 1rem; align-items: center; justify-content: space-between;
+            flex-wrap: wrap;
+            background: #fffbeb; border: 1px solid #fcd34d; border-left: 3px solid #d97706;
+            color: #92400e; border-radius: var(--radius);
+            padding: 0.8rem 1rem; font-size: 0.78rem; line-height: 1.45; margin-bottom: 1rem;
+        }
+        .check-update strong { font-weight: 800; }
         .check-allgood {
             display: flex; align-items: center; gap: 0.5rem; justify-content: center;
             background: #f0fdf4; border: 1px solid #bbf7d0; color: var(--emerald-d);
@@ -3163,6 +3174,37 @@
             return (se && se.checks) || [];
         }
 
+        // Ce que la configuration en vigueur donnerait AUJOURD'HUI pour cette
+        // check-list. Sert uniquement à proposer une mise à jour : rien n'est
+        // remplacé sans un accord explicite.
+        function configChecksFor(scope) {
+            const el = getActiveElement();
+            if (!el || !scope || !config) return [];
+            const isRobot = el.objectType === 'robot';
+            const tokens = isRobot ? elementTokens(el) : [];
+            if (scope.kind === 'final') {
+                return buildChecks(isRobot ? (config.robot_final_checks || {})[el.type] : null, tokens);
+            }
+            const se = (el.subassemblies || [])[scope.index];
+            if (!se) return [];
+            const src = isRobot
+                ? (config.robot_subassembly_checks || {})[el.type]
+                : (config.station_subassembly_checks || {})[el.type];
+            return buildChecks(src ? src[se.id] : null, tokens);
+        }
+
+        // Signature d'une check-list : seul le contenu défini en configuration
+        // compte (points, ordre, consigne, photo) — pas les réponses données.
+        function checksSignature(list) {
+            return JSON.stringify((list || []).map(c => [c.id, c.desc, c.photo || '']));
+        }
+
+        function checklistOutdated(scope) {
+            const wanted = configChecksFor(scope);
+            if (wanted.length === 0) return false;   // rien en config : on ne propose rien
+            return checksSignature(wanted) !== checksSignature(checklistOf(scope));
+        }
+
         function openChecklist(kind, index, presetOperator) {
             const el = getActiveElement();
             if (!el) return;
@@ -3190,7 +3232,28 @@
             document.getElementById('checklistCount').textContent = `${done} / ${list.length} validés`;
             document.getElementById('checklistProgress').style.width = `${pct}%`;
 
-            box.innerHTML = (done === list.length && list.length > 0
+            // La configuration a changé depuis l'attribution : on le signale,
+            // sans jamais remplacer quoi que ce soit de notre propre initiative.
+            const outdated = !locked && checklistOutdated(checklistScope);
+            const banner = outdated ? `
+                <div class="check-update">
+                    <div>
+                        <strong>Une nouvelle check-list existe pour ce sous-ensemble.</strong>
+                        <div style="font-weight: 500; margin-top: 0.2rem;">
+                            La mettre à jour <strong>supprime définitivement</strong> la check-list actuelle
+                            et tout ce qui y a été saisi${done > 0
+                                ? ` — ${done} point${done > 1 ? 's' : ''} déjà validé${done > 1 ? 's' : ''},
+                                    avec ${done > 1 ? 'leurs trigrammes et leurs horodatages' : 'son trigramme et son horodatage'}`
+                                : ''}.
+                        </div>
+                    </div>
+                    <button type="button" class="check-act danger" onclick="applyNewChecklist()">
+                        Remplacer et effacer les saisies
+                    </button>
+                </div>
+            ` : '';
+
+            box.innerHTML = banner + (done === list.length && list.length > 0
                     ? `<div class="check-allgood">✓ Check-list complète</div>` : '')
                 + list.map((c, i) => `
                 <div class="check-item${c.done ? ' check-done' : ''}">
@@ -3208,6 +3271,47 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        // Remplacement explicite de la check-list par celle de la configuration.
+        // Tout ce qui a été coché est perdu : c'est dit, puis confirmé.
+        function applyNewChecklist() {
+            const el = getActiveElement();
+            if (!el || el.closed || !checklistScope) return;
+
+            const wanted = configChecksFor(checklistScope);
+            if (wanted.length === 0) return;
+
+            const current = checklistOf(checklistScope);
+            const done = checksDone(current);
+            const nom = checklistScope.kind === 'final'
+                ? 'le contrôle final'
+                : `« ${(el.subassemblies[checklistScope.index] || {}).name || 'ce sous-ensemble'} »`;
+
+            let msg = `Remplacer la check-list de ${nom} par la nouvelle version ?\n\n`
+                + `ATTENTION — CETTE ACTION SUPPRIME DES DONNÉES :\n`
+                + `• les ${current.length} point(s) actuels sont supprimés et remplacés par ${wanted.length} nouveau(x) point(s) ;\n`;
+            if (done > 0) {
+                msg += `• ${done} point(s) déjà validé(s) redeviennent à faire : trigrammes et horodatages sont perdus ;\n`;
+            }
+            if (el.merValidation) {
+                msg += `• le dossier repassera sous les 100 % : la validation MER`
+                     + (el.enduranceValidation ? ` et l'endurance enregistrée seront effacées` : ` sera effacée`) + ` ;\n`;
+            }
+            msg += `\nCette opération est irréversible.`;
+
+            if (!confirm(msg)) return;
+
+            if (checklistScope.kind === 'final') el.finalChecks = wanted;
+            else el.subassemblies[checklistScope.index].checks = wanted;
+
+            el.updatedAt = Date.now();
+            updateCompletion(el);
+            renderChecklistModal();
+            renderSubassemblies();
+            renderSidebarList();
+            if (activePane === 'mer') renderMerPane();
+            scheduleSave();
         }
 
         function currentChecklistOperator() {
