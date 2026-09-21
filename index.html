@@ -1035,6 +1035,10 @@
                             <h3 class="section-title">Sous-ensembles</h3>
                             <div style="display: flex; align-items: center; gap: 0.75rem;">
                                 <span id="subAssyCount" style="font-size: 0.75rem; font-weight: 700; color: #64748b;"></span>
+                                <button id="btnUpdateChecklists" type="button" onclick="updateAllChecklists()"
+                                        class="btn-mini" title="Reprendre les check-lists de la configuration en vigueur">
+                                    MAJ check-lists
+                                </button>
                                 <button id="btnExportChecklist" type="button" onclick="exportChecklistPDF()"
                                         class="btn-mini" title="Une page par sous-ensemble">
                                     Exporter la check-list (PDF)
@@ -2989,6 +2993,18 @@
             const btnExport = document.getElementById('btnExportChecklist');
             if (btnExport) btnExport.classList.toggle('hidden', checks.length === 0);
 
+            // Le bouton de mise à jour s'allume quand la configuration a bougé.
+            const btnMaj = document.getElementById('btnUpdateChecklists');
+            if (btnMaj) {
+                const stale = el.closed ? [] : outdatedChecklists();
+                btnMaj.classList.toggle('hidden', !!el.closed);
+                btnMaj.className = 'btn-mini' + (stale.length ? ' btn-mini-amber' : '') + (el.closed ? ' hidden' : '');
+                btnMaj.textContent = stale.length ? `MAJ check-lists (${stale.length})` : 'MAJ check-lists';
+                btnMaj.title = stale.length
+                    ? `${stale.length} check-list(s) diffèrent de la configuration en vigueur`
+                    : 'Toutes les check-lists correspondent à la configuration en vigueur';
+            }
+
             const totAll = bomItems.length + subs.length + checks.length;
             const doneAll = bomDone + subDone + chkDone;
             const pct = totAll > 0 ? Math.round((doneAll / totAll) * 100) : 0;
@@ -3288,6 +3304,76 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        // Check-lists du dossier qui diffèrent de la configuration en vigueur :
+        // points ajoutés ou retirés, consignes ou photos modifiées, ou check-list
+        // absente alors que la configuration en décrit une.
+        function outdatedChecklists() {
+            const el = getActiveElement();
+            if (!el || el.closed) return [];
+            const out = [];
+            (el.subassemblies || []).forEach((se, index) => {
+                const scope = { kind: 'sub', index };
+                if (checklistOutdated(scope)) {
+                    out.push({ scope, name: se.name, current: se.checks || [], wanted: configChecksFor(scope) });
+                }
+            });
+            const fin = { kind: 'final' };
+            if (checklistOutdated(fin)) {
+                out.push({ scope: fin, name: 'Contrôle final', current: elementChecks(el), wanted: configChecksFor(fin) });
+            }
+            return out;
+        }
+
+        // Mise à jour de TOUTES les check-lists du dossier en une fois. Même
+        // règle qu'une mise à jour isolée : c'est une suppression de données,
+        // annoncée comme telle et jamais appliquée sans accord.
+        function updateAllChecklists() {
+            const el = getActiveElement();
+            if (!el) return;
+            if (el.closed) { alert("Dossier clôturé : rouvrez-le pour modifier ses check-lists."); return; }
+
+            const list = outdatedChecklists();
+            if (list.length === 0) {
+                alert("Toutes les check-lists de ce dossier correspondent déjà à la configuration en vigueur.");
+                return;
+            }
+
+            const perdus = list.reduce((a, x) => a + checksDone(x.current), 0);
+            const detail = list.map(x =>
+                `• ${x.name} : ${x.current.length} point(s) → ${x.wanted.length} point(s)`
+                + (checksDone(x.current) ? ` (dont ${checksDone(x.current)} validé(s) perdu(s))` : '')
+            ).join('\n');
+
+            let msg = `Reprendre ${list.length} check-list(s) depuis la configuration en vigueur ?\n\n`
+                + `${detail}\n\n`
+                + `ATTENTION — CETTE ACTION SUPPRIME DES DONNÉES :\n`
+                + `• les check-lists actuelles sont supprimées et remplacées ;\n`;
+            if (perdus > 0) {
+                msg += `• ${perdus} point(s) déjà validé(s) redeviennent à faire : trigrammes et horodatages sont perdus ;\n`;
+            }
+            if (el.merValidation) {
+                msg += `• le dossier repassera sous les 100 % : la validation MER`
+                     + (enduranceTotalMin(el) > 0 ? ` et l'endurance enregistrée seront effacées` : ` sera effacée`) + ` ;\n`;
+            }
+            msg += `\nCette opération est irréversible.`;
+
+            if (!confirm(msg)) return;
+
+            list.forEach(x => {
+                if (x.scope.kind === 'final') el.finalChecks = x.wanted;
+                else el.subassemblies[x.scope.index].checks = x.wanted;
+            });
+
+            el.updatedAt = Date.now();
+            updateCompletion(el);
+            renderScanTables();
+            renderSidebarList();
+            if (activePane === 'mer') renderMerPane();
+            if (checklistScope) renderChecklistModal();
+            scheduleSave();
+            alert(`${list.length} check-list(s) mise(s) à jour.`);
         }
 
         // Remplacement explicite de la check-list par celle de la configuration.
