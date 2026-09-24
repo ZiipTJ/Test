@@ -1558,15 +1558,30 @@
             return hasSomething && bomOk && subOk && checksOk;
         }
 
+        // Le dossier est prêt pour la MER dès que tous ses sous-ensembles sont
+        // faits et toutes ses check-lists validées. Les numéros de série n'y
+        // entrent pas : ils restent suivis par la barre d'avancement et le 100 %.
+        // Un dossier sans sous-ensemble ni check-list (station simple, par
+        // exemple) garde l'ancienne règle, sinon il serait « prêt » dès sa
+        // création.
+        function readyForMer(el) {
+            if (!el) return false;
+            const subs = Array.isArray(el.subassemblies) ? el.subassemblies : [];
+            const checks = allChecks(el);
+            if (subs.length === 0 && checks.length === 0) return isElementComplete(el);
+            return subs.every(s => s.done) && checks.every(c => c.done);
+        }
+
         // ---- Statuts du dossier ---------------------------------------------
-        //  CRÉÉ → PROD    (1re pièce scannée ou 1er sous-ensemble validé)
-        //       → MER     (100 % atteint)
-        //       → EXPE    (validation manuelle de la MER, avec trigramme)
-        //       → TERMINÉ (dossier clôturé, données figées)
+        //  CRÉÉ → PROD      (1re pièce scannée ou 1er sous-ensemble validé)
+        //       → MER       (sous-ensembles faits + check-lists validées)
+        //       → ENDURANCE (MER validée, avec trigramme — possible à tout moment)
+        //       → EXPE      (les deux phases d'endurance saisies)
+        //       → TERMINÉ   (dossier clôturé, données figées)
         const STATUS_DEFS = {
             CREE:    { label: 'CRÉÉ',    color: '#059669', desc: 'Dossier ouvert, aucune saisie' },
             PROD:    { label: 'PROD',    color: '#2563eb', desc: 'Assemblage en cours' },
-            MER:       { label: 'MER',       color: '#8b5cf6', desc: 'Assemblage terminé, MER à valider' },
+            MER:       { label: 'MER',       color: '#8b5cf6', desc: 'Sous-ensembles et check-lists terminés, MER à valider' },
             ENDURANCE: { label: 'ENDURANCE', color: '#0891b2', desc: 'MER validée, endurance en cours' },
             EXPE:      { label: 'EXPE',      color: '#d97706', desc: 'Endurance validée, prêt à expédier' },
             TERMINE:   { label: 'TERMINÉ',   color: '#dc2626', desc: 'Dossier clôturé et figé' }
@@ -1602,10 +1617,10 @@
             if (isElementComplete(el)) {
                 if (!el.completedAt) el.completedAt = Date.now();
             } else {
+                // Le 100 % sert à la barre d'avancement et au temps de passage.
+                // La MER et l'endurance, elles, se valident indépendamment : repasser
+                // sous les 100 % (un S/N corrigé, un point décoché) ne les efface pas.
                 if (el.completedAt) el.completedAt = null;
-                // Le dossier repasse sous 100 % : MER et endurance ne tiennent plus.
-                if (el.merValidation) el.merValidation = null;
-                if (el.enduranceValidation || el.endurance) clearEndurance(el);
             }
         }
 
@@ -1638,7 +1653,10 @@
         // en plusieurs fois. Les pointages vivent dans se.entries ; les anciens
         // champs (durationMin, doneOperator, doneTime, note) restent renseignés
         // pour rester lisibles par les exports CSV et par un ancien data.json.
-        function subEntries(se) {
+        // Pointages BRUTS, suppressions comprises. Un pointage supprimé n'est pas
+        // retiré de la liste mais marqué (deleted) : sans cette trace, la fusion
+        // avec le fichier partagé le ferait revenir à la sauvegarde suivante.
+        function rawEntries(se) {
             if (!se) return [];
             if (Array.isArray(se.entries)) return se.entries;
             if (se.done && (se.durationMin || se.doneOperator || se.doneTime)) {
@@ -1655,9 +1673,20 @@
             return [];
         }
 
+        // Pointages en vigueur : ceux qui n'ont pas été supprimés.
+        function subEntries(se) {
+            return rawEntries(se).filter(e => e && !e.deleted);
+        }
+
+        // Date de dernière modification d'un pointage (création, correction ou
+        // suppression) : c'est elle qui départage deux versions à la fusion.
+        function entryStamp(e) {
+            return (e && (e.editedAt || e.at)) || 0;
+        }
+
         // Convertit le sous-ensemble au format « pointages » avant modification.
         function ensureEntries(se) {
-            if (!Array.isArray(se.entries)) se.entries = subEntries(se).slice();
+            if (!Array.isArray(se.entries)) se.entries = rawEntries(se).slice();
             return se.entries;
         }
 
@@ -1677,9 +1706,11 @@
         // Recalcule les champs hérités à partir des pointages.
         function syncSubLegacy(se) {
             const list = subEntries(se).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
-            // Sans aucun pointage, on ne touche pas aux champs hérités : un
-            // ancien enregistrement sans temps saisi garde son trigramme.
-            if (list.length === 0) return;
+            // Jamais aucun pointage : on ne touche pas aux champs hérités (un
+            // ancien enregistrement sans temps saisi garde son trigramme). En
+            // revanche, si tous les pointages ont été supprimés, on les remet à
+            // zéro plutôt que de garder les valeurs du dernier supprimé.
+            if (rawEntries(se).length === 0) return;
             se.durationMin = list.reduce((a, e) => a + (e.durationMin || 0), 0);
             const last = list[list.length - 1];
             se.doneTime = last ? (last.date || '') : '';
@@ -1742,8 +1773,8 @@
         // dans la configuration.
         //
         // Deux garde-fous : un dossier clôturé ou dont la MER est déjà validée
-        // n'est pas touché — lui ajouter des points non cochés le ferait
-        // repasser sous les 100 % et effacerait sa validation.
+        // n'est pas touché — on n'ajoute pas de contrôle de montage à un robot
+        // qui est déjà passé en mise en route.
         function elementTokens(el) {
             const tokens = [];
             const opts = (config && config.robot_options && config.robot_options[el.type]) || [];
@@ -2095,9 +2126,15 @@
                     : ((s.at || 0) >= (x.at || 0) ? s : x);
                 // Les pointages des deux versions sont réunis : personne ne perd
                 // le temps qu'il a saisi pendant qu'un autre écrivait.
+                // Pour un même pointage présent des deux côtés, la version la plus
+                // récemment modifiée l'emporte : une correction ou une suppression
+                // n'est pas annulée par l'ancienne copie du fichier partagé.
                 const byId = new Map();
-                subEntries(x).forEach(e => { if (e && e.eid) byId.set(e.eid, e); });
-                subEntries(s).forEach(e => { if (e && e.eid) byId.set(e.eid, e); });
+                [rawEntries(x), rawEntries(s)].forEach(list => list.forEach(e => {
+                    if (!e || !e.eid) return;
+                    const prev = byId.get(e.eid);
+                    if (!prev || entryStamp(e) >= entryStamp(prev)) byId.set(e.eid, e);
+                }));
                 const out = Object.assign({}, base);
                 out.entries = Array.from(byId.values()).sort((a, b) => (a.at || 0) - (b.at || 0));
                 if (Array.isArray(x.checks) || Array.isArray(s.checks)) {
@@ -3082,7 +3119,7 @@
             if (el.closed) return 'TERMINE';
             if (enduranceDone(el)) return 'EXPE';
             if (el.merValidation) return 'ENDURANCE';
-            if (isElementComplete(el)) return 'MER';
+            if (readyForMer(el)) return 'MER';
             const anyScanned = (el.bom || []).some(i => i.scanned);
             const anySub = (el.subassemblies || []).some(s => s.done);
             return (anyScanned || anySub) ? 'PROD' : 'CREE';
@@ -3199,8 +3236,11 @@
                     <td style="font-weight: 700; font-size: 0.75rem; padding: 0.3rem 0.5rem; width: 5rem;">${escapeHtml(e.operator || '--')}</td>
                     <td style="font-weight: 700; font-size: 0.75rem; color: #0f172a; padding: 0.3rem 0.5rem; width: 6rem;">${formatMinutes(e.durationMin || 0)}</td>
                     <td class="normal-wrap" style="font-size: 0.72rem; color: #475569; padding: 0.3rem 0.5rem;">${escapeHtml(e.note || '')}</td>
-                    <td style="text-align: right; padding: 0.3rem 0.5rem; width: 3rem;">
-                        ${locked ? '' : `<button type="button" class="btn-mini btn-mini-red" title="Supprimer ce pointage" onclick="deleteSubEntry(${idx}, '${escapeHtml(e.eid || '')}')">&times;</button>`}
+                    <td style="text-align: right; padding: 0.3rem 0.5rem; width: 5.5rem; white-space: nowrap;">
+                        ${e.editedAt ? `<span title="Corrigé le ${escapeHtml(formatDateTime(new Date(e.editedAt)))}${e.editedBy ? ' par ' + escapeHtml(e.editedBy) : ''}"
+                                             style="font-size: 0.625rem; color: #94a3b8; margin-right: 0.3rem;">corrigé</span>` : ''}
+                        ${locked ? '' : `<button type="button" class="btn-mini" title="Corriger ce pointage" onclick="editSubEntry(${idx}, '${escapeHtml(e.eid || '')}')">✎</button>
+                                         <button type="button" class="btn-mini btn-mini-red" title="Supprimer ce pointage" onclick="deleteSubEntry(${idx}, '${escapeHtml(e.eid || '')}')">&times;</button>`}
                     </td>
                 </tr>
             `).join('');
@@ -3378,10 +3418,6 @@
             if (perdus > 0) {
                 msg += `• ${perdus} point(s) déjà validé(s) redeviennent à faire : trigrammes et horodatages sont perdus ;\n`;
             }
-            if (el.merValidation) {
-                msg += `• le dossier repassera sous les 100 % : la validation MER`
-                     + (enduranceTotalMin(el) > 0 ? ` et l'endurance enregistrée seront effacées` : ` sera effacée`) + ` ;\n`;
-            }
             msg += `\nCette opération est irréversible.`;
 
             if (!confirm(msg)) return;
@@ -3421,10 +3457,6 @@
                 + `• les ${current.length} point(s) actuels sont supprimés et remplacés par ${wanted.length} nouveau(x) point(s) ;\n`;
             if (done > 0) {
                 msg += `• ${done} point(s) déjà validé(s) redeviennent à faire : trigrammes et horodatages sont perdus ;\n`;
-            }
-            if (el.merValidation) {
-                msg += `• le dossier repassera sous les 100 % : la validation MER`
-                     + (enduranceTotalMin(el) > 0 ? ` et l'endurance enregistrée seront effacées` : ` sera effacée`) + ` ;\n`;
             }
             msg += `\nCette opération est irréversible.`;
 
@@ -3511,10 +3543,11 @@
             const se = el.subassemblies[index];
             if (!se) return;
             const list = ensureEntries(se);
-            const i = list.findIndex(e => e.eid === eid);
-            if (i === -1) return;
-            if (!confirm('Supprimer ce pointage ?')) return;
-            list.splice(i, 1);
+            const entry = list.find(e => e.eid === eid && !e.deleted);
+            if (!entry) return;
+            if (!confirm(`Supprimer ce pointage ?\n\n${entry.operator || '--'} — ${formatMinutes(entry.durationMin || 0)} — ${entry.date || ''}`)) return;
+            entry.deleted = true;
+            entry.editedAt = Date.now();
             syncSubLegacy(se);
             se.at = Date.now();
             el.updatedAt = Date.now();
@@ -3524,23 +3557,41 @@
             scheduleSave();
         }
 
-        function openSubAssyModal(index, mode) {
+        let editingEntryId = null;      // pointage en cours de correction
+
+        function openSubAssyModal(index, mode, entry) {
             const el = getActiveElement();
             const se = el.subassemblies[index];
             const already = subEntries(se).length;
             subAssyMode = mode;
             activeSubIndex = index;
-            document.getElementById('subAssyModalTitle').textContent =
-                (mode === 'add') ? 'Ajouter un pointage' : 'Valider un sous-ensemble';
+            editingEntryId = (mode === 'edit' && entry) ? entry.eid : null;
+
+            const titles = { add: 'Ajouter un pointage', edit: 'Corriger un pointage', validate: 'Valider un sous-ensemble' };
+            document.getElementById('subAssyModalTitle').textContent = titles[mode] || titles.validate;
             document.getElementById('subAssyModalName').textContent = se.name;
-            document.getElementById('subAssyModalDate').textContent = formatDateTime();
+            // En correction, la date affichée reste celle du pointage d'origine.
+            document.getElementById('subAssyModalDate').textContent =
+                (mode === 'edit' && entry) ? (entry.date || '--') : formatDateTime();
             document.getElementById('subAssyTimeLabel').textContent =
                 (mode === 'validate' && already > 0) ? 'Temps passé (facultatif, déjà pointé)' : '* Temps passé';
-            document.getElementById('subAssyHours').value = '';
-            document.getElementById('subAssyMinutes').value = '';
-            document.getElementById('subAssyOperator').value = '';
-            document.getElementById('subAssyNote').value = '';
+
+            const min = (mode === 'edit' && entry) ? (entry.durationMin || 0) : 0;
+            document.getElementById('subAssyHours').value = (mode === 'edit') ? String(Math.floor(min / 60)) : '';
+            document.getElementById('subAssyMinutes').value = (mode === 'edit') ? String(min % 60) : '';
+            document.getElementById('subAssyOperator').value = (mode === 'edit' && entry) ? (entry.operator || '') : '';
+            document.getElementById('subAssyNote').value = (mode === 'edit' && entry) ? (entry.note || '') : '';
             document.getElementById('subAssyModal').classList.remove('hidden');
+        }
+
+        function editSubEntry(index, eid) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const se = el.subassemblies[index];
+            if (!se) return;
+            const entry = subEntries(se).find(e => e.eid === eid);
+            if (!entry) return;
+            openSubAssyModal(index, 'edit', entry);
         }
 
         function toggleSubassembly(index) {
@@ -3585,6 +3636,29 @@
                 return;
             }
 
+            // Correction d'un pointage existant : même identifiant, même date
+            // d'origine ; seule la trace de correction est ajoutée.
+            if (subAssyMode === 'edit') {
+                const entry = ensureEntries(se).find(x => x.eid === editingEntryId && !x.deleted);
+                if (entry) {
+                    entry.durationMin = duration;
+                    entry.operator = operator;
+                    entry.note = document.getElementById('subAssyNote').value.trim();
+                    entry.editedAt = Date.now();
+                    entry.editedBy = operator;
+                }
+                editingEntryId = null;
+                syncSubLegacy(se);
+                se.at = Date.now();
+                el.updatedAt = Date.now();
+                activeSubIndex = null;
+                closeModal('subAssyModal');
+                renderSubassemblies();
+                renderSidebarList();
+                scheduleSave();
+                return;
+            }
+
             if (duration > 0) {
                 ensureEntries(se).push({
                     eid: newEntryId(),
@@ -3621,7 +3695,6 @@
             const el = getActiveElement();
             if (!el) { box.innerHTML = ''; return; }
 
-            const status = computeStatus(el);
             const locked = !!el.closed;
 
             let html = finalChecksHtml(el, locked) + `
@@ -3663,12 +3736,14 @@
                         </button>
                     `}
                 `;
-            } else if (status === 'MER') {
-                html += `
+            } else {
+                // La MER se valide à tout moment : ce qui reste à faire est
+                // signalé, mais ne bloque plus la validation.
+                html += remainingWorkHtml(el) + `
                     <div class="table-wrap" style="padding: 1.25rem;">
                         <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 1rem;">
-                            L'assemblage est terminé à 100 %. Saisissez votre trigramme pour valider la MER
-                            et faire passer le dossier en <strong>EXPE</strong>.
+                            Saisissez votre trigramme pour valider la MER et faire passer le dossier
+                            en <strong>ENDURANCE</strong>.
                         </p>
                         <form onsubmit="handleValidateMer(event)">
                           ${(el.merFields || []).length ? `
@@ -3705,23 +3780,38 @@
                         </form>
                     </div>
                 `;
-            } else {
-                const pending = pendingChecklists(el);
-                html += `
-                    <div class="empty-hint">
-                        La validation MER sera possible une fois le dossier terminé à 100 %
-                        (numéros de série, sous-ensembles et check-lists).
-                    </div>
-                    ${pending.length ? `
-                        <div class="check-blocker" style="margin-top: 1rem;">
-                            Check-list${pending.length > 1 ? 's' : ''} encore à valider :
-                            ${pending.map(p => `${escapeHtml(p.name)} (${p.done}/${p.total})`).join(' · ')}
-                        </div>
-                    ` : ''}
-                `;
             }
 
             box.innerHTML = html;
+        }
+
+        // Ce qui reste à faire sur le dossier, affiché au-dessus du formulaire
+        // de MER : purement informatif, la validation reste possible.
+        function remainingWorkHtml(el) {
+            const bomLeft = (el.bom || []).filter(i => i.category !== 'SAV' && !isItemComplete(i)).length;
+            const subsLeft = (el.subassemblies || []).filter(s => !s.done);
+            const pending = pendingChecklists(el);
+            if (!bomLeft && !subsLeft.length && !pending.length) {
+                return `<div class="check-allgood" style="margin-bottom: 1rem;">✓ Assemblage terminé à 100 %</div>`;
+            }
+            const items = [];
+            if (subsLeft.length) {
+                items.push(`<li><strong>${subsLeft.length} sous-ensemble${subsLeft.length > 1 ? 's' : ''}</strong> à faire : `
+                    + subsLeft.map(se => escapeHtml(se.name)).join(', ') + `</li>`);
+            }
+            if (pending.length) {
+                items.push(`<li><strong>Check-list${pending.length > 1 ? 's' : ''}</strong> à valider : `
+                    + pending.map(p => `${escapeHtml(p.name)} (${p.done}/${p.total})`).join(', ') + `</li>`);
+            }
+            if (bomLeft) {
+                items.push(`<li><strong>${bomLeft} numéro${bomLeft > 1 ? 's' : ''} de série</strong> à scanner ou charge à finir</li>`);
+            }
+            return `
+                <div class="check-blocker" style="margin-bottom: 1rem;">
+                    Le dossier n'est pas terminé — la MER peut quand même être validée. Il reste :
+                    <ul style="margin: 0.4rem 0 0 1.1rem; font-weight: 500;">${items.join('')}</ul>
+                </div>
+            `;
         }
 
         // Check-lists incomplètes du dossier, pour dire précisément ce qui bloque.
@@ -3758,7 +3848,7 @@
                     <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 0.85rem;">
                         ${full
                             ? 'Contrôle final validé.'
-                            : 'À réaliser une fois le robot monté. La MER reste bloquée tant qu\'il n\'est pas complet.'}
+                            : 'À réaliser une fois le robot monté. Le dossier passe au statut MER quand toutes les check-lists sont validées.'}
                     </p>
                     <button type="button" class="${full ? 'btn-gray' : 'btn-blue'}"
                             onclick="openChecklist('final', null)" ${locked ? 'disabled' : ''}>
@@ -3772,7 +3862,6 @@
             e.preventDefault();
             const el = getActiveElement();
             if (!el || el.closed) return;
-            if (!isElementComplete(el)) { alert("Le dossier doit être terminé à 100 %."); return; }
 
             const operator = document.getElementById('merOperator').value.trim().toUpperCase();
             if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
