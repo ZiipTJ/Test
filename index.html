@@ -3117,7 +3117,10 @@
         function autoStatus(el) {
             if (!el) return 'CREE';
             if (el.closed) return 'TERMINE';
-            if (enduranceDone(el)) return 'EXPE';
+            // L'endurance se saisit indépendamment de la MER, mais un robot n'est
+            // prêt à expédier que lorsque les DEUX sont faites. Une endurance
+            // faite sans MER laisse le dossier à son statut d'assemblage.
+            if (el.merValidation && enduranceDone(el)) return 'EXPE';
             if (el.merValidation) return 'ENDURANCE';
             if (readyForMer(el)) return 'MER';
             const anyScanned = (el.bom || []).some(i => i.scanned);
@@ -3743,7 +3746,8 @@
                     <div class="table-wrap" style="padding: 1.25rem;">
                         <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 1rem;">
                             Saisissez votre trigramme pour valider la MER et faire passer le dossier
-                            en <strong>ENDURANCE</strong>.
+                            en <strong>${enduranceDone(el) ? 'EXPE' : 'ENDURANCE'}</strong>${enduranceDone(el)
+                                ? ' — l\'endurance est déjà faite' : ''}.
                         </p>
                         <form onsubmit="handleValidateMer(event)">
                           ${(el.merFields || []).length ? `
@@ -3887,10 +3891,11 @@
         function cancelMerValidation() {
             const el = getActiveElement();
             if (!el || el.closed || !el.merValidation) return;
-            if (!confirm("Annuler la validation MER ? Le dossier repassera au statut MER"
-                + (enduranceTotalMin(el) > 0 ? " et l'endurance enregistrée sera effacée." : "."))) return;
+            // L'endurance est indépendante de la MER : annuler l'une ne touche
+            // pas à l'autre.
+            if (!confirm("Annuler la validation MER ?"
+                + (enduranceTotalMin(el) > 0 ? "\n\nL'endurance déjà saisie est conservée." : ""))) return;
             el.merValidation = null;
-            clearEndurance(el);              // pas d'endurance sans MER validée
             el.updatedAt = Date.now();
             renderScanTables();
             renderMerPane();
@@ -3964,12 +3969,6 @@
                 </div>
             `;
 
-            if (!el.merValidation && !doneAll) {
-                html += `<div class="empty-hint">L'endurance sera saisissable une fois la <strong>MER validée</strong>.</div>`;
-                box.innerHTML = html;
-                return;
-            }
-
             // Dossier à l'ancien format : une endurance unique, sans phase.
             if (legacy) {
                 html += `
@@ -4003,12 +4002,16 @@
 
             html += ENDURANCE_PHASES.map(ph => endurancePhaseHtml(el, ph, locked)).join('');
 
-            if (!doneAll) {
-                const reste = ENDURANCE_PHASES.filter(ph => !endurancePhase(el, ph.key));
+            // Ce qui manque pour passer en EXPE : les phases non saisies et,
+            // le cas échéant, la MER — sans que rien ne soit bloqué.
+            const manque = ENDURANCE_PHASES.filter(ph => !endurancePhase(el, ph.key))
+                .map(ph => escapeHtml(ph.label.toLowerCase()));
+            if (!el.merValidation) manque.push('la validation MER');
+            if (manque.length) {
                 html += `
                     <div class="empty-hint" style="margin-top: 0.25rem;">
-                        Le dossier passera en <strong>EXPE</strong> une fois les deux phases renseignées.
-                        Il reste : ${reste.map(ph => escapeHtml(ph.label.toLowerCase())).join(' et ')}.
+                        Le dossier passera en <strong>EXPE</strong> quand les deux phases d'endurance
+                        seront renseignées et la MER validée. Il reste : ${manque.join(', ')}.
                     </div>
                 `;
             }
@@ -4091,7 +4094,6 @@
             e.preventDefault();
             const el = getActiveElement();
             if (!el || el.closed) return;
-            if (!el.merValidation) { alert("La MER doit être validée avant l'endurance."); return; }
             const ph = ENDURANCE_PHASES.find(x => x.key === phaseKey);
             if (!ph) return;
 
