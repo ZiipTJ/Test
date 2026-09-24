@@ -1799,9 +1799,40 @@
         // effacées aussi, puisqu'un point coché l'emporte sur un point à faire.
         function stampKeyFor(key) { return key + 'At'; }
 
+        function sigKeyFor(key) { return key + 'Sig'; }
+
+        // Une définition est horodatée ET signée (empreinte des points, consignes
+        // et photos). Une version antérieure du logiciel, restée ouverte sur un
+        // autre poste, peut réécrire la liste en recopiant l'horodatage mais pas
+        // la signature : la liste ne correspond alors plus à son empreinte, et
+        // la fusion ne lui accorde plus aucune confiance.
         function setChecksDefinition(holder, key, list) {
             holder[key] = list;
             holder[stampKeyFor(key)] = Date.now();
+            holder[sigKeyFor(key)] = checksSignature(list);
+        }
+
+        // Horodatage retenu pour la fusion : nul si la définition a été altérée.
+        // Un horodatage sans signature (posé avant l'ajout des signatures) reste
+        // accepté tel quel.
+        function trustedStamp(holder, key) {
+            const stamp = (holder && holder[stampKeyFor(key)]) || 0;
+            if (!stamp) return 0;
+            const sig = holder[sigKeyFor(key)];
+            if (sig === undefined) return stamp;
+            return checksSignature(holder[key]) === sig ? stamp : 0;
+        }
+
+        // Le fichier partagé contient-il une définition altérée ? Si oui, on le
+        // réécrit avec la bonne version dès la synchronisation.
+        function hasTamperedDefinitions(list) {
+            return (list || []).some(el => {
+                if (!el) return false;
+                const bad = (holder, key) => holder && holder[stampKeyFor(key)]
+                    && holder[sigKeyFor(key)] !== undefined
+                    && checksSignature(holder[key]) !== holder[sigKeyFor(key)];
+                return bad(el, 'finalChecks') || (el.subassemblies || []).some(se => bad(se, 'checks'));
+            });
         }
 
         function attachCheckList(holder, key, wanted) {
@@ -1872,7 +1903,31 @@
         let dataVersion = 0;
         let saving = false;
         let pendingSave = false;
-        let saveBlocked = false;      // interdit toute écriture (fichier illisible)
+        let saveBlocked = false;
+        let saveBlockedLabel = 'Lecture seule — fichier illisible';
+
+        // Numéro de format de data.json. À augmenter à chaque évolution qui
+        // change la façon de fusionner les données. Un poste resté sur une
+        // version plus ancienne que celle qui a écrit le fichier passe en
+        // lecture seule au lieu d'écraser des données qu'il ne sait pas lire.
+        const DATA_FORMAT = 2;
+        let formatWarned = false;
+
+        function diskTooRecent(disk) {
+            return !!disk && (disk.format || 0) > DATA_FORMAT;
+        }
+
+        function blockForNewerFormat() {
+            saveBlocked = true;
+            saveBlockedLabel = 'Lecture seule — version du logiciel dépassée';
+            setSync('err', saveBlockedLabel);
+            if (formatWarned) return;
+            formatWarned = true;
+            alert("VERSION DU LOGICIEL DÉPASSÉE\n\n"
+                + "Le fichier de données a été enregistré par une version plus récente de ce logiciel.\n"
+                + "Pour ne pas l'abîmer, ce poste passe en LECTURE SEULE : aucune modification ne sera enregistrée.\n\n"
+                + "Rechargez la page (Ctrl+F5) ou ouvrez la dernière version de index.html.");
+        }      // interdit toute écriture (fichier illisible)
         let lastCorruptRaw = null;    // contenu brut illisible, conservé pour secours
         let saveTimer = null;
         let syncTimer = null;
@@ -2138,8 +2193,14 @@
                 const out = Object.assign({}, base);
                 out.entries = Array.from(byId.values()).sort((a, b) => (a.at || 0) - (b.at || 0));
                 if (Array.isArray(x.checks) || Array.isArray(s.checks)) {
-                    out.checks = mergeChecks(x.checks, s.checks, x.checksAt, s.checksAt);
-                    out.checksAt = Math.max(x.checksAt || 0, s.checksAt || 0);
+                    const tx = trustedStamp(x, 'checks'), ts = trustedStamp(s, 'checks');
+                    out.checks = mergeChecks(x.checks, s.checks, tx, ts);
+                    // La définition retenue garde son horodatage et sa signature.
+                    const src = (ts > tx) ? s : (tx > ts ? x : base);
+                    out.checksAt = src.checksAt;
+                    out.checksSig = src.checksSig;
+                    if (out.checksAt === undefined) delete out.checksAt;
+                    if (out.checksSig === undefined) delete out.checksSig;
                 }
                 syncSubLegacy(out);
                 out.at = Math.max(x.at || 0, s.at || 0);
@@ -2216,9 +2277,13 @@
                 out.merFields = mergeMerFields(a.merFields, b.merFields);
             }
             if (Array.isArray(a.finalChecks) || Array.isArray(b.finalChecks)) {
-                out.finalChecks = mergeChecks(a.finalChecks, b.finalChecks,
-                                              a.finalChecksAt, b.finalChecksAt);
-                out.finalChecksAt = Math.max(a.finalChecksAt || 0, b.finalChecksAt || 0);
+                const ta = trustedStamp(a, 'finalChecks'), tb = trustedStamp(b, 'finalChecks');
+                out.finalChecks = mergeChecks(a.finalChecks, b.finalChecks, ta, tb);
+                const src = (tb > ta) ? b : (ta > tb ? a : base);
+                out.finalChecksAt = src.finalChecksAt;
+                out.finalChecksSig = src.finalChecksSig;
+                if (out.finalChecksAt === undefined) delete out.finalChecksAt;
+                if (out.finalChecksSig === undefined) delete out.finalChecksSig;
             }
             if (a.endurance || b.endurance) {
                 out.endurance = mergeEndurance(a.endurance, b.endurance);
@@ -2277,12 +2342,13 @@
             }
             elements.forEach(el => { if (!el.updatedAt) el.updatedAt = Date.now(); });
             hydrateAllChecks();
+            if (diskTooRecent(disk)) blockForNewerFormat();
         }
 
         // --- Sauvegarde atomique + fusion ---
         async function saveData() {
             if (!dataHandle) return;
-            if (saveBlocked) { setSync('err', 'Lecture seule — fichier illisible'); return; }
+            if (saveBlocked) { setSync('err', saveBlockedLabel); return; }
             if (saving) { pendingSave = true; return; }
             saving = true;
             setSync('saving', 'Sauvegarde…');
@@ -2300,6 +2366,8 @@
                     return;
                 }
 
+                if (diskTooRecent(disk)) { blockForNewerFormat(); return; }
+
                 const diskElements = disk.elements;
                 const diskVersion = disk.version || 0;
                 // Sauvegarde de secours de l'état disque AVANT écrasement
@@ -2311,6 +2379,7 @@
                 dataVersion = Math.max(diskVersion, dataVersion) + 1;
 
                 const payload = JSON.stringify({
+                    format: DATA_FORMAT,
                     version: dataVersion,
                     updatedAt: new Date().toISOString(),
                     elements
@@ -2349,9 +2418,13 @@
             if (!dataHandle || saving || isBusy()) return;
             const disk = await readDataFile();
             if (!disk || !Array.isArray(disk.elements)) return;
+            if (diskTooRecent(disk)) blockForNewerFormat();
             const before = JSON.stringify(elements);
             elements = mergeElements(disk.elements, elements);
             hydrateAllChecks();
+            // Un ancien poste a réécrit une check-list sans sa signature : la
+            // bonne version est en mémoire, on la réécrit dans le fichier.
+            if (!saveBlocked && hasTamperedDefinitions(disk.elements)) scheduleSave();
             dataVersion = Math.max(dataVersion, disk.version || 0);
             // Rien de nouveau sur le disque : on ne redessine pas l'écran
             // (sinon une saisie en cours dans un champ serait effacée).
@@ -2476,7 +2549,7 @@
             // Aucune écriture à la connexion : tant que rien n'a été modifié,
             // il n'y a rien à sauvegarder, et donc rien à risquer.
             setSync(saveBlocked ? 'err' : 'ok',
-                    saveBlocked ? 'Lecture seule — fichier illisible' : 'Connecté');
+                    saveBlocked ? saveBlockedLabel : 'Connecté');
         }
 
         async function boot() {
