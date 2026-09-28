@@ -1634,6 +1634,54 @@
         }
 
         // Champs libres à renseigner à la MER, filtrés par les mêmes conditions.
+        // Identifiants uniques dans une liste. L'éditeur de configuration a pu
+        // produire des doublons (supprimer un point puis en ajouter un redonnait
+        // le même numéro). Or toute la fusion multi-postes se fait par
+        // identifiant : deux points qui le partagent fusionnent en un seul, et
+        // l'un des deux disparaît. Les doublons sont donc renommés dans l'ordre :
+        // la 2e occurrence de CHK_2 devient CHK_2~2, la 3e CHK_2~3, etc. Le
+        // renommage est déterministe : la même liste donne toujours le même
+        // résultat, ce qui garde les comparaisons avec la configuration justes.
+        function dedupeIds(list, key) {
+            const k = key || 'id';
+            const seen = new Map();
+            let changed = false;
+            (list || []).forEach(item => {
+                if (!item) return;
+                const id = item[k];
+                if (id === undefined || id === null || id === '') return;
+                const count = (seen.get(id) || 0) + 1;
+                seen.set(id, count);
+                if (count > 1) { item[k] = `${id}~${count}`; changed = true; }
+            });
+            return changed;
+        }
+
+        // Répare les dossiers enregistrés avec des identifiants en double.
+        // Une check-list signée garde sa confiance : sa signature est recalculée
+        // si elle correspondait avant le renommage.
+        function repairDuplicateIds(elementsList) {
+            let repaired = 0;
+            const fixChecks = (holder, key) => {
+                if (!holder || !Array.isArray(holder[key])) return;
+                const sigKey = key + 'Sig';
+                const wasValid = holder[sigKey] !== undefined
+                    && checksSignature(holder[key]) === holder[sigKey];
+                if (dedupeIds(holder[key])) {
+                    repaired++;
+                    if (wasValid) holder[sigKey] = checksSignature(holder[key]);
+                }
+            };
+            (elementsList || []).forEach(el => {
+                if (!el) return;
+                if (dedupeIds(el.subassemblies)) repaired++;
+                if (dedupeIds(el.merFields)) repaired++;
+                fixChecks(el, 'finalChecks');
+                (el.subassemblies || []).forEach(se => fixChecks(se, 'checks'));
+            });
+            return repaired;
+        }
+
         function buildMerFields(source, activeTokens) {
             if (!Array.isArray(source)) return [];
             const out = [];
@@ -1645,6 +1693,7 @@
                     value: ''
                 });
             });
+            dedupeIds(out);
             return out;
         }
 
@@ -1743,6 +1792,7 @@
                     checks: buildChecks(checkSource ? checkSource[id] : null, checkedOptionIds)
                 });
             });
+            dedupeIds(out);
             return out;
         }
 
@@ -1761,6 +1811,7 @@
                     done: false, operator: "", date: "", at: 0
                 });
             });
+            dedupeIds(out);
             return out;
         }
 
@@ -2341,6 +2392,7 @@
                 dataVersion = disk.version || 0;
             }
             elements.forEach(el => { if (!el.updatedAt) el.updatedAt = Date.now(); });
+            repairDuplicateIds(elements);
             hydrateAllChecks();
             if (diskTooRecent(disk)) blockForNewerFormat();
         }
@@ -2373,7 +2425,11 @@
                 // Sauvegarde de secours de l'état disque AVANT écrasement
                 await pushBackup(JSON.stringify(disk));
 
-                // Fusion : le disque sert de base, nos éléments récents gagnent
+                // Fusion : le disque sert de base, nos éléments récents gagnent.
+                // Les deux côtés sont d'abord débarrassés d'éventuels doublons
+                // d'identifiants, sans quoi la fusion écraserait des points.
+                repairDuplicateIds(diskElements);
+                repairDuplicateIds(elements);
                 elements = mergeElements(diskElements, elements);
                 hydrateAllChecks();
                 dataVersion = Math.max(diskVersion, dataVersion) + 1;
@@ -2419,6 +2475,8 @@
             const disk = await readDataFile();
             if (!disk || !Array.isArray(disk.elements)) return;
             if (diskTooRecent(disk)) blockForNewerFormat();
+            repairDuplicateIds(disk.elements);
+            repairDuplicateIds(elements);
             const before = JSON.stringify(elements);
             elements = mergeElements(disk.elements, elements);
             hydrateAllChecks();
@@ -3412,7 +3470,8 @@
             const banner = outdated ? `
                 <div class="check-update">
                     <div>
-                        <strong>Une nouvelle check-list existe pour ce sous-ensemble.</strong>
+                        <strong>Une nouvelle version ${checklistScope && checklistScope.kind === 'final'
+                            ? 'du contrôle final' : 'de la check-list de ce sous-ensemble'} existe.</strong>
                         <div style="font-weight: 500; margin-top: 0.2rem;">
                             La mettre à jour <strong>supprime définitivement</strong> la check-list actuelle
                             et tout ce qui y a été saisi${done > 0

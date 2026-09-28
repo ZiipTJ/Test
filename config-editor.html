@@ -724,6 +724,60 @@
             return cfg;
         }
 
+        // Premier identifiant libre de la forme PREFIX<n>. Compter les éléments
+        // ne suffit pas : après une suppression, on retomberait sur un numéro
+        // déjà pris, et deux points partageraient le même identifiant.
+        function nextFreeId(prefix, list) {
+            const used = new Set((list || []).map(x => x && x.id));
+            let k = (list || []).length + 1;
+            while (used.has(`${prefix}${k}`)) k++;
+            return `${prefix}${k}`;
+        }
+
+        // Renomme les doublons d'une liste : 2e occurrence de X -> X~2, etc.
+        // Même règle que le logiciel de suivi, pour que les dossiers déjà
+        // réparés correspondent à la configuration.
+        function dedupeList(list, where, notes) {
+            const seen = new Map();
+            (list || []).forEach(item => {
+                if (!item || !item.id) return;
+                const count = (seen.get(item.id) || 0) + 1;
+                seen.set(item.id, count);
+                if (count > 1) {
+                    notes.push(`${where} : « ${item.id} » en double, renommé « ${item.id}~${count} »`);
+                    item.id = `${item.id}~${count}`;
+                }
+            });
+        }
+
+        // Contrôle et réparation des identifiants en double de toute la config.
+        // Renvoie la liste des corrections faites (vide si tout allait bien).
+        function repairConfigIds(cfg) {
+            const notes = [];
+            const robotName = code => (cfg.robots.find(r => r.code === code) || {}).name || code;
+            Object.keys(cfg.robot_subassemblies || {}).forEach(code =>
+                dedupeList(cfg.robot_subassemblies[code], `${robotName(code)} — sous-ensembles`, notes));
+            Object.keys(cfg.robot_mer_fields || {}).forEach(code =>
+                dedupeList(cfg.robot_mer_fields[code], `${robotName(code)} — champs MER`, notes));
+            Object.keys(cfg.robot_final_checks || {}).forEach(code =>
+                dedupeList(cfg.robot_final_checks[code], `${robotName(code)} — contrôle final`, notes));
+            Object.keys(cfg.robot_subassembly_checks || {}).forEach(code => {
+                const bySub = cfg.robot_subassembly_checks[code] || {};
+                Object.keys(bySub).forEach(sub =>
+                    dedupeList(bySub[sub], `${robotName(code)} — check-list ${sub}`, notes));
+            });
+            Object.keys(cfg.station_subassemblies || {}).forEach(code =>
+                dedupeList(cfg.station_subassemblies[code], `Station ${code} — sous-ensembles`, notes));
+            // Options : utilisées dans les conditions, on ne les renomme pas
+            // d'office, mais on les signale.
+            Object.keys(cfg.robot_options || {}).forEach(code => {
+                const ids = (cfg.robot_options[code] || []).map(o => o.id);
+                const dup = [...new Set(ids.filter((v, i) => ids.indexOf(v) !== i))];
+                if (dup.length) notes.push(`${robotName(code)} — options en double (à corriger à la main) : ${dup.join(', ')}`);
+            });
+            return notes;
+        }
+
         function initEditor() {
             normalizeConfig(localConfig);
             renderRobotTabs();
@@ -1180,7 +1234,7 @@
                 localConfig.robot_subassembly_checks[code][currentCheckSubId] = [];
             }
             const list = localConfig.robot_subassembly_checks[code][currentCheckSubId];
-            list.push({ id: `CHK_${list.length + 1}`, desc: "Nouveau point à contrôler", photo: "", option: "" });
+            list.push({ id: nextFreeId('CHK_', list), desc: "Nouveau point à contrôler", photo: "", option: "" });
             renderSubChecks();
         }
 
@@ -1262,7 +1316,7 @@
             const code = currentEditingRobotCode;
             if (!localConfig.robot_final_checks[code]) localConfig.robot_final_checks[code] = [];
             const list = localConfig.robot_final_checks[code];
-            list.push({ id: `FIN_${list.length + 1}`, desc: "Nouveau point de contrôle final", photo: "", option: "" });
+            list.push({ id: nextFreeId('FIN_', list), desc: "Nouveau point de contrôle final", photo: "", option: "" });
             renderFinalChecks();
         }
 
@@ -1389,9 +1443,9 @@
         function addDynamicMerField() {
             collectCurrentViewData();
             if (!localConfig.robot_mer_fields[currentEditingRobotCode]) localConfig.robot_mer_fields[currentEditingRobotCode] = [];
-            const n = localConfig.robot_mer_fields[currentEditingRobotCode].length + 1;
-            localConfig.robot_mer_fields[currentEditingRobotCode].push({
-                "id": `CHAMP_${n}`, "label": "Nouveau champ", "option": ""
+            const fields = localConfig.robot_mer_fields[currentEditingRobotCode];
+            fields.push({
+                "id": nextFreeId('CHAMP_', fields), "label": "Nouveau champ", "option": ""
             });
             renderRobotDynamicConfig();
         }
@@ -1405,7 +1459,8 @@
         function addDynamicRobotOption() {
             collectCurrentViewData();
             if (!localConfig.robot_options[currentEditingRobotCode]) localConfig.robot_options[currentEditingRobotCode] = [];
-            localConfig.robot_options[currentEditingRobotCode].push({ "id": "NOUVELLE_OPT", "label": "Libellé Option" });
+            const opts = localConfig.robot_options[currentEditingRobotCode];
+            opts.push({ "id": nextFreeId('NOUVELLE_OPT_', opts), "label": "Libellé Option" });
             renderRobotDynamicConfig();
         }
 
@@ -1431,9 +1486,9 @@
         function addDynamicSubassembly() {
             collectCurrentViewData();
             if (!localConfig.robot_subassemblies[currentEditingRobotCode]) localConfig.robot_subassemblies[currentEditingRobotCode] = [];
-            const n = localConfig.robot_subassemblies[currentEditingRobotCode].length + 1;
-            localConfig.robot_subassemblies[currentEditingRobotCode].push({
-                "id": `SE_${n}`, "name": "Nouveau sous-ensemble", "group": "", "option": ""
+            const subs = localConfig.robot_subassemblies[currentEditingRobotCode];
+            subs.push({
+                "id": nextFreeId('SE_', subs), "name": "Nouveau sous-ensemble", "group": "", "option": ""
             });
             renderRobotDynamicConfig();
         }
@@ -1586,9 +1641,9 @@
             if (!currentStationSubCode) { alert("Créez d'abord un type de station."); return; }
             collectCurrentViewData();
             if (!localConfig.station_subassemblies[currentStationSubCode]) localConfig.station_subassemblies[currentStationSubCode] = [];
-            const n = localConfig.station_subassemblies[currentStationSubCode].length + 1;
-            localConfig.station_subassemblies[currentStationSubCode].push({
-                "id": `SE_${n}`, "name": "Nouveau sous-ensemble", "group": "", "option": ""
+            const ssubs = localConfig.station_subassemblies[currentStationSubCode];
+            ssubs.push({
+                "id": nextFreeId('SE_', ssubs), "name": "Nouveau sous-ensemble", "group": "", "option": ""
             });
             renderStationSubassemblies();
         }
@@ -1774,6 +1829,13 @@
         // --- IMPORT / EXPORT JSON ---
         function exportJsonFile() {
             collectCurrentViewData();
+            const notes = repairConfigIds(localConfig);
+            if (notes.length) {
+                alert("Identifiants en double corrigés avant l'export :\n\n• " + notes.join("\n• ")
+                    + "\n\nDeux éléments au même identifiant fusionnaient dans le logiciel de suivi "
+                    + "(un point de contrôle ou une valeur MER disparaissait).");
+                renderActiveSection();
+            }
             const blob = new Blob([JSON.stringify(localConfig, null, 4)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const dl = document.createElement('a');
@@ -1801,11 +1863,14 @@
                     if (imported.robots.length === 0) {
                         imported.robots = JSON.parse(JSON.stringify(DEFAULT_CONFIG.robots));
                     }
+                    const notes = repairConfigIds(imported);
                     localConfig = imported;
                     currentEditingRobotCode = '';
                     currentStationSubCode = '';
                     switchSection('robots_list');
-                    alert("Fichier config.json importé avec succès !");
+                    alert("Fichier config.json importé avec succès !"
+                        + (notes.length ? "\n\nIdentifiants en double corrigés :\n\n• " + notes.join("\n• ")
+                            + "\n\nPensez à réexporter le fichier." : ""));
                 } catch (err) {
                     alert("Fichier JSON invalide ou corrompu.");
                 }
