@@ -2110,7 +2110,7 @@
         // change la façon de fusionner les données. Un poste resté sur une
         // version plus ancienne que celle qui a écrit le fichier passe en
         // lecture seule au lieu d'écraser des données qu'il ne sait pas lire.
-        const DATA_FORMAT = 3;
+        const DATA_FORMAT = 4;
         let formatWarned = false;
 
         function diskTooRecent(disk) {
@@ -2436,6 +2436,19 @@
             return Array.from(map.values());
         }
 
+        // Réunion de deux listes de pointages : pour un même pointage, la version
+        // la plus récemment modifiée l'emporte (fin de chrono, correction,
+        // suppression).
+        function mergeEntryLists(A, B) {
+            const byId = new Map();
+            [A || [], B || []].forEach(list => list.forEach(e => {
+                if (!e || !e.eid) return;
+                const prev = byId.get(e.eid);
+                if (!prev || entryStamp(e) >= entryStamp(prev)) byId.set(e.eid, e);
+            }));
+            return Array.from(byId.values()).sort((p, q) => (p.at || 0) - (q.at || 0));
+        }
+
         // Phases d'endurance : chacune est arbitrée séparément, pour que deux
         // personnes qui saisissent chacune une phase ne s'écrasent pas.
         function mergeEndurance(A, B) {
@@ -2500,6 +2513,9 @@
                 out.finalChecksSig = src.finalChecksSig;
                 if (out.finalChecksAt === undefined) delete out.finalChecksAt;
                 if (out.finalChecksSig === undefined) delete out.finalChecksSig;
+            }
+            if (a.merTime || b.merTime) {
+                out.merTime = { entries: mergeEntryLists((a.merTime || {}).entries, (b.merTime || {}).entries) };
             }
             if (a.endurance || b.endurance) {
                 out.endurance = mergeEndurance(a.endurance, b.endurance);
@@ -3993,7 +4009,7 @@
 
         function handleSaveSubassembly(e) {
             e.preventDefault();
-            if (pointageTarget && pointageTarget.kind === 'end') { saveEndEntryFromModal(); return; }
+            if (pointageTarget && (pointageTarget.kind === 'end' || pointageTarget.kind === 'mer')) { saveEndEntryFromModal(); return; }
             const el = getActiveElement();
             if (!el || el.closed || activeSubIndex === null) { closeModal('subAssyModal'); return; }
 
@@ -4114,7 +4130,7 @@
             } else {
                 // La MER se valide à tout moment : ce qui reste à faire est
                 // signalé, mais ne bloque plus la validation.
-                html += remainingWorkHtml(el) + `
+                html += remainingWorkHtml(el) + merTimeCardHtml(el, locked) + `
                     <div class="table-wrap" style="padding: 1.25rem;">
                         <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 1rem;">
                             Saisissez votre trigramme pour valider la MER et faire passer le dossier
@@ -4134,14 +4150,10 @@
                           ` : ''}
                           <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
                             <div class="form-group">
-                                <label>* Temps de mise en route</label>
-                                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input id="merHours" type="number" min="0" max="999" placeholder=""
-                                           style="text-align: center; max-width: 5rem;" ${locked ? 'disabled' : ''}>
-                                    <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
-                                    <input id="merMinutes" type="number" min="0" max="59" placeholder=""
-                                           style="text-align: center; max-width: 5rem;" ${locked ? 'disabled' : ''}>
-                                    <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">min</span>
+                                <label>Temps de mise en route</label>
+                                <div style="padding: 0.5rem 0.75rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem;
+                                            font-weight: 800; font-size: 0.875rem; min-width: 8rem;">
+                                    ${merMinutes(el) > 0 ? formatMinutes(merMinutes(el)) : '<span style="color:#94a3b8; font-weight:500;">à pointer ci-dessus</span>'}
                                 </div>
                             </div>
                             <div class="form-group" style="max-width: 10rem;">
@@ -4242,10 +4254,19 @@
             const operator = document.getElementById('merOperator').value.trim().toUpperCase();
             if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
 
-            const h = parseInt(document.getElementById('merHours').value) || 0;
-            const m = parseInt(document.getElementById('merMinutes').value) || 0;
-            const durationMin = h * 60 + m;
-            if (durationMin <= 0) { alert("Veuillez renseigner le temps de mise en route."); return; }
+            // Un chrono de mise en route tourne encore : on l'arrête d'abord,
+            // sinon son temps ne serait pas compté.
+            const running = runningEntries(merEntries(el));
+            if (running.length) {
+                if (!confirm(`Un chrono de mise en route est en cours (${running.map(e => e.operator).join(', ')}).\n\nL'arrêter maintenant et valider ?`)) return;
+                running.forEach(stopChrono);
+            }
+            const durationMin = merMinutes(el);
+            if (durationMin <= 0) {
+                alert("Pointez le temps de mise en route (▶ Commencer ou + Saisie manuelle) avant de valider.");
+                renderMerPane();
+                return;
+            }
 
             (el.merFields || []).forEach((f, i) => {
                 const inp = document.getElementById(`merField-${i}`);
@@ -4258,6 +4279,140 @@
             renderMerPane();
             renderSidebarList();
             scheduleSave();
+        }
+
+        // ---- Temps de mise en route : pointages -------------------------------
+        // Même principe que l'endurance : on pointe au chrono (Commencer / Fin)
+        // ou à la main, autant de fois que nécessaire. À la validation de la
+        // MER, le total des pointages devient le temps de mise en route.
+        // Les MER déjà validées gardent leur temps saisi.
+        function merHolder(el) {
+            if (!el.merTime || !Array.isArray(el.merTime.entries)) el.merTime = { entries: [] };
+            return el.merTime;
+        }
+
+        function merEntries(el) {
+            return ((el && el.merTime && el.merTime.entries) || []).filter(e => e && !e.deleted);
+        }
+
+        function merMinutes(el) {
+            return merEntries(el).reduce((a, e) => a + (e.durationMin || 0), 0);
+        }
+
+        function touchMer(el) {
+            el.updatedAt = Date.now();
+            renderScanTables();
+            renderMerPane();
+            renderSidebarList();
+            scheduleSave();
+        }
+
+        function merTimeCardHtml(el, locked) {
+            const entries = merEntries(el).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+            const running = runningEntries(entries);
+            const minutes = entries.reduce((a, e) => a + (e.durationMin || 0), 0);
+            const rows = entries.map(e => `
+                <tr>
+                    <td style="font-family: ui-monospace, monospace; font-size: 0.72rem; color: #64748b;">${escapeHtml(e.date || '')}</td>
+                    <td style="font-weight: 700; font-size: 0.78rem; width: 5rem;">${escapeHtml(e.operator || '--')}</td>
+                    <td style="font-weight: 700; font-size: 0.78rem; width: 7rem;">${e.running
+                        ? `<span style="color: #0e7490;">en cours</span>`
+                        : (e.end ? '<span title="Chronométré" style="color:#0e7490;">⏱</span> ' : '') + formatMinutes(e.durationMin || 0)}</td>
+                    <td class="normal-wrap" style="font-size: 0.74rem; color: #475569;">${escapeHtml(e.note || '')}</td>
+                    <td style="text-align: right; white-space: nowrap; width: 6rem;">
+                        ${e.editedBy ? `<span style="font-size: 0.625rem; color: #94a3b8; margin-right: 0.3rem;">corrigé</span>` : ''}
+                        ${locked ? '' : `${e.running ? '' : `<button type="button" class="btn-mini" title="Corriger ce pointage" onclick="editMerEntry('${escapeHtml(e.eid)}')">✎</button>`}
+                            <button type="button" class="btn-mini btn-mini-red" title="Supprimer ce pointage" onclick="deleteMerEntry('${escapeHtml(e.eid)}')">&times;</button>`}
+                    </td>
+                </tr>
+            `).join('');
+            return `
+                <div class="end-card">
+                    <div class="end-card-head">
+                        <h4>Temps de mise en route</h4>
+                        <div style="display: flex; align-items: center; gap: 0.6rem;">
+                            ${minutes > 0 ? `<span style="font-size: 0.78rem; font-weight: 800; color: #0f172a;">${formatMinutes(minutes)}</span>` : ''}
+                            <span class="end-status${running.length ? ' end-status-run' : ''}">${running.length ? 'En cours' : (minutes > 0 ? 'Pointé' : 'À pointer')}</span>
+                        </div>
+                    </div>
+                    ${running.length ? `<div style="margin-bottom: 0.6rem;">${running.map(e =>
+                        chronoChipHtml(e, `stopMerChrono('${escapeHtml(e.eid)}')`, locked)).join('')}</div>` : ''}
+                    ${entries.length ? `
+                        <div class="table-wrap" style="margin-bottom: 0.2rem;">
+                            <table style="margin-top: 0;"><tbody>${rows}</tbody></table>
+                        </div>` : `<div style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Aucun pointage pour l'instant.</div>`}
+                    ${locked ? '' : `
+                        <div class="end-actions">
+                            <button type="button" class="btn-primary" onclick="startMerChrono()">▶ Commencer</button>
+                            <button type="button" class="btn-gray" onclick="openMerEntryModal('add')">+ Saisie manuelle</button>
+                        </div>`}
+                </div>
+            `;
+        }
+
+        function startMerChrono() {
+            const el = getActiveElement();
+            if (!el || el.closed || el.merValidation) return;
+            askTrigram({
+                title: 'Commencer — Mise en route',
+                text: "L'heure de début est enregistrée maintenant. Cliquez sur <strong>■ Fin</strong> "
+                    + "quand vous arrêtez : la durée sera calculée automatiquement.",
+                confirm: '▶ Commencer'
+            }, operator => {
+                const cur = getActiveElement();
+                if (!cur || cur.closed) return;
+                startChrono(merHolder(cur).entries, operator);
+                touchMer(cur);
+            });
+        }
+
+        function stopMerChrono(eid) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const entry = merHolder(el).entries.find(e => e.eid === eid && e.running && !e.deleted);
+            if (!entry) return;
+            stopChrono(entry);
+            touchMer(el);
+            if (entry.durationMin > CHRONO_WARN_HOURS * 60
+                && confirm(`Ce chrono a tourné ${formatMinutes(entry.durationMin)}.\n\nL'avez-vous oublié ? Corriger la durée maintenant ?`)) {
+                editMerEntry(eid);
+            }
+        }
+
+        function deleteMerEntry(eid) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const entry = merHolder(el).entries.find(e => e.eid === eid && !e.deleted);
+            if (!entry) return;
+            if (!confirm(`Supprimer ce pointage ?\n\n${entry.operator || '--'} — ${entry.running ? 'en cours' : formatMinutes(entry.durationMin || 0)} — ${entry.date || ''}`)) return;
+            entry.deleted = true;
+            entry.editedAt = Date.now();
+            touchMer(el);
+        }
+
+        function openMerEntryModal(mode, entry) {
+            pointageTarget = { kind: 'mer', eid: entry ? entry.eid : null, mode };
+            activeSubIndex = null;
+            subAssyMode = mode;
+            document.getElementById('subAssyModalTitle').textContent =
+                mode === 'edit' ? 'Corriger un pointage' : 'Saisir un pointage';
+            document.getElementById('subAssyModalName').textContent = 'Mise en route';
+            document.getElementById('subAssyModalDate').textContent =
+                (mode === 'edit' && entry) ? (entry.date || '--') : formatDateTime();
+            document.getElementById('subAssyTimeLabel').textContent = '* Durée';
+            const min = (mode === 'edit' && entry) ? (entry.durationMin || 0) : 0;
+            document.getElementById('subAssyHours').value = mode === 'edit' ? String(Math.floor(min / 60)) : '';
+            document.getElementById('subAssyMinutes').value = mode === 'edit' ? String(min % 60) : '';
+            document.getElementById('subAssyOperator').value = (mode === 'edit' && entry) ? (entry.operator || '') : '';
+            document.getElementById('subAssyNote').value = (mode === 'edit' && entry) ? (entry.note || '') : '';
+            document.getElementById('subAssyModal').classList.remove('hidden');
+        }
+
+        function editMerEntry(eid) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const entry = merEntries(el).find(e => e.eid === eid);
+            if (entry && !entry.running) openMerEntryModal('edit', entry);
         }
 
         function cancelMerValidation() {
@@ -4665,7 +4820,7 @@
             if (duration <= 0) { alert("Veuillez renseigner la durée."); pointageTarget = t; return; }
             const note = document.getElementById('subAssyNote').value.trim();
 
-            const phase = ensurePhase(el, t.phase);
+            const phase = t.kind === 'mer' ? merHolder(el) : ensurePhase(el, t.phase);
             if (t.mode === 'edit') {
                 const entry = phase.entries.find(e => e.eid === t.eid && !e.deleted);
                 if (entry) Object.assign(entry, { durationMin: duration, operator, note, editedAt: Date.now(), editedBy: operator });
@@ -4674,7 +4829,7 @@
                                      durationMin: duration, operator, note });
             }
             closeModal('subAssyModal');
-            touchEndurance(el);
+            if (t.kind === 'mer') touchMer(el); else touchEndurance(el);
         }
 
         // Annulation d'une endurance d'avant les phases.
