@@ -2486,7 +2486,11 @@
                 if (!f || !f.id) return;
                 const x = map.get(f.id);
                 if (!x) { map.set(f.id, f); return; }
-                map.set(f.id, (f.value || !x.value) ? f : x);
+                // Saisies horodatées : la plus récente gagne (y compris un
+                // effacement). Sans horodatage, une valeur saisie l'emporte
+                // sur une valeur vide, comme avant.
+                if ((f.at || 0) !== (x.at || 0)) map.set(f.id, (f.at || 0) > (x.at || 0) ? f : x);
+                else map.set(f.id, (f.value || !x.value) ? f : x);
             });
             return Array.from(map.values());
         }
@@ -4080,6 +4084,10 @@
         }
 
         // ---- Onglet MER ------------------------------------------------------
+        // L'onglet MER est découpé en trois espaces distincts :
+        //   1. Relevés de mise en route (S/N, versions…) — s'enregistrent à part ;
+        //   2. Temps de mise en route — pointages au chrono ou à la main ;
+        //   3. Validation MER — le trigramme de celui qui valide.
         function renderMerPane() {
             const box = document.getElementById('merContent');
             if (!box) return;
@@ -4087,90 +4095,115 @@
             if (!el) { box.innerHTML = ''; return; }
 
             const locked = !!el.closed;
+            let html = finalChecksHtml(el, locked);
+            if (!el.merValidation) html += remainingWorkHtml(el);
 
-            let html = finalChecksHtml(el, locked) + `
-                <div style="margin-bottom: 0.75rem;">
-                    <h3 class="section-title">Validation MER</h3>
-                </div>
-            `;
+            html += merFieldsCardHtml(el, locked);
 
             if (el.merValidation) {
                 const v = el.merValidation;
                 html += `
-                    <div class="table-wrap">
-                        <table>
-                            <tbody>
-                                <tr>
-                                    <td style="font-weight: 700; width: 14rem;">Temps de mise en route</td>
-                                    <td style="font-weight: 700; color: #0f172a;">${formatMinutes(v.durationMin)}</td>
-                                </tr>
-                                ${(el.merFields || []).map(f => `
-                                    <tr>
-                                        <td style="font-weight: 700;">${escapeHtml(f.label)}</td>
-                                        <td style="font-family: monospace; color: #0f172a;">${f.value ? escapeHtml(f.value) : '<span style="color:#94a3b8; font-style:italic; font-family:inherit;">non renseigné</span>'}</td>
-                                    </tr>
-                                `).join('')}
-                                <tr>
-                                    <td style="font-weight: 700;">MER validée par</td>
-                                    <td style="font-weight: 700; color: #059669;">${escapeHtml(v.operator)}</td>
-                                </tr>
-                                <tr>
-                                    <td style="font-weight: 700;">Le</td>
-                                    <td style="font-family: monospace; color: #475569;">${escapeHtml(v.date)}</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="end-card end-card-done">
+                        <div class="end-card-head">
+                            <h4>Temps de mise en route</h4>
+                            <span style="font-size: 0.78rem; font-weight: 800; color: #0f172a;">${formatMinutes(v.durationMin)}</span>
+                        </div>
+                        ${merEntries(el).length ? `<div style="font-size: 0.74rem; color: #64748b;">
+                            ${merEntries(el).length} pointage${merEntries(el).length > 1 ? 's' : ''} :
+                            ${merEntries(el).map(e => `${escapeHtml(e.operator || '--')} ${formatMinutes(e.durationMin || 0)}`).join(' · ')}
+                        </div>` : ''}
                     </div>
-                    ${locked ? '' : `
-                        <button onclick="cancelMerValidation()" class="btn-gray" style="margin-top: 1rem; font-size: 0.75rem;">
-                            Annuler la validation MER
-                        </button>
-                    `}
+
+                    <div class="end-card end-card-done">
+                        <div class="end-card-head">
+                            <h4>Validation MER</h4>
+                            <span class="end-status end-status-done">✓ Validée — ${escapeHtml(v.operator || '')}, ${escapeHtml(v.date || '')}</span>
+                        </div>
+                        ${locked ? '' : `<div class="end-actions" style="margin-top: 0.4rem;">
+                            <button onclick="cancelMerValidation()" class="btn-gray">Annuler la validation MER</button>
+                        </div>`}
+                    </div>
                 `;
             } else {
-                // La MER se valide à tout moment : ce qui reste à faire est
-                // signalé, mais ne bloque plus la validation.
-                html += remainingWorkHtml(el) + merTimeCardHtml(el, locked) + `
-                    <div class="table-wrap" style="padding: 1.25rem;">
-                        <p style="font-size: 0.8125rem; color: #475569; margin-bottom: 1rem;">
-                            Saisissez votre trigramme pour valider la MER et faire passer le dossier
-                            en <strong>${enduranceDone(el) ? 'EXPE' : 'ENDURANCE'}</strong>${enduranceDone(el)
-                                ? ' — l\'endurance est déjà faite' : ''}.
+                const total = merMinutes(el);
+                const fields = el.merFields || [];
+                const filled = fields.filter(f => (f.value || '').trim()).length;
+                html += merTimeCardHtml(el, locked) + `
+                    <div class="end-card">
+                        <div class="end-card-head">
+                            <h4>Validation MER</h4>
+                            <span class="end-status">À valider</span>
+                        </div>
+                        <p style="font-size: 0.8125rem; color: #475569;">
+                            La validation fait passer le dossier en
+                            <strong>${enduranceDone(el) ? 'EXPE' : 'ENDURANCE'}</strong>${enduranceDone(el) ? ' — l\'endurance est déjà faite' : ''}.
+                            Temps de mise en route : <strong>${total > 0 ? formatMinutes(total) : 'rien de pointé'}</strong>${fields.length
+                                ? ` · relevés : <strong>${filled} / ${fields.length}</strong>` : ''}.
                         </p>
-                        <form onsubmit="handleValidateMer(event)">
-                          ${(el.merFields || []).length ? `
-                            <div class="form-grid" style="margin-bottom: 1.25rem;">
-                                ${el.merFields.map((f, i) => `
-                                    <div class="form-group">
-                                        <label>${escapeHtml(f.label)}</label>
-                                        <input id="merField-${i}" type="text" value="${escapeHtml(f.value || '')}" placeholder="" ${locked ? 'disabled' : ''}>
-                                    </div>
-                                `).join('')}
-                            </div>
-                          ` : ''}
-                          <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
-                            <div class="form-group">
-                                <label>Temps de mise en route</label>
-                                <div style="padding: 0.5rem 0.75rem; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 0.5rem;
-                                            font-weight: 800; font-size: 0.875rem; min-width: 8rem;">
-                                    ${merMinutes(el) > 0 ? formatMinutes(merMinutes(el)) : '<span style="color:#94a3b8; font-weight:500;">à pointer ci-dessus</span>'}
-                                </div>
-                            </div>
-                            <div class="form-group" style="max-width: 10rem;">
+                        <form onsubmit="handleValidateMer(event)" class="end-actions">
+                            <div class="form-group" style="margin: 0; max-width: 9rem;">
                                 <label>* Trigramme</label>
                                 <input id="merOperator" type="text" required maxlength="3" placeholder=""
-                                       style="font-weight: 700; text-transform: uppercase;"
+                                       style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;"
                                        oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')"
                                        ${locked ? 'disabled' : ''}>
                             </div>
-                            <button type="submit" class="btn-primary" ${locked ? 'disabled' : ''}>Valider la MER</button>
-                          </div>
+                            <button type="submit" class="btn-primary" style="align-self: flex-end;" ${locked ? 'disabled' : ''}>Valider la MER</button>
                         </form>
                     </div>
                 `;
             }
 
             box.innerHTML = html;
+        }
+
+        // ---- Relevés de mise en route (S/N, versions…) -----------------------
+        // Saisis et enregistrés indépendamment du temps et de la validation.
+        function merFieldsCardHtml(el, locked) {
+            const fields = el.merFields || [];
+            if (!fields.length) return '';
+            const filled = fields.filter(f => (f.value || '').trim()).length;
+            return `
+                <div class="end-card${filled === fields.length ? ' end-card-done' : ''}">
+                    <div class="end-card-head">
+                        <h4>Relevés de mise en route</h4>
+                        <span class="end-status${filled === fields.length ? ' end-status-done' : ''}">${filled} / ${fields.length} renseignés</span>
+                    </div>
+                    <div class="form-grid">
+                        ${fields.map((f, i) => `
+                            <div class="form-group" style="margin: 0;">
+                                <label>${escapeHtml(f.label)}</label>
+                                <input id="merField-${i}" type="text" value="${escapeHtml(f.value || '')}" placeholder=""
+                                       style="font-family: ui-monospace, monospace;" ${locked ? 'disabled' : ''}>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ${locked ? '' : `<div class="end-actions">
+                        <button type="button" class="btn-blue" onclick="saveMerFields()">Enregistrer les relevés</button>
+                    </div>`}
+                </div>
+            `;
+        }
+
+        // Recopie les champs de l'écran dans le dossier ; renvoie true si
+        // quelque chose a changé. Chaque champ modifié est horodaté, pour que
+        // la synchronisation retienne la saisie la plus récente.
+        function collectMerFields(el) {
+            let changed = false;
+            (el.merFields || []).forEach((f, i) => {
+                const inp = document.getElementById(`merField-${i}`);
+                if (!inp) return;
+                const v = inp.value.trim();
+                if (v !== (f.value || '')) { f.value = v; f.at = Date.now(); changed = true; }
+            });
+            return changed;
+        }
+
+        function saveMerFields() {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            if (collectMerFields(el)) touchMer(el);
+            else renderMerPane();
         }
 
         // Ce qui reste à faire sur le dossier, affiché au-dessus du formulaire
@@ -4268,10 +4301,7 @@
                 return;
             }
 
-            (el.merFields || []).forEach((f, i) => {
-                const inp = document.getElementById(`merField-${i}`);
-                if (inp) f.value = inp.value.trim();
-            });
+            collectMerFields(el);
 
             el.merValidation = { operator, date: formatDateTime(), at: Date.now(), durationMin };
             el.updatedAt = Date.now();
