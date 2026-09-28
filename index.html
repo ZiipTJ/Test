@@ -114,6 +114,52 @@
         .btn-mini-amber { background-color: #fef3c7; color: #92400e; border-color: #fde68a; }
         .btn-mini-amber:hover { background-color: #fde68a; }
 
+        /* ---- Chronos (Commencer / Fin) ---- */
+        .chrono-chip {
+            display: inline-flex; align-items: center; gap: 0.45rem; white-space: nowrap;
+            background: #ecfeff; border: 1px solid #a5f3fc; color: #0e7490;
+            border-radius: 9999px; padding: 0.15rem 0.3rem 0.15rem 0.6rem;
+            font-size: 0.72rem; font-weight: 700; margin: 0.3rem 0.35rem 0 0;
+        }
+        .chrono-chip .chrono-dot {
+            width: 0.45rem; height: 0.45rem; border-radius: 50%; background: #06b6d4;
+            animation: chronoPulse 1.4s ease-in-out infinite;
+        }
+        @keyframes chronoPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+        .chrono-live { font-family: ui-monospace, monospace; font-weight: 800; }
+        .btn-chrono-start { background: var(--emerald); color: #fff; border-color: var(--emerald); }
+        .btn-chrono-start:hover { background: var(--emerald-d); }
+        .btn-chrono-stop {
+            background: #0e7490; color: #fff; border: none; border-radius: 9999px;
+            font-size: 0.68rem; font-weight: 800; padding: 0.15rem 0.55rem; white-space: nowrap;
+        }
+        .btn-chrono-stop:hover { background: #155e75; }
+
+        /* ---- Phases d'endurance ---- */
+        .end-card {
+            border: 1px solid var(--slate-200); border-radius: var(--radius); background: #fff;
+            padding: 1rem 1.1rem; margin-bottom: 1.1rem; box-shadow: var(--shadow-sm);
+        }
+        .end-card-done { border-color: #bbf7d0; background: #f6fef9; }
+        .end-card-head {
+            display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+            flex-wrap: wrap; margin-bottom: 0.75rem;
+        }
+        .end-card-head h4 { font-size: 0.875rem; font-weight: 800; color: var(--slate-900); }
+        .end-status {
+            font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;
+            padding: 0.2rem 0.55rem; border-radius: 9999px; background: var(--slate-100); color: var(--slate-500);
+        }
+        .end-status-run { background: #cffafe; color: #0e7490; }
+        .end-status-done { background: #dcfce7; color: var(--emerald-d); text-transform: none; letter-spacing: 0; }
+        /* Les boutons ne collent plus au contenu au-dessus. */
+        .end-actions {
+            display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;
+            margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--slate-100);
+        }
+        .end-actions button { font-size: 0.8rem; }
+        .end-actions button[disabled] { opacity: 0.45; cursor: not-allowed; }
+
         /* ---- Check-lists ---- */
         /* L'en-tête générique est une rangée ; ici il empile titre et barre. */
         #checklistModal .modal-header { flex-direction: column; align-items: stretch; }
@@ -1056,7 +1102,7 @@
                                         <th style="text-align: center; width: 8rem;">Trigrammes</th>
                                         <th class="normal-wrap">Remarques</th>
                                         <th style="width: 8rem; text-align: center;">Check-list</th>
-                                        <th style="width: 8.5rem; text-align: center;">Pointages</th>
+                                        <th style="width: 10rem; text-align: center;">Pointages</th>
                                     </tr>
                                 </thead>
                                 <tbody id="subAssyTableBody"></tbody>
@@ -1250,6 +1296,29 @@
                 <div class="modal-footer">
                     <button type="button" onclick="closeModal('subAssyModal')" class="btn-gray">Annuler</button>
                     <button type="submit" class="btn-blue">Valider</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="trigramModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 id="trigramModalTitle">--</h3>
+            </div>
+            <form onsubmit="confirmTrigramModal(event)">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div id="trigramModalText" style="font-size: 0.8125rem; color: #475569; line-height: 1.45;"></div>
+                    <div class="form-group" style="max-width: 10rem;">
+                        <label>* Trigramme</label>
+                        <input id="trigramModalInput" type="text" maxlength="3" autocomplete="off"
+                               style="font-weight: 800; font-size: 1rem; letter-spacing: 0.18em; text-transform: uppercase; text-align: center;"
+                               oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" onclick="closeModal('trigramModal')" class="btn-gray">Annuler</button>
+                    <button type="submit" id="trigramModalOk" class="btn-primary">OK</button>
                 </div>
             </form>
         </div>
@@ -1767,6 +1836,86 @@
             se.note = list.map(e => (e.note || '').trim()).filter(Boolean).join(' | ');
         }
 
+        // ---- Chronos ---------------------------------------------------------
+        // Un pointage peut se faire au chrono : « Commencer » crée un pointage
+        // en cours (heure de début, trigramme), « Fin » le clôt et calcule la
+        // durée. L'opérateur n'a plus à compter ses heures. Un pointage en cours
+        // a une durée nulle tant qu'il n'est pas terminé.
+        const CHRONO_WARN_HOURS = 10;
+
+        function startChrono(list, operator) {
+            const now = Date.now();
+            const entry = {
+                eid: newEntryId(), at: now, start: now, date: formatDateTime(new Date(now)),
+                durationMin: 0, operator, note: '', running: true
+            };
+            list.push(entry);
+            return entry;
+        }
+
+        function stopChrono(entry) {
+            const now = Date.now();
+            entry.end = now;
+            entry.durationMin = Math.max(1, Math.round((now - (entry.start || entry.at || now)) / 60000));
+            entry.running = false;
+            entry.editedAt = now;
+            return entry;
+        }
+
+        function runningEntries(list) {
+            return (list || []).filter(e => e && e.running && !e.deleted);
+        }
+
+        function formatElapsed(ms) {
+            const t = Math.max(0, Math.floor(ms / 1000));
+            const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+            return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+
+        // Pastille d'un chrono en cours, avec son bouton « Fin ».
+        function chronoChipHtml(entry, stopCall, locked) {
+            const start = entry.start || entry.at || Date.now();
+            return `
+                <span class="chrono-chip" title="Commencé le ${escapeHtml(entry.date || '')}">
+                    <span class="chrono-dot"></span>
+                    ${escapeHtml(entry.operator || '--')}
+                    <span class="chrono-live" data-start="${start}">${formatElapsed(Date.now() - start)}</span>
+                    ${locked ? '' : `<button type="button" class="btn-chrono-stop" onclick="${stopCall}">■ Fin</button>`}
+                </span>
+            `;
+        }
+
+        // Les compteurs en cours avancent à l'écran sans tout redessiner.
+        setInterval(() => {
+            document.querySelectorAll('.chrono-live[data-start]').forEach(node => {
+                node.textContent = formatElapsed(Date.now() - Number(node.dataset.start));
+            });
+        }, 1000);
+
+        // Fenêtre générique qui demande un trigramme avant une action.
+        let trigramCallback = null;
+
+        function askTrigram(opts, callback) {
+            trigramCallback = callback;
+            document.getElementById('trigramModalTitle').textContent = opts.title || '';
+            document.getElementById('trigramModalText').innerHTML = opts.text || '';
+            document.getElementById('trigramModalOk').textContent = opts.confirm || 'OK';
+            const input = document.getElementById('trigramModalInput');
+            input.value = opts.preset || '';
+            document.getElementById('trigramModal').classList.remove('hidden');
+            setTimeout(() => input.focus(), 50);
+        }
+
+        function confirmTrigramModal(e) {
+            e.preventDefault();
+            const v = document.getElementById('trigramModalInput').value.trim().toUpperCase();
+            if (v.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
+            const cb = trigramCallback;
+            trigramCallback = null;
+            closeModal('trigramModal');
+            if (cb) cb(v);
+        }
+
         function newEntryId() {
             return 'PT' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
         }
@@ -1961,7 +2110,7 @@
         // change la façon de fusionner les données. Un poste resté sur une
         // version plus ancienne que celle qui a écrit le fichier passe en
         // lecture seule au lieu d'écraser des données qu'il ne sait pas lire.
-        const DATA_FORMAT = 2;
+        const DATA_FORMAT = 3;
         let formatWarned = false;
 
         function diskTooRecent(disk) {
@@ -2293,9 +2442,25 @@
             const a = A || {}, b = B || {};
             const out = {};
             ENDURANCE_PHASES.forEach(ph => {
-                const x = a[ph.key], y = b[ph.key];
-                if (x && y) out[ph.key] = (y.at || 0) >= (x.at || 0) ? y : x;
-                else if (x || y) out[ph.key] = x || y;
+                const ra = a[ph.key], rb = b[ph.key];
+                if (!ra && !rb) return;
+                const x = normalizedPhase(ra, ph.key), y = normalizedPhase(rb, ph.key);
+                // Pointages : réunis, la version la plus récemment modifiée de
+                // chacun l'emporte (fin de chrono, correction, suppression).
+                const byId = new Map();
+                [x.entries, y.entries].forEach(list => (list || []).forEach(e => {
+                    if (!e || !e.eid) return;
+                    const prev = byId.get(e.eid);
+                    if (!prev || entryStamp(e) >= entryStamp(prev)) byId.set(e.eid, e);
+                }));
+                // État terminé / rouvert : le plus récent l'emporte.
+                const st = (y.stateAt || 0) > (x.stateAt || 0) ? y
+                         : (x.stateAt || 0) > (y.stateAt || 0) ? x
+                         : (y.done ? y : x);
+                out[ph.key] = {
+                    entries: Array.from(byId.values()).sort((p, q) => (p.at || 0) - (q.at || 0)),
+                    done: !!st.done, doneBy: st.doneBy || '', doneDate: st.doneDate || '', stateAt: st.stateAt || 0
+                };
             });
             return out;
         }
@@ -3328,21 +3493,27 @@
                     const last = entries[entries.length - 1];
                     const open = expandedSubs.has(se.id);
 
+                    const running = runningEntries(entries);
                     const tr = document.createElement('tr');
                     if (se.done) tr.className = 'scanned-row';
                     tr.innerHTML = `
                         <td style="text-align: center;">
                             <input type="checkbox" ${se.done ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="toggleSubassembly(${idx})" style="width: 1.1rem; height: 1.1rem; cursor: ${locked ? 'not-allowed' : 'pointer'};">
                         </td>
-                        <td class="normal-wrap" style="font-weight: 500;">${escapeHtml(se.name)}</td>
+                        <td class="normal-wrap" style="font-weight: 500;">
+                            ${escapeHtml(se.name)}
+                            ${running.length ? `<div>${running.map(e =>
+                                chronoChipHtml(e, `stopSubChrono(${idx}, '${escapeHtml(e.eid)}')`, locked)).join('')}</div>` : ''}
+                        </td>
                         <td style="font-weight: 700; font-size: 0.8125rem; color: #0f172a;">${total > 0 ? formatMinutes(total) : '--'}</td>
                         <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(last ? (last.date || '--') : '--')}</td>
                         <td style="text-align: center; font-weight: 700; font-size: 0.8125rem;">${ops.length ? escapeHtml(ops.join(' / ')) : '--'}</td>
                         <td class="normal-wrap" style="font-size: 0.75rem; color: #475569;">${escapeHtml(se.note || '')}</td>
                         <td style="text-align: center;">${checkCellHtml(se, idx)}</td>
                         <td style="text-align: center; white-space: nowrap;">
+                            ${locked ? '' : `<button type="button" class="btn-mini btn-chrono-start" title="Commencer : l'heure de début est prise automatiquement" onclick="startSubChrono(${idx})">▶</button>`}
                             <button type="button" class="btn-mini" title="Détail des pointages" onclick="toggleSubDetail('${escapeHtml(se.id)}')">${entries.length} ${open ? '&#9662;' : '&#9656;'}</button>
-                            ${locked ? '' : `<button type="button" class="btn-mini btn-mini-blue" title="Ajouter un pointage" onclick="addSubEntry(${idx})">+</button>`}
+                            ${locked ? '' : `<button type="button" class="btn-mini btn-mini-blue" title="Saisir un pointage à la main" onclick="addSubEntry(${idx})">+</button>`}
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -3368,12 +3539,14 @@
                 <tr>
                     <td style="font-family: ui-monospace, monospace; font-size: 0.7rem; color: #64748b; padding: 0.3rem 0.5rem;">${escapeHtml(e.date || '')}</td>
                     <td style="font-weight: 700; font-size: 0.75rem; padding: 0.3rem 0.5rem; width: 5rem;">${escapeHtml(e.operator || '--')}</td>
-                    <td style="font-weight: 700; font-size: 0.75rem; color: #0f172a; padding: 0.3rem 0.5rem; width: 6rem;">${formatMinutes(e.durationMin || 0)}</td>
+                    <td style="font-weight: 700; font-size: 0.75rem; color: #0f172a; padding: 0.3rem 0.5rem; width: 6rem;">${e.running
+                        ? `<span style="color: #0e7490;">en cours</span>`
+                        : (e.end ? '<span title="Chronométré" style="color:#0e7490;">⏱</span> ' : '') + formatMinutes(e.durationMin || 0)}</td>
                     <td class="normal-wrap" style="font-size: 0.72rem; color: #475569; padding: 0.3rem 0.5rem;">${escapeHtml(e.note || '')}</td>
                     <td style="text-align: right; padding: 0.3rem 0.5rem; width: 5.5rem; white-space: nowrap;">
-                        ${e.editedAt ? `<span title="Corrigé le ${escapeHtml(formatDateTime(new Date(e.editedAt)))}${e.editedBy ? ' par ' + escapeHtml(e.editedBy) : ''}"
+                        ${e.editedBy ? `<span title="Corrigé le ${escapeHtml(formatDateTime(new Date(e.editedAt || Date.now())))} par ${escapeHtml(e.editedBy)}"
                                              style="font-size: 0.625rem; color: #94a3b8; margin-right: 0.3rem;">corrigé</span>` : ''}
-                        ${locked ? '' : `<button type="button" class="btn-mini" title="Corriger ce pointage" onclick="editSubEntry(${idx}, '${escapeHtml(e.eid || '')}')">✎</button>
+                        ${locked ? '' : `${e.running ? '' : `<button type="button" class="btn-mini" title="Corriger ce pointage" onclick="editSubEntry(${idx}, '${escapeHtml(e.eid || '')}')">✎</button>`}
                                          <button type="button" class="btn-mini btn-mini-red" title="Supprimer ce pointage" onclick="deleteSubEntry(${idx}, '${escapeHtml(e.eid || '')}')">&times;</button>`}
                     </td>
                 </tr>
@@ -3700,6 +3873,7 @@
             const already = subEntries(se).length;
             subAssyMode = mode;
             activeSubIndex = index;
+            pointageTarget = null;
             editingEntryId = (mode === 'edit' && entry) ? entry.eid : null;
 
             const titles = { add: 'Ajouter un pointage', edit: 'Corriger un pointage', validate: 'Valider un sous-ensemble' };
@@ -3717,6 +3891,55 @@
             document.getElementById('subAssyOperator').value = (mode === 'edit' && entry) ? (entry.operator || '') : '';
             document.getElementById('subAssyNote').value = (mode === 'edit' && entry) ? (entry.note || '') : '';
             document.getElementById('subAssyModal').classList.remove('hidden');
+        }
+
+        function startSubChrono(index) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const se = el.subassemblies[index];
+            if (!se) return;
+            askTrigram({
+                title: 'Commencer — ' + se.name,
+                text: "L'heure de début est enregistrée maintenant. Cliquez sur <strong>■ Fin</strong> "
+                    + "quand vous arrêtez : la durée sera calculée automatiquement.",
+                confirm: '▶ Commencer'
+            }, operator => {
+                const cur = getActiveElement();
+                if (!cur || cur.closed) return;
+                const target = cur.subassemblies[index];
+                startChrono(ensureEntries(target), operator);
+                syncSubLegacy(target);
+                target.at = Date.now();
+                cur.updatedAt = Date.now();
+                renderSubassemblies();
+                renderSidebarList();
+                scheduleSave();
+            });
+        }
+
+        function stopSubChrono(index, eid) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const se = el.subassemblies[index];
+            const entry = se && ensureEntries(se).find(e => e.eid === eid && e.running && !e.deleted);
+            if (!entry) return;
+            stopChrono(entry);
+            syncSubLegacy(se);
+            se.at = Date.now();
+            el.updatedAt = Date.now();
+            updateCompletion(el);
+            renderSubassemblies();
+            renderSidebarList();
+            scheduleSave();
+
+            // Chrono oublié : on propose de corriger la durée tout de suite.
+            if (entry.durationMin > CHRONO_WARN_HOURS * 60
+                && confirm(`Ce chrono a tourné ${formatMinutes(entry.durationMin)}.\n\nL'avez-vous oublié ? Corriger la durée maintenant ?`)) {
+                editSubEntry(index, eid);
+                return;
+            }
+            // Comme après un pointage saisi à la main : la check-list s'ouvre.
+            if ((se.checks || []).length) openChecklist('sub', index, entry.operator);
         }
 
         function editSubEntry(index, eid) {
@@ -3747,6 +3970,22 @@
                 return;
             }
 
+            // Des chronos tournent encore : on les arrête avant de valider,
+            // sinon leur temps serait perdu.
+            const running = runningEntries(rawEntries(se));
+            if (running.length) {
+                const qui = running.map(e => e.operator).join(', ');
+                if (!confirm(`Un chrono est en cours sur ce sous-ensemble (${qui}).\n\nL'arrêter maintenant et valider ?`)) {
+                    renderSubassemblies();
+                    return;
+                }
+                const list = ensureEntries(se);
+                running.forEach(r => { const e = list.find(x => x.eid === r.eid); if (e) stopChrono(e); });
+                syncSubLegacy(se);
+                se.at = Date.now();
+                el.updatedAt = Date.now();
+            }
+
             // Le trigramme est redemandé à chaque validation.
             renderSubassemblies();
             openSubAssyModal(index, 'validate');
@@ -3754,6 +3993,7 @@
 
         function handleSaveSubassembly(e) {
             e.preventDefault();
+            if (pointageTarget && pointageTarget.kind === 'end') { saveEndEntryFromModal(); return; }
             const el = getActiveElement();
             if (!el || el.closed || activeSubIndex === null) { closeModal('subAssyModal'); return; }
 
@@ -4037,23 +4277,86 @@
         }
 
         // ---- Onglet Endurance ------------------------------------------------
-        // L'endurance se déroule en deux phases : d'abord sans capot, ensuite
-        // avec. Chacune est saisie séparément (durée, trigramme, remarques),
-        // par des personnes différentes si besoin. Le dossier passe en EXPE
-        // quand les deux sont renseignées.
+        // L'endurance se déroule en deux phases : sans capot, puis avec capot.
+        // Chaque phase fonctionne comme un sous-ensemble : on y pointe autant de
+        // fois que nécessaire, au chrono (Commencer / Fin) ou à la main, par des
+        // personnes différentes, puis on la termine avec son trigramme. Le
+        // dossier passe en EXPE quand les deux phases sont terminées et la MER
+        // validée.
         //
-        // Les anciens dossiers portent une endurance unique dans
-        // enduranceValidation : elle reste lue telle quelle, sans phase.
+        // Formats hérités, toujours relus :
+        //  - une phase à l'ancien format { durationMin, operator, date, at, note }
+        //    vaut un pointage unique et une phase terminée ;
+        //  - une endurance d'avant les phases (enduranceValidation seule) reste
+        //    affichée telle quelle.
         const ENDURANCE_PHASES = [
             { key: 'sansCapot', label: 'Endurance sans capot' },
             { key: 'avecCapot', label: 'Endurance avec capot' }
         ];
 
-        function endurancePhase(el, key) {
+        function phaseRaw(el, key) {
             return (el && el.endurance && el.endurance[key]) || null;
         }
 
-        // Endurance à l'ancien format : une seule durée, aucune phase.
+        function isLegacyPhase(p) {
+            return !!p && !Array.isArray(p.entries);
+        }
+
+        // Vue normalisée d'une phase, sans modifier le dossier.
+        function normalizedPhase(p, key) {
+            if (!p) return { entries: [], done: false, doneBy: '', doneDate: '', stateAt: 0 };
+            if (!isLegacyPhase(p)) return p;
+            const min = p.durationMin || 0;
+            return {
+                entries: min > 0 ? [{ eid: key + '-legacy', at: p.at || 0, date: p.date || '',
+                                      durationMin: min, operator: p.operator || '', note: p.note || '' }] : [],
+                done: min > 0, doneBy: p.operator || '', doneDate: p.date || '', stateAt: p.at || 0
+            };
+        }
+
+        // Convertit la phase au format « pointages » avant modification.
+        function ensurePhase(el, key) {
+            if (!el.endurance) el.endurance = {};
+            const cur = el.endurance[key];
+            if (!cur || isLegacyPhase(cur)) {
+                el.endurance[key] = JSON.parse(JSON.stringify(normalizedPhase(cur, key)));
+            }
+            return el.endurance[key];
+        }
+
+        function phaseEntries(el, key) {
+            return normalizedPhase(phaseRaw(el, key), key).entries.filter(e => e && !e.deleted);
+        }
+
+        function phaseMinutes(el, key) {
+            return phaseEntries(el, key).reduce((a, e) => a + (e.durationMin || 0), 0);
+        }
+
+        function phaseDone(el, key) {
+            return !!normalizedPhase(phaseRaw(el, key), key).done;
+        }
+
+        // Résumé d'une phase pour les indicateurs et l'export : durée cumulée,
+        // personnes, date de fin. null si rien n'a encore été saisi.
+        function endurancePhase(el, key) {
+            const raw = phaseRaw(el, key);
+            if (!raw) return null;
+            const ph = normalizedPhase(raw, key);
+            const live = ph.entries.filter(e => e && !e.deleted);
+            if (!live.length && !ph.done) return null;
+            const ops = [];
+            live.forEach(e => { if (e.operator && ops.indexOf(e.operator) === -1) ops.push(e.operator); });
+            const last = live.slice().sort((a, b) => (a.at || 0) - (b.at || 0)).pop();
+            return {
+                durationMin: live.reduce((a, e) => a + (e.durationMin || 0), 0),
+                operator: ops.join(' / '),
+                date: ph.doneDate || (last ? last.date : ''),
+                note: live.map(e => (e.note || '').trim()).filter(Boolean).join(' | '),
+                done: !!ph.done, doneBy: ph.doneBy || '', entries: live
+            };
+        }
+
+        // Endurance d'avant les phases : une seule durée, aucune phase.
         function enduranceLegacy(el) {
             return (el && el.enduranceValidation && !el.endurance) ? el.enduranceValidation : null;
         }
@@ -4061,25 +4364,46 @@
         function enduranceDone(el) {
             if (!el) return false;
             if (enduranceLegacy(el)) return true;
-            return ENDURANCE_PHASES.every(ph => {
-                const p = endurancePhase(el, ph.key);
-                return p && p.durationMin > 0;
-            });
+            return ENDURANCE_PHASES.every(ph => phaseDone(el, ph.key));
         }
 
         function enduranceTotalMin(el) {
             const legacy = enduranceLegacy(el);
             if (legacy) return legacy.durationMin || 0;
-            return ENDURANCE_PHASES.reduce((a, ph) => {
-                const p = endurancePhase(el, ph.key);
-                return a + ((p && p.durationMin) || 0);
-            }, 0);
+            return ENDURANCE_PHASES.reduce((a, ph) => a + phaseMinutes(el, ph.key), 0);
         }
 
         function clearEndurance(el) {
             if (!el) return;
             el.endurance = null;
             el.enduranceValidation = null;
+        }
+
+        // enduranceValidation reste le résumé de l'endurance : total des deux
+        // phases et dernière signature de fin. Il n'existe que lorsque les deux
+        // phases sont terminées, pour que le statut et les indicateurs restent
+        // justes.
+        function syncEnduranceValidation(el) {
+            if (!el || enduranceLegacy(el)) return;
+            if (!enduranceDone(el)) { el.enduranceValidation = null; return; }
+            const phases = ENDURANCE_PHASES.map(ph => normalizedPhase(phaseRaw(el, ph.key), ph.key));
+            const last = phases.slice().sort((a, b) => (a.stateAt || 0) - (b.stateAt || 0)).pop();
+            el.enduranceValidation = {
+                durationMin: enduranceTotalMin(el),
+                operator: last.doneBy || '',
+                date: last.doneDate || '',
+                at: last.stateAt || Date.now(),
+                note: ENDURANCE_PHASES.map(ph => (endurancePhase(el, ph.key) || {}).note || '').filter(Boolean).join(' | ')
+            };
+        }
+
+        function touchEndurance(el) {
+            syncEnduranceValidation(el);
+            el.updatedAt = Date.now();
+            renderScanTables();
+            renderEndurancePane();
+            renderSidebarList();
+            scheduleSave();
         }
 
         function renderEndurancePane() {
@@ -4094,14 +4418,14 @@
             const doneAll = enduranceDone(el);
 
             let html = `
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.9rem;">
                     <h3 class="section-title">Endurance</h3>
                     ${total > 0 ? `<span style="font-size: 0.75rem; font-weight: 700; color: ${doneAll ? '#059669' : '#0891b2'};">
                         Total ${formatMinutes(total)}${doneAll ? ' ✓' : ''}</span>` : ''}
                 </div>
             `;
 
-            // Dossier à l'ancien format : une endurance unique, sans phase.
+            // Dossier d'avant les phases : une endurance unique, sans phase.
             if (legacy) {
                 html += `
                     <div class="table-wrap">
@@ -4126,7 +4450,7 @@
                     <p style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.6rem;">
                         Saisie avant la distinction des deux phases : conservée telle quelle.
                     </p>
-                    ${locked ? '' : `<button onclick="cancelEnduranceValidation()" class="btn-gray" style="margin-top: 0.75rem;">Annuler l'endurance</button>`}
+                    ${locked ? '' : `<div class="end-actions"><button onclick="cancelEnduranceValidation()" class="btn-gray">Annuler l'endurance</button></div>`}
                 `;
                 box.innerHTML = html;
                 return;
@@ -4134,16 +4458,15 @@
 
             html += ENDURANCE_PHASES.map(ph => endurancePhaseHtml(el, ph, locked)).join('');
 
-            // Ce qui manque pour passer en EXPE : les phases non saisies et,
-            // le cas échéant, la MER — sans que rien ne soit bloqué.
-            const manque = ENDURANCE_PHASES.filter(ph => !endurancePhase(el, ph.key))
-                .map(ph => escapeHtml(ph.label.toLowerCase()));
+            // Ce qui manque pour passer en EXPE, sans que rien ne soit bloqué.
+            const manque = ENDURANCE_PHASES.filter(ph => !phaseDone(el, ph.key))
+                .map(ph => escapeHtml(ph.label.toLowerCase()) + ' à terminer');
             if (!el.merValidation) manque.push('la validation MER');
             if (manque.length) {
                 html += `
                     <div class="empty-hint" style="margin-top: 0.25rem;">
                         Le dossier passera en <strong>EXPE</strong> quand les deux phases d'endurance
-                        seront renseignées et la MER validée. Il reste : ${manque.join(', ')}.
+                        seront terminées et la MER validée. Il reste : ${manque.join(', ')}.
                     </div>
                 `;
             }
@@ -4151,142 +4474,210 @@
             box.innerHTML = html;
         }
 
-        // Une phase : son relevé si elle est saisie, sinon son formulaire.
+        // Carte d'une phase : chronos en cours, actions, liste des pointages.
         function endurancePhaseHtml(el, ph, locked) {
-            const p = endurancePhase(el, ph.key);
-            const head = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
-                    <h4 style="font-size: 0.8125rem; font-weight: 800; color: #0f172a;">${escapeHtml(ph.label)}</h4>
-                    ${p ? `<span style="font-size: 0.75rem; font-weight: 700; color: #059669;">${formatMinutes(p.durationMin)} ✓</span>` : ''}
-                </div>
-            `;
+            const st = normalizedPhase(phaseRaw(el, ph.key), ph.key);
+            const entries = st.entries.filter(e => e && !e.deleted).slice().sort((a, b) => (a.at || 0) - (b.at || 0));
+            const running = runningEntries(entries);
+            const minutes = entries.reduce((a, e) => a + (e.durationMin || 0), 0);
+            const k = ph.key;
 
-            if (p) {
-                return `
-                    <div style="margin-bottom: 1.25rem;">
-                        ${head}
-                        <div class="table-wrap">
-                            <table>
-                                <tbody>
-                                    <tr>
-                                        <td style="font-weight: 700; width: 14rem;">Durée</td>
-                                        <td style="font-weight: 700; color: #0f172a;">${formatMinutes(p.durationMin)}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight: 700;">Enregistrée par</td>
-                                        <td style="font-weight: 700; color: #059669;">${escapeHtml(p.operator || '')}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="font-weight: 700;">Le</td>
-                                        <td style="font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(p.date || '')}</td>
-                                    </tr>
-                                    ${p.note ? `<tr><td style="font-weight: 700;">Remarques</td><td style="color: #475569;">${escapeHtml(p.note)}</td></tr>` : ''}
-                                </tbody>
-                            </table>
-                        </div>
-                        ${locked ? '' : `<button onclick="cancelEndurancePhase('${ph.key}')" class="btn-gray" style="margin-top: 0.6rem; font-size: 0.75rem;">Annuler cette phase</button>`}
-                    </div>
-                `;
+            const status = st.done
+                ? `<span class="end-status end-status-done">✓ Terminée — ${escapeHtml(st.doneBy || '')}${st.doneDate ? ', ' + escapeHtml(st.doneDate) : ''}</span>`
+                : (running.length ? `<span class="end-status end-status-run">En cours</span>`
+                                  : `<span class="end-status">À faire</span>`);
+
+            const rows = entries.map(e => `
+                <tr>
+                    <td style="font-family: ui-monospace, monospace; font-size: 0.72rem; color: #64748b;">${escapeHtml(e.date || '')}</td>
+                    <td style="font-weight: 700; font-size: 0.78rem; width: 5rem;">${escapeHtml(e.operator || '--')}</td>
+                    <td style="font-weight: 700; font-size: 0.78rem; width: 7rem;">${e.running
+                        ? `<span style="color: #0e7490;">en cours</span>`
+                        : (e.end ? '<span title="Chronométré" style="color:#0e7490;">⏱</span> ' : '') + formatMinutes(e.durationMin || 0)}</td>
+                    <td class="normal-wrap" style="font-size: 0.74rem; color: #475569;">${escapeHtml(e.note || '')}</td>
+                    <td style="text-align: right; white-space: nowrap; width: 6rem;">
+                        ${e.editedBy ? `<span style="font-size: 0.625rem; color: #94a3b8; margin-right: 0.3rem;">corrigé</span>` : ''}
+                        ${locked || st.done ? '' : `${e.running ? '' : `<button type="button" class="btn-mini" title="Corriger ce pointage" onclick="editEndEntry('${k}', '${escapeHtml(e.eid)}')">✎</button>`}
+                            <button type="button" class="btn-mini btn-mini-red" title="Supprimer ce pointage" onclick="deleteEndEntry('${k}', '${escapeHtml(e.eid)}')">&times;</button>`}
+                    </td>
+                </tr>
+            `).join('');
+
+            let actions = '';
+            if (!locked) {
+                actions = st.done
+                    ? `<button type="button" class="btn-gray" onclick="reopenEndPhase('${k}')">Rouvrir la phase</button>`
+                    : `<button type="button" class="btn-primary" onclick="startEndChrono('${k}')">▶ Commencer</button>
+                       <button type="button" class="btn-gray" onclick="openEndEntryModal('${k}', 'add')">+ Saisie manuelle</button>
+                       <button type="button" class="btn-blue" onclick="finishEndPhase('${k}')" ${minutes > 0 || running.length ? '' : 'disabled title="Pointez du temps avant de terminer la phase"'}>✓ Terminer la phase</button>`;
             }
 
             return `
-                <div style="margin-bottom: 1.25rem;">
-                    ${head}
-                    <div class="table-wrap" style="padding: 1.1rem;">
-                        <form onsubmit="handleValidateEndurance(event, '${ph.key}')">
-                            <div style="display: flex; gap: 1.5rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 0.9rem;">
-                                <div class="form-group" style="margin-bottom: 0;">
-                                    <label>Durée</label>
-                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                        <input id="endHours-${ph.key}" type="number" min="0" max="9999" style="text-align: center; max-width: 5.5rem;" ${locked ? 'disabled' : ''}>
-                                        <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">h</span>
-                                        <input id="endMinutes-${ph.key}" type="number" min="0" max="59" style="text-align: center; max-width: 5.5rem;" ${locked ? 'disabled' : ''}>
-                                        <span style="font-size: 0.8125rem; font-weight: 700; color: #64748b;">min</span>
-                                    </div>
-                                </div>
-                                <div class="form-group" style="margin-bottom: 0; max-width: 9rem;">
-                                    <label>Trigramme</label>
-                                    <input id="endOperator-${ph.key}" type="text" required maxlength="3"
-                                           style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;"
-                                           oninput="this.value = this.value.toUpperCase().replace(/[^A-Z]/g, '')" ${locked ? 'disabled' : ''}>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Remarques (facultatif)</label>
-                                <textarea id="endNote-${ph.key}" rows="2" ${locked ? 'disabled' : ''}></textarea>
-                            </div>
-                            <button type="submit" class="btn-primary" ${locked ? 'disabled' : ''}>Enregistrer cette phase</button>
-                        </form>
+                <div class="end-card${st.done ? ' end-card-done' : ''}">
+                    <div class="end-card-head">
+                        <h4>${escapeHtml(ph.label)}</h4>
+                        <div style="display: flex; align-items: center; gap: 0.6rem;">
+                            ${minutes > 0 ? `<span style="font-size: 0.78rem; font-weight: 800; color: #0f172a;">${formatMinutes(minutes)}</span>` : ''}
+                            ${status}
+                        </div>
                     </div>
+                    ${running.length ? `<div style="margin-bottom: 0.6rem;">${running.map(e =>
+                        chronoChipHtml(e, `stopEndChrono('${k}', '${escapeHtml(e.eid)}')`, locked)).join('')}</div>` : ''}
+                    ${entries.length ? `
+                        <div class="table-wrap" style="margin-bottom: 0.2rem;">
+                            <table style="margin-top: 0;"><tbody>${rows}</tbody></table>
+                        </div>` : `<div style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Aucun pointage pour l'instant.</div>`}
+                    ${actions ? `<div class="end-actions">${actions}</div>` : ''}
                 </div>
             `;
         }
 
-        function handleValidateEndurance(e, phaseKey) {
-            e.preventDefault();
+        function endPhaseLabel(key) {
+            return (ENDURANCE_PHASES.find(x => x.key === key) || {}).label || key;
+        }
+
+        function startEndChrono(key) {
+            const el = getActiveElement();
+            if (!el || el.closed || phaseDone(el, key)) return;
+            askTrigram({
+                title: 'Commencer — ' + endPhaseLabel(key),
+                text: "L'heure de début est enregistrée maintenant. Cliquez sur <strong>■ Fin</strong> "
+                    + "quand le robot s'arrête : la durée sera calculée automatiquement.",
+                confirm: '▶ Commencer'
+            }, operator => {
+                const cur = getActiveElement();
+                if (!cur || cur.closed) return;
+                const phase = ensurePhase(cur, key);
+                startChrono(phase.entries, operator);
+                touchEndurance(cur);
+            });
+        }
+
+        function stopEndChrono(key, eid) {
             const el = getActiveElement();
             if (!el || el.closed) return;
-            const ph = ENDURANCE_PHASES.find(x => x.key === phaseKey);
-            if (!ph) return;
-
-            const operator = document.getElementById(`endOperator-${phaseKey}`).value.trim().toUpperCase();
-            if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); return; }
-
-            const h = parseInt(document.getElementById(`endHours-${phaseKey}`).value, 10) || 0;
-            const m = parseInt(document.getElementById(`endMinutes-${phaseKey}`).value, 10) || 0;
-            const durationMin = h * 60 + m;
-            if (durationMin <= 0) { alert(`Veuillez renseigner la durée de la phase « ${ph.label} ».`); return; }
-
-            if (!el.endurance) el.endurance = {};
-            el.endurance[phaseKey] = {
-                durationMin, operator,
-                note: document.getElementById(`endNote-${phaseKey}`).value.trim(),
-                date: formatDateTime(),
-                at: Date.now()
-            };
-            // Marqueur global conservé : total des phases, dernière saisie.
-            syncEnduranceValidation(el);
-
-            el.updatedAt = Date.now();
-            renderScanTables();
-            renderEndurancePane();
-            renderSidebarList();
-            scheduleSave();
+            const phase = ensurePhase(el, key);
+            const entry = phase.entries.find(e => e.eid === eid && e.running && !e.deleted);
+            if (!entry) return;
+            stopChrono(entry);
+            touchEndurance(el);
+            if (entry.durationMin > 48 * 60
+                && confirm(`Ce chrono a tourné ${formatMinutes(entry.durationMin)}.\\n\\nL'avez-vous oublié ? Corriger la durée maintenant ?`)) {
+                editEndEntry(key, eid);
+            }
         }
 
-        // enduranceValidation reste le résumé de l'endurance : total des deux
-        // phases et dernière signature. Il n'existe que lorsque les deux phases
-        // sont faites, pour que le statut EXPE et les indicateurs restent justes.
-        function syncEnduranceValidation(el) {
-            if (!enduranceDone(el)) { el.enduranceValidation = null; return; }
-            const phases = ENDURANCE_PHASES.map(ph => endurancePhase(el, ph.key));
-            const last = phases.slice().sort((a, b) => (a.at || 0) - (b.at || 0)).pop();
-            el.enduranceValidation = {
-                durationMin: enduranceTotalMin(el),
-                operator: last.operator || '',
-                date: last.date || '',
-                at: last.at || Date.now(),
-                note: phases.map(p => (p.note || '').trim()).filter(Boolean).join(' | ')
-            };
-        }
-
-        function cancelEndurancePhase(phaseKey) {
+        function deleteEndEntry(key, eid) {
             const el = getActiveElement();
-            if (!el || el.closed || !endurancePhase(el, phaseKey)) return;
-            const ph = ENDURANCE_PHASES.find(x => x.key === phaseKey);
-            if (!confirm(`Annuler la phase « ${ph.label} » ?\n\n`
-                + `Sa durée, son trigramme et sa date seront effacés`
-                + (enduranceDone(el) ? `, et le dossier repassera au statut ENDURANCE` : '') + `.`)) return;
-            delete el.endurance[phaseKey];
-            syncEnduranceValidation(el);
-            el.updatedAt = Date.now();
-            renderScanTables();
-            renderEndurancePane();
-            renderSidebarList();
-            scheduleSave();
+            if (!el || el.closed) return;
+            const phase = ensurePhase(el, key);
+            const entry = phase.entries.find(e => e.eid === eid && !e.deleted);
+            if (!entry) return;
+            if (!confirm(`Supprimer ce pointage ?\\n\\n${entry.operator || '--'} — ${entry.running ? 'en cours' : formatMinutes(entry.durationMin || 0)} — ${entry.date || ''}`)) return;
+            entry.deleted = true;
+            entry.editedAt = Date.now();
+            touchEndurance(el);
         }
 
-        // Annulation d'une endurance à l'ancien format (sans phases).
+        // Fin de phase : les chronos encore en cours sont arrêtés, puis la phase
+        // est signée. Elle reste réouvrable.
+        function finishEndPhase(key) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const running = runningEntries(phaseEntries(el, key));
+            askTrigram({
+                title: 'Terminer — ' + endPhaseLabel(key),
+                text: (running.length
+                        ? `<strong>${running.length} chrono${running.length > 1 ? 's' : ''} en cours</strong> ${running.length > 1 ? 'seront arrêtés' : 'sera arrêté'} maintenant. `
+                        : '')
+                    + 'La phase sera marquée terminée à votre nom.',
+                confirm: '✓ Terminer la phase'
+            }, operator => {
+                const cur = getActiveElement();
+                if (!cur || cur.closed) return;
+                const phase = ensurePhase(cur, key);
+                runningEntries(phase.entries).forEach(stopChrono);
+                if (phase.entries.filter(e => !e.deleted).reduce((a, e) => a + (e.durationMin || 0), 0) <= 0) {
+                    alert("Aucun temps n'a été pointé sur cette phase.");
+                    return;
+                }
+                phase.done = true;
+                phase.doneBy = operator;
+                phase.doneDate = formatDateTime();
+                phase.stateAt = Date.now();
+                touchEndurance(cur);
+            });
+        }
+
+        function reopenEndPhase(key) {
+            const el = getActiveElement();
+            if (!el || el.closed || !phaseDone(el, key)) return;
+            if (!confirm(`Rouvrir la phase « ${endPhaseLabel(key)} » ?\\n\\nSes pointages sont conservés`
+                + (enduranceDone(el) && el.merValidation ? ', et le dossier repassera au statut ENDURANCE.' : '.'))) return;
+            const phase = ensurePhase(el, key);
+            phase.done = false;
+            phase.doneBy = '';
+            phase.doneDate = '';
+            phase.stateAt = Date.now();
+            touchEndurance(el);
+        }
+
+        // Saisie manuelle et correction : même fenêtre que pour les
+        // sous-ensembles, adressée à une phase d'endurance.
+        let pointageTarget = null;          // { kind: 'end', phase, eid } quand la fenêtre sert à l'endurance
+
+        function openEndEntryModal(key, mode, entry) {
+            pointageTarget = { kind: 'end', phase: key, eid: entry ? entry.eid : null, mode };
+            activeSubIndex = null;
+            subAssyMode = mode;
+            document.getElementById('subAssyModalTitle').textContent =
+                mode === 'edit' ? 'Corriger un pointage' : 'Saisir un pointage';
+            document.getElementById('subAssyModalName').textContent = endPhaseLabel(key);
+            document.getElementById('subAssyModalDate').textContent =
+                (mode === 'edit' && entry) ? (entry.date || '--') : formatDateTime();
+            document.getElementById('subAssyTimeLabel').textContent = '* Durée';
+            const min = (mode === 'edit' && entry) ? (entry.durationMin || 0) : 0;
+            document.getElementById('subAssyHours').value = mode === 'edit' ? String(Math.floor(min / 60)) : '';
+            document.getElementById('subAssyMinutes').value = mode === 'edit' ? String(min % 60) : '';
+            document.getElementById('subAssyOperator').value = (mode === 'edit' && entry) ? (entry.operator || '') : '';
+            document.getElementById('subAssyNote').value = (mode === 'edit' && entry) ? (entry.note || '') : '';
+            document.getElementById('subAssyModal').classList.remove('hidden');
+        }
+
+        function editEndEntry(key, eid) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const entry = phaseEntries(el, key).find(e => e.eid === eid);
+            if (entry && !entry.running) openEndEntryModal(key, 'edit', entry);
+        }
+
+        function saveEndEntryFromModal() {
+            const el = getActiveElement();
+            const t = pointageTarget;
+            pointageTarget = null;
+            if (!el || el.closed || !t) { closeModal('subAssyModal'); return; }
+
+            const operator = document.getElementById('subAssyOperator').value.trim().toUpperCase();
+            if (operator.length !== 3) { alert("Le trigramme doit comporter 3 lettres."); pointageTarget = t; return; }
+            const h = parseInt(document.getElementById('subAssyHours').value, 10) || 0;
+            const m = parseInt(document.getElementById('subAssyMinutes').value, 10) || 0;
+            const duration = h * 60 + m;
+            if (duration <= 0) { alert("Veuillez renseigner la durée."); pointageTarget = t; return; }
+            const note = document.getElementById('subAssyNote').value.trim();
+
+            const phase = ensurePhase(el, t.phase);
+            if (t.mode === 'edit') {
+                const entry = phase.entries.find(e => e.eid === t.eid && !e.deleted);
+                if (entry) Object.assign(entry, { durationMin: duration, operator, note, editedAt: Date.now(), editedBy: operator });
+            } else {
+                phase.entries.push({ eid: newEntryId(), at: Date.now(), date: formatDateTime(),
+                                     durationMin: duration, operator, note });
+            }
+            closeModal('subAssyModal');
+            touchEndurance(el);
+        }
+
+        // Annulation d'une endurance d'avant les phases.
         function cancelEnduranceValidation() {
             const el = getActiveElement();
             if (!el || el.closed || !el.enduranceValidation) return;
@@ -4596,7 +4987,7 @@
                             <div class="kpi-card">
                                 <div class="kpi-label">Total endurance</div>
                                 <div class="kpi-value">${formatMinutes(total)}</div>
-                                <div class="kpi-sub">${enduranceDone(el) ? 'Les deux phases sont faites' : 'Une phase reste à saisir'}</div>
+                                <div class="kpi-sub">${enduranceDone(el) ? 'Les deux phases sont terminées' : 'Une phase reste à terminer'}</div>
                             </div>
                         </div>
                         <div class="table-wrap">
