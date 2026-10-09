@@ -925,7 +925,7 @@
                 <div class="form-card">
                     <div class="form-header">
                         <div>
-                            <h2 style="font-size: 1.25rem; font-weight: 700;">Préparation Envoi avec S/N</h2>
+                            <h2 id="envoiFormTitle" style="font-size: 1.25rem; font-weight: 700;">Préparation Envoi avec S/N</h2>
                             <p style="font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;">Ajoutez les pièces composant l'envoi logistique ou rechange hors-forfait.</p>
                         </div>
                         <span class="active-badge" style="background-color: #8b5cf6;">Envoi</span>
@@ -954,6 +954,23 @@
                     <form onsubmit="handleCreateEnvoi(event)" style="display: flex; flex-direction: column; gap: 1.5rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem;">
                         <div class="form-grid">
                             <div class="form-group">
+                                <label>Type de robot</label>
+                                <select id="formEnvoiRobotType">
+                                    <option value="">—</option>
+                                    <option value="D">D</option>
+                                    <option value="F">F</option>
+                                    <option value="B">B</option>
+                                    <option value="FL">FL</option>
+                                    <option value="P">P</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>N° de robot</label>
+                                <input id="formEnvoiRobotNum" type="text" maxlength="12" placeholder="">
+                            </div>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
                                 <label>* Nom du client</label>
                                 <input id="formEnvoiClient" type="text" required placeholder="">
                             </div>
@@ -971,7 +988,8 @@
                         </div>
 
                         <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-                            <button type="submit" class="btn-primary" style="padding: 0.625rem 2rem;">OK / Valider l'Envoi</button>
+                            <button type="button" id="envoiCancelEditBtn" class="btn-gray hidden" onclick="cancelEnvoiEdit()">Annuler la modification</button>
+                            <button type="submit" id="envoiSubmitBtn" class="btn-primary" style="padding: 0.625rem 2rem;">OK / Valider l'Envoi</button>
                         </div>
                     </form>
                 </div>
@@ -995,11 +1013,13 @@
                                 <tr>
                                     <th>Client</th>
                                     <th>Projet</th>
+                                    <th>Robot</th>
                                     <th>Référence</th>
                                     <th class="normal-wrap">Désignation</th>
                                     <th>Numéro de Série S/N</th>
                                     <th style="width: 10rem;">Date Scan</th>
                                     <th style="text-align: center; width: 6rem;">Opérateur</th>
+                                    <th style="text-align: center; width: 6rem;"></th>
                                 </tr>
                             </thead>
                             <tbody id="envoisConsultationTableBody">
@@ -2203,7 +2223,7 @@
         // change la façon de fusionner les données. Un poste resté sur une
         // version plus ancienne que celle qui a écrit le fichier passe en
         // lecture seule au lieu d'écraser des données qu'il ne sait pas lire.
-        const DATA_FORMAT = 5;
+        const DATA_FORMAT = 6;
         let formatWarned = false;
 
         function diskTooRecent(disk) {
@@ -2591,6 +2611,12 @@
         // Fusion d'un dossier : l'enveloppe (client, statut, clôture…) suit le
         // plus récent, mais les listes sont fusionnées ligne à ligne.
         function mergeElement(a, b) {
+            // Un envoi se saisit et se corrige d'un bloc, par une seule personne :
+            // sa version la plus récente l'emporte en entier. Fusionner ses
+            // lignes ferait revenir une pièce retirée lors d'une modification.
+            if (a.objectType === 'envoi' || b.objectType === 'envoi') {
+                return (b.updatedAt || 0) >= (a.updatedAt || 0) ? b : a;
+            }
             const base  = (b.updatedAt || 0) >= (a.updatedAt || 0) ? b : a;
             const other = base === b ? a : b;
             const out = Object.assign({}, other, base);
@@ -2963,22 +2989,33 @@
             document.getElementById('formStationQty').value = '1';
         }
 
+        // Envoi en cours de modification (null = nouvel envoi).
+        let editingEnvoiId = null;
+
         function resetEnvoiForm() {
+            editingEnvoiId = null;
             document.getElementById('envoiRowsContainer').innerHTML = '';
             document.getElementById('formEnvoiClient').value = '';
             document.getElementById('formEnvoiProjectNum').value = '';
             document.getElementById('formEnvoiOperator').value = '';
+            document.getElementById('formEnvoiRobotType').value = '';
+            document.getElementById('formEnvoiRobotNum').value = '';
+            document.getElementById('envoiFormTitle').textContent = 'Préparation Envoi avec S/N';
+            document.getElementById('envoiSubmitBtn').textContent = "OK / Valider l'Envoi";
+            document.getElementById('envoiCancelEditBtn').classList.add('hidden');
             addEnvoiRow();
         }
 
-        function addEnvoiRow() {
+        function addEnvoiRow(piece) {
             const container = document.getElementById('envoiRowsContainer');
             const tr = document.createElement('tr');
             tr.className = "envoi-row";
+            if (piece && piece.lid) tr.dataset.lid = piece.lid;
+            const v = k => escapeHtml((piece && piece[k]) || '');
             tr.innerHTML = `
-                <td><input type="text" placeholder="" class="row-ref" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
-                <td><input type="text" placeholder="" class="row-desig" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
-                <td><input type="text" placeholder="" class="row-sn" required style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td><input type="text" placeholder="" class="row-ref" required value="${v('ref')}" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td><input type="text" placeholder="" class="row-desig" required value="${v('designation')}" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
+                <td><input type="text" placeholder="" class="row-sn" required value="${v('serialNum')}" style="padding: 0.4rem 0.5rem; font-size: 0.75rem;"></td>
                 <td style="text-align: center;"><button type="button" onclick="this.parentElement.parentElement.remove()" class="btn-red" style="padding: 0.25rem 0.5rem; font-size: 0.6875rem;">&times;</button></td>
             `;
             container.appendChild(tr);
@@ -6015,11 +6052,42 @@
             if (qty > 1) alert(`${qty} stations créées : ${stationDisplayName(code, autoNum)} à ${stationDisplayName(code, autoNum + qty - 1)}.`);
         }
 
+        // Rouvre le formulaire d'un envoi déjà validé, pour le corriger.
+        function editEnvoi(id) {
+            const env = elements.find(x => x.id === id && x.objectType === 'envoi');
+            if (!env) return;
+            activeCreationType = 'envoi';
+            setCreationType('envoi');                 // affiche et vide le formulaire
+            editingEnvoiId = id;
+            document.getElementById('envoiRowsContainer').innerHTML = '';
+            (env.bom || []).forEach(p => addEnvoiRow(p));
+            if (!(env.bom || []).length) addEnvoiRow();
+            document.getElementById('formEnvoiClient').value = env.client || '';
+            document.getElementById('formEnvoiProjectNum').value = env.projectNum || '';
+            document.getElementById('formEnvoiOperator').value = env.operator || '';
+            document.getElementById('formEnvoiRobotType').value = env.robotType || '';
+            document.getElementById('formEnvoiRobotNum').value = env.robotNum || '';
+            document.getElementById('envoiFormTitle').textContent =
+                `Modifier l'envoi PR${env.projectNum || ''} du ${env.dateValidation || ''}`;
+            document.getElementById('envoiSubmitBtn').textContent = 'Enregistrer les modifications';
+            document.getElementById('envoiCancelEditBtn').classList.remove('hidden');
+        }
+
+        function cancelEnvoiEdit() {
+            resetEnvoiForm();
+            showEnvoisConsultationView();
+        }
+
         function handleCreateEnvoi(e) {
             e.preventDefault();
             const client = document.getElementById('formEnvoiClient').value.trim();
             const projectNum = document.getElementById('formEnvoiProjectNum').value.trim();
             const operator = document.getElementById('formEnvoiOperator').value.trim().toUpperCase();
+            // Type et numéro de robot : facultatifs.
+            const robotType = document.getElementById('formEnvoiRobotType').value;
+            const robotNum = document.getElementById('formEnvoiRobotNum').value.trim();
+            const existing = editingEnvoiId
+                ? elements.find(x => x.id === editingEnvoiId && x.objectType === 'envoi') : null;
 
             const rowElements = document.querySelectorAll('.envoi-row');
             if (rowElements.length === 0) { alert("Veuillez ajouter au moins une pièce à l'envoi."); return; }
@@ -6034,17 +6102,40 @@
                 const sn = row.querySelector('.row-sn').value.trim();
 
                 if (!ref || !desig || !sn) valid = false;
-                bom.push({ lid: newLineId(), ref, designation: desig, category: "Envoi", scanned: true, serialNum: sn, scanDate: dateStr, scanOperator: operator, at: Date.now() });
+                // En modification, une ligne inchangée garde sa date et son
+                // opérateur d'origine ; une ligne nouvelle ou modifiée est datée
+                // de maintenant.
+                const old = existing && row.dataset.lid
+                    ? (existing.bom || []).find(p => p.lid === row.dataset.lid) : null;
+                const same = old && old.ref === ref && old.designation === desig && old.serialNum === sn;
+                bom.push({
+                    lid: old ? old.lid : newLineId(), ref, designation: desig, category: "Envoi", scanned: true,
+                    serialNum: sn,
+                    scanDate: same ? old.scanDate : dateStr,
+                    scanOperator: same ? old.scanOperator : operator,
+                    at: same ? (old.at || Date.now()) : Date.now()
+                });
             });
 
             if (!valid) { alert("Veuillez remplir tous les champs du tableau."); return; }
 
-            const id = 'E-' + Date.now();
             const displayName = `Envoi PR${projectNum}`;
 
-            elements.push({ id, objectType: 'envoi', displayName, client, projectNum, operator, dateValidation: dateStr, bom, createdAt: Date.now(), updatedAt: Date.now() });
-            scheduleSave();
-            alert("Envoi enregistré avec succès !");
+            if (existing) {
+                Object.assign(existing, {
+                    displayName, client, projectNum, operator, robotType, robotNum, bom,
+                    modifiedAt: dateStr, updatedAt: Date.now()
+                });
+                editingEnvoiId = null;
+                scheduleSave();
+                alert("Envoi modifié.");
+            } else {
+                const id = 'E-' + Date.now();
+                elements.push({ id, objectType: 'envoi', displayName, client, projectNum, operator, robotType, robotNum,
+                                dateValidation: dateStr, bom, createdAt: Date.now(), updatedAt: Date.now() });
+                scheduleSave();
+                alert("Envoi enregistré avec succès !");
+            }
             showEnvoisConsultationView();
         }
 
@@ -6445,9 +6536,12 @@
             let matchedRowsCount = 0;
 
             totalEnvois.forEach(env => {
+                const robot = [env.robotType, env.robotNum].filter(Boolean).join(' ');
+                let editShown = false;
                 env.bom.forEach(piece => {
                     const matches = env.client.toLowerCase().includes(searchFilter) ||
                                     env.projectNum.toLowerCase().includes(searchFilter) ||
+                                    robot.toLowerCase().includes(searchFilter) ||
                                     piece.ref.toLowerCase().includes(searchFilter) ||
                                     piece.designation.toLowerCase().includes(searchFilter) ||
                                     piece.serialNum.toLowerCase().includes(searchFilter);
@@ -6459,18 +6553,22 @@
                     tr.innerHTML = `
                         <td style="text-transform: uppercase; font-weight: 700; color: #0f172a;">${env.client}</td>
                         <td style="font-family: monospace; font-weight: 600; color: #475569;">PR${env.projectNum}</td>
+                        <td style="font-weight: 700; color: #475569;">${robot ? escapeHtml(robot) : '<span style="color:#cbd5e1;">--</span>'}</td>
                         <td style="font-family: monospace; font-weight: 700; color: #475569;">${piece.ref}</td>
                         <td style="font-weight: 600; color: #1e293b;" class="normal-wrap">${piece.designation}</td>
                         <td style="font-family: monospace; font-weight: 700; color: #0f172a;">${piece.serialNum}</td>
                         <td style="font-family: monospace;">${piece.scanDate}</td>
                         <td style="text-align: center; font-weight: 700;">${piece.scanOperator}</td>
+                        <td style="text-align: center;">${!editShown && (editShown = true)
+                            ? `<button type="button" class="btn-mini" title="Modifier cet envoi" onclick="editEnvoi('${escapeHtml(env.id)}')">✎ Modifier</button>`
+                            : ''}</td>
                     `;
                     tbody.appendChild(tr);
                 });
             });
 
             if (matchedRowsCount === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; font-style: italic; padding: 1.5rem;">Aucun envoi disponible.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #94a3b8; font-style: italic; padding: 1.5rem;">Aucun envoi disponible.</td></tr>`;
             }
         }
 
