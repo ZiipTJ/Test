@@ -134,6 +134,17 @@
             font-size: 0.68rem; font-weight: 800; padding: 0.15rem 0.55rem; white-space: nowrap;
         }
         .btn-chrono-stop:hover { background: #155e75; }
+        .btn-chrono-pause {
+            background: #fff; color: #0e7490; border: 1px solid #67e8f9; border-radius: 9999px;
+            font-size: 0.68rem; font-weight: 800; padding: 0.12rem 0.5rem; white-space: nowrap;
+        }
+        .btn-chrono-pause:hover { background: #cffafe; }
+        .chrono-chip.chrono-paused { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+        .chrono-chip.chrono-paused .chrono-dot { background: #f59e0b; animation: none; }
+        .chrono-pause-tag {
+            font-size: 0.6rem; font-weight: 800; letter-spacing: 0.05em;
+            background: #fde68a; color: #92400e; border-radius: 9999px; padding: 0.05rem 0.4rem;
+        }
 
         /* ---- Phases d'endurance ---- */
         .end-card {
@@ -1301,6 +1312,25 @@
         </div>
     </div>
 
+    <div id="copyMerModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h3>Copier les relevés d'un autre robot</h3>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="form-group" style="margin: 0;">
+                    <label>Robot source</label>
+                    <select id="copyMerSource" onchange="renderCopyMerPreview()"></select>
+                </div>
+                <div id="copyMerPreview"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeModal('copyMerModal')" class="btn-gray">Annuler</button>
+                <button type="button" id="copyMerOk" onclick="applyCopyMer()" class="btn-blue">Copier</button>
+            </div>
+        </div>
+    </div>
+
     <div id="trigramModal" class="modal hidden">
         <div class="modal-content" style="max-width: 400px;">
             <div class="modal-header">
@@ -1853,11 +1883,43 @@
             return entry;
         }
 
+        // Un chrono peut être mis en pause : le temps déjà écoulé est cumulé
+        // dans accMs, et le segment en cours démarre à « start ». En pause, seul
+        // accMs compte. Les pauses ne sont donc jamais comptées dans la durée.
+        function chronoElapsedMs(entry, now) {
+            const t = now || Date.now();
+            const acc = entry.accMs || 0;
+            if (entry.paused) return acc;
+            return acc + Math.max(0, t - (entry.start || entry.at || t));
+        }
+
+        function pauseChrono(entry) {
+            if (!entry || !entry.running || entry.paused) return entry;
+            const now = Date.now();
+            entry.accMs = chronoElapsedMs(entry, now);
+            entry.paused = true;
+            entry.pausedAt = now;
+            entry.editedAt = now;
+            return entry;
+        }
+
+        function resumeChrono(entry) {
+            if (!entry || !entry.running || !entry.paused) return entry;
+            const now = Date.now();
+            entry.start = now;
+            entry.paused = false;
+            entry.pausedAt = null;
+            entry.editedAt = now;
+            return entry;
+        }
+
         function stopChrono(entry) {
             const now = Date.now();
+            const ms = chronoElapsedMs(entry, now);
             entry.end = now;
-            entry.durationMin = Math.max(1, Math.round((now - (entry.start || entry.at || now)) / 60000));
+            entry.durationMin = Math.max(1, Math.round(ms / 60000));
             entry.running = false;
+            entry.paused = false;
             entry.editedAt = now;
             return entry;
         }
@@ -1872,17 +1934,48 @@
             return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
         }
 
-        // Pastille d'un chrono en cours, avec son bouton « Fin ».
-        function chronoChipHtml(entry, stopCall, locked) {
-            const start = entry.start || entry.at || Date.now();
+        // Pastille d'un chrono en cours : compteur, pause / reprise, fin.
+        // pauseCall reçoit l'appel à compléter, ex. "toggleChronoPause('sub', 2, 'PT…')".
+        function chronoChipHtml(entry, stopCall, locked, pauseCall) {
+            const elapsed = chronoElapsedMs(entry);
+            // En marche, le compteur avance tout seul à partir d'un départ
+            // « virtuel » qui tient compte du temps déjà cumulé.
+            const live = entry.paused
+                ? `<span class="chrono-live">${formatElapsed(elapsed)}</span>`
+                : `<span class="chrono-live" data-start="${Date.now() - elapsed}">${formatElapsed(elapsed)}</span>`;
             return `
-                <span class="chrono-chip" title="Commencé le ${escapeHtml(entry.date || '')}">
+                <span class="chrono-chip${entry.paused ? ' chrono-paused' : ''}" title="Commencé le ${escapeHtml(entry.date || '')}${entry.paused ? ' — en pause' : ''}">
                     <span class="chrono-dot"></span>
                     ${escapeHtml(entry.operator || '--')}
-                    <span class="chrono-live" data-start="${start}">${formatElapsed(Date.now() - start)}</span>
+                    ${live}
+                    ${entry.paused ? '<span class="chrono-pause-tag">PAUSE</span>' : ''}
+                    ${locked || !pauseCall ? '' : `<button type="button" class="btn-chrono-pause" onclick="${pauseCall}"
+                        title="${entry.paused ? 'Reprendre' : 'Mettre en pause'}">${entry.paused ? '▶ Reprendre' : '❚❚ Pause'}</button>`}
                     ${locked ? '' : `<button type="button" class="btn-chrono-stop" onclick="${stopCall}">■ Fin</button>`}
                 </span>
             `;
+        }
+
+        // Pause / reprise d'un chrono, où qu'il soit : sous-ensemble (key =
+        // index), phase d'endurance (key = clé de phase) ou mise en route.
+        function toggleChronoPause(kind, key, eid) {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            let list = null;
+            if (kind === 'sub') list = el.subassemblies[key] ? ensureEntries(el.subassemblies[key]) : null;
+            else if (kind === 'end') list = ensurePhase(el, key).entries;
+            else if (kind === 'mer') list = merHolder(el).entries;
+            const entry = (list || []).find(e => e.eid === eid && e.running && !e.deleted);
+            if (!entry) return;
+            if (entry.paused) resumeChrono(entry); else pauseChrono(entry);
+            if (kind === 'sub') {
+                el.subassemblies[key].at = Date.now();
+                el.updatedAt = Date.now();
+                renderSubassemblies();
+                renderSidebarList();
+                scheduleSave();
+            } else if (kind === 'end') touchEndurance(el);
+            else touchMer(el);
         }
 
         // Les compteurs en cours avancent à l'écran sans tout redessiner.
@@ -2110,7 +2203,7 @@
         // change la façon de fusionner les données. Un poste resté sur une
         // version plus ancienne que celle qui a écrit le fichier passe en
         // lecture seule au lieu d'écraser des données qu'il ne sait pas lire.
-        const DATA_FORMAT = 4;
+        const DATA_FORMAT = 5;
         let formatWarned = false;
 
         function diskTooRecent(disk) {
@@ -3208,9 +3301,11 @@
             }
 
             renderScanTables();
-            // Sans sous-ensembles configurés, on ouvre directement la nomenclature.
+            // On reste sur l'onglet en cours en passant d'un dossier à l'autre.
+            // Seule exception : l'onglet Sous-ensembles d'un dossier qui n'en a
+            // pas, où l'on bascule sur la nomenclature.
             const hasSubs = Array.isArray(el.subassemblies) && el.subassemblies.length > 0;
-            setPane(hasSubs ? 'sub' : 'bom');
+            setPane((activePane === 'sub' && !hasSubs) ? 'bom' : activePane);
             renderSidebarList();
         }
 
@@ -3523,7 +3618,7 @@
                         <td class="normal-wrap" style="font-weight: 500;">
                             ${escapeHtml(se.name)}
                             ${running.length ? `<div>${running.map(e =>
-                                chronoChipHtml(e, `stopSubChrono(${idx}, '${escapeHtml(e.eid)}')`, locked)).join('')}</div>` : ''}
+                                chronoChipHtml(e, `stopSubChrono(${idx}, '${escapeHtml(e.eid)}')`, locked, `toggleChronoPause('sub', ${idx}, '${escapeHtml(e.eid)}')`)).join('')}</div>` : ''}
                         </td>
                         <td style="font-weight: 700; font-size: 0.8125rem; color: #0f172a;">${total > 0 ? formatMinutes(total) : '--'}</td>
                         <td style="font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b;">${escapeHtml(last ? (last.date || '--') : '--')}</td>
@@ -3639,8 +3734,9 @@
 
             document.getElementById('checklistTitle').textContent =
                 kind === 'final' ? 'Contrôle final' : ((el.subassemblies[index] || {}).name || 'Check-list');
-            const opInput = document.getElementById('checklistOperator');
-            if (presetOperator) opInput.value = presetOperator;
+            // Le trigramme n'est jamais pré-rempli : la personne qui contrôle
+            // n'est pas forcément celle qui a pointé ou validé.
+            document.getElementById('checklistOperator').value = '';
             renderChecklistModal();
             document.getElementById('checklistModal').classList.remove('hidden');
         }
@@ -3959,7 +4055,7 @@
                 return;
             }
             // Comme après un pointage saisi à la main : la check-list s'ouvre.
-            if ((se.checks || []).length) openChecklist('sub', index, entry.operator);
+            if ((se.checks || []).length) openChecklist('sub', index);
         }
 
         function editSubEntry(index, eid) {
@@ -4080,7 +4176,7 @@
 
             // Après chaque pointage, la check-list du sous-ensemble s'ouvre :
             // c'est le moment où le monteur a la pièce sous les yeux.
-            if (openChecksAfter) openChecklist('sub', subIdx, operator);
+            if (openChecksAfter) openChecklist('sub', subIdx);
         }
 
         // ---- Onglet MER ------------------------------------------------------
@@ -4180,6 +4276,7 @@
                     </div>
                     ${locked ? '' : `<div class="end-actions">
                         <button type="button" class="btn-blue" onclick="saveMerFields()">Enregistrer les relevés</button>
+                        <button type="button" class="btn-gray" onclick="openCopyMer()">⧉ Copier depuis un autre robot</button>
                     </div>`}
                 </div>
             `;
@@ -4197,6 +4294,107 @@
                 if (v !== (f.value || '')) { f.value = v; f.at = Date.now(); changed = true; }
             });
             return changed;
+        }
+
+        // ---- Copie des relevés depuis un autre robot ----------------------------
+        // Les versions (FlexiSoft, NanoScan, TIM'S…) sont souvent identiques d'un
+        // robot à l'autre : on les reprend d'un dossier déjà renseigné. Les
+        // numéros de série, propres à chaque robot, ne sont jamais copiés.
+        function isSerialField(f) {
+            const t = ((f && (f.label || f.id)) || '').toLowerCase();
+            return /(^|[^a-z])(s\/n|sn|n°\s*de\s*s[ée]rie|num[ée]ro\s*de\s*s[ée]rie|serial)([^a-z]|$)/i.test(t);
+        }
+
+        function fieldKey(f) { return (f.id || '') + '|' + (f.label || '').trim().toLowerCase(); }
+
+        // Relevé source correspondant à un champ : même identifiant, sinon même libellé.
+        function matchSourceField(src, f) {
+            const list = src.merFields || [];
+            return list.find(x => x.id && x.id === f.id)
+                || list.find(x => (x.label || '').trim().toLowerCase() === (f.label || '').trim().toLowerCase());
+        }
+
+        function copyMerCandidates(el) {
+            return elements
+                .filter(o => o && o.id !== el.id && o.objectType === el.objectType
+                          && (o.merFields || []).some(f => (f.value || '').trim() && !isSerialField(f)))
+                .sort((a, b) => {
+                    const sa = a.type === el.type ? 0 : 1, sb = b.type === el.type ? 0 : 1;
+                    if (sa !== sb) return sa - sb;
+                    return (b.updatedAt || 0) - (a.updatedAt || 0);
+                });
+        }
+
+        function openCopyMer() {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const list = copyMerCandidates(el);
+            if (!list.length) { alert("Aucun autre robot n'a encore de relevés de mise en route renseignés."); return; }
+            const sel = document.getElementById('copyMerSource');
+            sel.innerHTML = list.map(o => {
+                const n = (o.merFields || []).filter(f => (f.value || '').trim() && !isSerialField(f)).length;
+                return `<option value="${escapeHtml(o.id)}">${escapeHtml(o.displayName || o.num || o.id)}`
+                     + `${o.type !== el.type ? ' (' + escapeHtml(o.type || '') + ')' : ''}`
+                     + ` — ${escapeHtml(o.client || '')} — ${n} relevé${n > 1 ? 's' : ''}</option>`;
+            }).join('');
+            renderCopyMerPreview();
+            document.getElementById('copyMerModal').classList.remove('hidden');
+        }
+
+        // Ce qui sera copié, champ par champ, avant de confirmer.
+        function copyMerPlan() {
+            const el = getActiveElement();
+            const src = elements.find(o => o.id === document.getElementById('copyMerSource').value);
+            if (!el || !src) return [];
+            collectMerFields(el);                 // ce qui est tapé à l'écran compte
+            return (el.merFields || []).map(f => {
+                const s = matchSourceField(src, f);
+                const v = s ? (s.value || '').trim() : '';
+                let action;
+                if (isSerialField(f)) action = 'serial';
+                else if (!v) action = 'none';
+                else if (v === (f.value || '')) action = 'same';
+                else action = (f.value || '').trim() ? 'replace' : 'fill';
+                return { field: f, value: v, action };
+            });
+        }
+
+        function renderCopyMerPreview() {
+            const plan = copyMerPlan();
+            const label = {
+                fill: '<span style="color:#059669; font-weight:700;">copié</span>',
+                replace: '<span style="color:#b45309; font-weight:700;">remplace</span>',
+                same: '<span style="color:#94a3b8;">identique</span>',
+                none: '<span style="color:#94a3b8;">vide sur la source</span>',
+                serial: '<span style="color:#94a3b8;">S/N — non copié</span>'
+            };
+            const rows = plan.map(p => `
+                <tr>
+                    <td style="font-weight: 600;">${escapeHtml(p.field.label)}</td>
+                    <td style="font-family: ui-monospace, monospace; color: #94a3b8; text-decoration: ${p.action === 'replace' ? 'line-through' : 'none'};">${escapeHtml(p.field.value || '')}</td>
+                    <td style="font-family: ui-monospace, monospace; font-weight: 700;">${p.action === 'serial' ? '' : escapeHtml(p.value)}</td>
+                    <td>${label[p.action]}</td>
+                </tr>`).join('');
+            const n = plan.filter(p => p.action === 'fill' || p.action === 'replace').length;
+            document.getElementById('copyMerPreview').innerHTML = `
+                <div class="table-wrap"><table style="margin-top: 0;">
+                    <thead><tr><th>Relevé</th><th>Actuel</th><th>Copié</th><th></th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table></div>`;
+            const ok = document.getElementById('copyMerOk');
+            ok.disabled = n === 0;
+            ok.textContent = n ? `Copier ${n} relevé${n > 1 ? 's' : ''}` : 'Rien à copier';
+        }
+
+        function applyCopyMer() {
+            const el = getActiveElement();
+            if (!el || el.closed) return;
+            const plan = copyMerPlan().filter(p => p.action === 'fill' || p.action === 'replace');
+            if (!plan.length) return;
+            const now = Date.now();
+            plan.forEach(p => { p.field.value = p.value; p.field.at = now; });
+            closeModal('copyMerModal');
+            touchMer(el);
         }
 
         function saveMerFields() {
@@ -4366,7 +4564,7 @@
                         </div>
                     </div>
                     ${running.length ? `<div style="margin-bottom: 0.6rem;">${running.map(e =>
-                        chronoChipHtml(e, `stopMerChrono('${escapeHtml(e.eid)}')`, locked)).join('')}</div>` : ''}
+                        chronoChipHtml(e, `stopMerChrono('${escapeHtml(e.eid)}')`, locked, `toggleChronoPause('mer', null, '${escapeHtml(e.eid)}')`)).join('')}</div>` : ''}
                     ${entries.length ? `
                         <div class="table-wrap" style="margin-bottom: 0.2rem;">
                             <table style="margin-top: 0;"><tbody>${rows}</tbody></table>
@@ -4669,7 +4867,9 @@
 
             const status = st.done
                 ? `<span class="end-status end-status-done">✓ Terminée — ${escapeHtml(st.doneBy || '')}${st.doneDate ? ', ' + escapeHtml(st.doneDate) : ''}</span>`
-                : (running.length ? `<span class="end-status end-status-run">En cours</span>`
+                : (running.length ? (running.every(e => e.paused)
+                        ? `<span class="end-status" style="background:#fef3c7; color:#92400e;">En pause</span>`
+                        : `<span class="end-status end-status-run">En cours</span>`)
                                   : `<span class="end-status">À faire</span>`);
 
             const rows = entries.map(e => `
@@ -4707,7 +4907,7 @@
                         </div>
                     </div>
                     ${running.length ? `<div style="margin-bottom: 0.6rem;">${running.map(e =>
-                        chronoChipHtml(e, `stopEndChrono('${k}', '${escapeHtml(e.eid)}')`, locked)).join('')}</div>` : ''}
+                        chronoChipHtml(e, `stopEndChrono('${k}', '${escapeHtml(e.eid)}')`, locked, `toggleChronoPause('end', '${k}', '${escapeHtml(e.eid)}')`)).join('')}</div>` : ''}
                     ${entries.length ? `
                         <div class="table-wrap" style="margin-bottom: 0.2rem;">
                             <table style="margin-top: 0;"><tbody>${rows}</tbody></table>
